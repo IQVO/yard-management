@@ -1,0 +1,2457 @@
+openapi: 3.0.3
+info:
+  title: Yard Management API
+  version: 1.0.0
+  contact:
+    name: yard-management maintainers
+    url: https://github.com/IQVO/yard-management
+  license:
+    name: UNLICENSED
+  description: 'The WMS-tier owner of everything physically on site outside the four walls (ADR 0001, ADR 0002): visits through the gate (YardVisit),
+    the trailers on site and where each is (Trailer), the moves hostlers and visiting drivers make (YardMove), yard checks (YardCheck) and the
+    per-site yard rules (YardPolicy). It is the source of dwell, door occupancy and yard truck productivity facts.
+
+
+    A trailer on site is at exactly one place: one yard spot, one door, or one open move. A spot or a door holds at most one trailer. Moves are
+    pulled by hostlers (claim-next with a lease), never pushed. Appointments, door closures, locations and ASN contents come from event-fed local
+    copies (ADR 0003); this API never calls a sibling context. Events are published as CloudEvents on `warehouse.yard-management.events` and `.analytics`
+    through a transactional outbox (see `apis/asyncapi.yaml`).
+
+
+    Sites are addressed by siteCode and doors and spots by their facility-layout locationCode (globally unique). Errors are RFC 7807 problem documents
+    with `type = https://errors.yard-management.warehouse-systems.dev/<slug>`, the slug being the kebab-case of the domain error name (`ErrLocationOccupied`
+    is `location-occupied`). There is no authentication layer (fleet decision 2026-09-11).'
+servers:
+- url: http://localhost:8080
+  description: Local development
+- url: http://localhost:8000/api/yard-management
+  description: Local kind cluster through Kong
+tags:
+- name: Visits
+  description: Gate check-in, rejection and check-out.
+- name: Trailers
+  description: Trailers on site, door work, holds and seals.
+- name: Moves
+  description: 'Yard moves: request, claim-next, complete, cancel.'
+- name: Yard checks
+  description: Yard audits.
+- name: Yard board
+  description: The live spot and door map.
+- name: Yard policy
+  description: Per-site yard rules.
+- name: Sweeps
+  description: Scheduler-driven sweeps (CronJobs).
+- name: Reports
+  description: Read-only analytics reports served by yard-reports.
+- name: Health
+  description: Liveness and readiness probes.
+paths:
+  /healthz:
+    get:
+      operationId: getHealthz
+      summary: Liveness probe
+      description: Answers 200 while the process runs.
+      tags:
+      - Health
+      responses:
+        '200':
+          description: Alive.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+              example:
+                status: ok
+  /readyz:
+    get:
+      operationId: getReadyz
+      summary: Readiness probe
+      description: 200 `ready` only when the process is not draining and Postgres and Kafka answer; otherwise 503 `dependency-unavailable`.
+      tags:
+      - Health
+      responses:
+        '200':
+          description: Ready.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+              example:
+                status: ready
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /visits:
+    post:
+      operationId: checkInVisit
+      summary: Check a visit in at the gate (CheckInVisit)
+      description: 'Records a tractor and driver passing the gate and the trailers they bring. DirectOnCheckIn creates, per trailer, a move created
+        already CLAIMED by the VISITING_DRIVER (no lease): to the appointment door when it is free, open and flow-compatible, otherwise to the
+        first free spot of the site''s parking zones, and a walk-in or an arrival earlier than the appointment tolerance goes to a holding spot
+        (TO_HOLDING). SealCheckAtGate compares each recorded seal with the appointment''s expected seal; a mismatch raises SealExceptionRaised
+        and, under the REJECT policy, records a REJECTED visit instead (reason SEAL_MISMATCH). A refused check-in persists nothing: 409 `appointment-required`,
+        `visit-already-open`, `trailer-already-on-site`, `door-closed`, `door-flow-mismatch`, `no-free-spot`; 422 `invalid-carrier`, `unknown-appointment`
+        (also when the visit names an appointment but does not carry exactly one trailer), `validation`. The gate clerk may then record the refusal
+        with `POST /visit-rejections`.'
+      tags:
+      - Visits
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckInVisitRequest'
+            example:
+              siteId: WH1
+              carrier: Acme Freight
+              carrierScac: ACME
+              tractorPlate: ABC1D23
+              driverRef: drv-77
+              purpose: LIVE_UNLOAD
+              appointmentId: appt-0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d
+              trailers:
+              - unitNumber: TR-1042
+                kind: DRY_VAN
+                loadState: LOADED
+                sealNumber: SL-778
+      responses:
+        '201':
+          description: The visit is checked in (or REJECTED under the REJECT seal policy).
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+            Location:
+              description: Path of the created resource.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckIn'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    get:
+      operationId: listVisits
+      summary: List visits
+      description: 'Lists visits newest first, one keyset page at a time (`limit` 1-500, default 100; `cursor` is the opaque `nextCursor` of the
+        previous page). Filters: `siteId`, `state`, `tractorPlate`.'
+      tags:
+      - Visits
+      parameters:
+      - name: siteId
+        in: query
+        required: false
+        description: Only visits of this site.
+        schema:
+          type: string
+      - name: state
+        in: query
+        required: false
+        description: CHECKED_IN, CHECKED_OUT or REJECTED.
+        schema:
+          type: string
+          enum:
+          - CHECKED_IN
+          - CHECKED_OUT
+          - REJECTED
+      - name: tractorPlate
+        in: query
+        required: false
+        description: Only visits of this plate.
+        schema:
+          type: string
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: A page of visits.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisitPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /visits/{visitId}:
+    get:
+      operationId: getVisit
+      summary: Get a visit
+      description: Returns the visit with an `ETag` of its version.
+      tags:
+      - Visits
+      parameters:
+      - name: visitId
+        in: path
+        required: true
+        description: The visit id.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      responses:
+        '200':
+          description: The visit.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Visit'
+              example:
+                visitId: visit-5b1f0c3e-7a24-4d1e-9c55-0e7d3f2a9b10
+                siteId: WH1
+                carrier: Acme Freight
+                carrierScac: ACME
+                tractorPlate: ABC1D23
+                driverRef: drv-77
+                purpose: LIVE_UNLOAD
+                appointmentId: appt-0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d
+                state: CHECKED_IN
+                rejectionReason: null
+                trailersIn:
+                - trl-8f7e6d5c-4b3a-4291-8071-6f5e4d3c2b1a
+                trailersOut: []
+                arrivedAt: '2026-11-05T14:02:11Z'
+                departedAt: null
+                version: 1
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /visits/{visitId}/check-outs:
+    post:
+      operationId: checkOutVisit
+      summary: Check a visit out (CheckOutVisit)
+      description: 'The visit leaves the site with `trailersOut`. Every trailer taken out must be on site and released: no open move and either
+        PARKED or DOCKED with door work DONE (`trailer-not-released` 409), and every LOADED trailer of a LIVE_LOAD or PICKUP visit must carry
+        a seal (`seal-required` 409). Each trailer departs (TrailerDeparted, and TrailerUndocked when it leaves a door); a trailer the visit brought
+        and does not take stays PARKED (a drop). Only a CHECKED_IN visit checks out (409 `illegal-transition`).'
+      tags:
+      - Visits
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - name: visitId
+        in: path
+        required: true
+        description: The visit id.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckOutRequest'
+      responses:
+        '200':
+          description: The visit is checked out.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Visit'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /visit-rejections:
+    post:
+      operationId: rejectAtGate
+      summary: Turn a visit away at the gate (RejectAtGate)
+      description: Records a REJECTED visit and raises VisitRejected (consumed by dock-scheduling and exception-management). Nothing is persisted
+        for the trailers.
+      tags:
+      - Visits
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RejectVisitRequest'
+      responses:
+        '201':
+          description: The rejected visit.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+            Location:
+              description: Path of the created resource.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Visit'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /trailers:
+    get:
+      operationId: listTrailers
+      summary: List trailers
+      description: 'Lists trailers by arrival, one keyset page at a time. Filters: `siteId`, `state` (default: not DEPARTED), `kind`, `locationCode`,
+        `unitNumber`.'
+      tags:
+      - Trailers
+      parameters:
+      - name: siteId
+        in: query
+        required: false
+        description: Only trailers of this site.
+        schema:
+          type: string
+      - name: state
+        in: query
+        required: false
+        description: PARKED, IN_MOVE, DOCKED or DEPARTED.
+        schema:
+          type: string
+          enum:
+          - PARKED
+          - IN_MOVE
+          - DOCKED
+          - DEPARTED
+      - name: kind
+        in: query
+        required: false
+        description: Trailer kind.
+        schema:
+          type: string
+          enum:
+          - DRY_VAN
+          - REEFER
+          - FLATBED
+          - CONTAINER
+      - name: locationCode
+        in: query
+        required: false
+        description: Where it is now.
+        schema:
+          type: string
+      - name: unitNumber
+        in: query
+        required: false
+        description: Unit number.
+        schema:
+          type: string
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: A page of trailers.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrailerPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /trailers/{trailerId}:
+    get:
+      operationId: getTrailer
+      summary: Get a trailer
+      description: Returns the trailer with an `ETag` of its version.
+      tags:
+      - Trailers
+      parameters:
+      - name: trailerId
+        in: path
+        required: true
+        description: The trailer id.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      responses:
+        '200':
+          description: The trailer.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trailer'
+              example:
+                trailerId: trl-8f7e6d5c-4b3a-4291-8071-6f5e4d3c2b1a
+                siteId: WH1
+                unitNumber: TR-1042
+                carrierScac: ACME
+                kind: DRY_VAN
+                loadState: LOADED
+                state: PARKED
+                location:
+                  kind: SPOT
+                  code: WH1-YARD-P014
+                doorWork: null
+                seal:
+                  number: SL-778
+                  state: INTACT
+                hold: null
+                asnNumbers:
+                - ASN-1001
+                outboundRef: null
+                visitId: visit-5b1f0c3e-7a24-4d1e-9c55-0e7d3f2a9b10
+                appointmentId: appt-0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d
+                arrivedAt: '2026-11-05T14:02:11Z'
+                departedAt: null
+                openMoveId: null
+                version: 1
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /trailers/{trailerId}/door-work-starts:
+    post:
+      operationId: startDoorWork
+      summary: Start door work (StartDoorWork)
+      description: 'Unloading or loading begins on a DOCKED trailer: WAITING to IN_PROGRESS. Refused while the trailer is held (409 `trailer-on-hold`).'
+      tags:
+      - Trailers
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - name: trailerId
+        in: path
+        required: true
+        description: The trailer id.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      responses:
+        '200':
+          description: The trailer.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trailer'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /trailers/{trailerId}/door-work-completions:
+    post:
+      operationId: completeDoorWork
+      summary: Complete door work (CompleteDoorWork)
+      description: 'Door work ends: IN_PROGRESS to DONE, recording the resulting `loadState` (a completed unload is EMPTY). ClearDoorAfterWork
+        then queues a FROM_DOOR move for a DROP trailer; a live trailer stays until its visit checks out.'
+      tags:
+      - Trailers
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - name: trailerId
+        in: path
+        required: true
+        description: The trailer id.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DoorWorkCompletionRequest'
+      responses:
+        '200':
+          description: The trailer.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trailer'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /trailers/{trailerId}/holds:
+    post:
+      operationId: placeHold
+      summary: Place a hold (PlaceHold)
+      description: Puts the trailer on hold; a held trailer cannot be docked and its door work cannot start. A DOCKED trailer may be held.
+      tags:
+      - Trailers
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - name: trailerId
+        in: path
+        required: true
+        description: The trailer id.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HoldRequest'
+      responses:
+        '200':
+          description: The trailer.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trailer'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /trailers/{trailerId}/hold-releases:
+    post:
+      operationId: releaseHold
+      summary: Release the hold (ReleaseHold)
+      description: Removes the hold (409 `trailer-not-on-hold` when there is none).
+      tags:
+      - Trailers
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - name: trailerId
+        in: path
+        required: true
+        description: The trailer id.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      responses:
+        '200':
+          description: The trailer.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trailer'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /trailers/{trailerId}/seals:
+    post:
+      operationId: recordSeal
+      summary: Record or break the seal (RecordSeal, BreakSeal)
+      description: '`INTACT` records the seal number; `BROKEN` marks it broken and places a SEAL_BROKEN hold.'
+      tags:
+      - Trailers
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - name: trailerId
+        in: path
+        required: true
+        description: The trailer id.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SealRequest'
+      responses:
+        '200':
+          description: The trailer.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trailer'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /moves:
+    post:
+      operationId: requestMove
+      summary: Request a move (RequestMove)
+      description: 'A supervisor asks for a HOSTLER move of a trailer to a spot or door. The destination is validated now (known active slot of
+        the site, closure, door flow, hold) and RESERVED: no two open moves share a destination (409 `destination-reserved`), the destination
+        must be free (409 `location-occupied`), and a trailer has at most one open move (409 `trailer-has-open-move`).'
+      tags:
+      - Moves
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RequestMoveRequest'
+      responses:
+        '201':
+          description: The move.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+            Location:
+              description: Path of the created resource.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Move'
+              example:
+                moveId: mv-2d3e4f50-6172-4839-8a9b-0c1d2e3f4a5b
+                siteId: WH1
+                trailerId: trl-8f7e6d5c-4b3a-4291-8071-6f5e4d3c2b1a
+                appointmentId: appt-0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d
+                performer: HOSTLER
+                from:
+                  kind: SPOT
+                  code: WH1-YARD-P014
+                to:
+                  kind: DOOR
+                  code: WH1-DOCK-D01
+                reason: TO_DOOR
+                priority:
+                  band: 1
+                  dueBy: '2026-11-05T14:30:00Z'
+                state: CLAIMED
+                hostlerRef: hostler-07
+                leaseExpiresAt: '2026-11-05T14:07:11Z'
+                actualLocation:
+                  kind: DOOR
+                  code: WH1-DOCK-D01
+                claimedAt: '2026-11-05T14:02:11Z'
+                completedAt: null
+                requestedAt: '2026-11-05T14:02:11Z'
+                version: 1
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    get:
+      operationId: listMoves
+      summary: List moves
+      description: 'Lists moves oldest first, one keyset page at a time. Filters: `siteId`, `state`, `trailerId`.'
+      tags:
+      - Moves
+      parameters:
+      - name: siteId
+        in: query
+        required: false
+        description: Only moves of this site.
+        schema:
+          type: string
+      - name: state
+        in: query
+        required: false
+        description: REQUESTED, CLAIMED, COMPLETED or CANCELLED.
+        schema:
+          type: string
+          enum:
+          - REQUESTED
+          - CLAIMED
+          - COMPLETED
+          - CANCELLED
+      - name: trailerId
+        in: query
+        required: false
+        description: Only moves of this trailer.
+        schema:
+          type: string
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: A page of moves.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MovePage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /moves/claims:
+    post:
+      operationId: claimNextMove
+      summary: Claim the next move (ClaimNextMove)
+      description: 'Pull dispatch: the system, never the caller, picks the REQUESTED HOSTLER move of the site with the lowest priority band, then
+        the earliest dueBy, then the oldest request, and leases it to the hostler for the site''s `leaseSeconds`. The trailer leaves its place
+        (StartMoving). A hostler holds at most one CLAIMED move (409 `hostler-busy`). 404 `no-claimable-move` when nothing waits.'
+      tags:
+      - Moves
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClaimMoveRequest'
+      responses:
+        '201':
+          description: The claimed move.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Move'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /moves/{moveId}/completions:
+    post:
+      operationId: completeMove
+      summary: Complete a move (CompleteMove)
+      description: 'The trailer arrives at `actualLocation` (default: the destination); a location other than the destination needs a `deviationNote`
+        (422 `unexplained-destination`). Only the lease holder completes a HOSTLER move (409 `not-lease-holder`); a gate clerk or dock operator
+        completes a VISITING_DRIVER move without `hostlerRef`. The trailer and the move change in one transaction; an occupied destination is
+        refused (409 `location-occupied`) and the move stays CLAIMED.'
+      tags:
+      - Moves
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - name: moveId
+        in: path
+        required: true
+        description: The move id.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompleteMoveRequest'
+      responses:
+        '200':
+          description: The completed move.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Move'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /moves/{moveId}/cancellations:
+    post:
+      operationId: cancelMove
+      summary: Cancel a move (CancelMove)
+      description: Cancels a REQUESTED or CLAIMED move. Cancelling a CLAIMED HOSTLER move returns the trailer to where it was (ReturnToOrigin);
+        a VISITING_DRIVER move cannot be cancelled once the trailer is at the gate (409 `illegal-transition`).
+      tags:
+      - Moves
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - name: moveId
+        in: path
+        required: true
+        description: The move id.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelMoveRequest'
+      responses:
+        '200':
+          description: The cancelled move.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Move'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /yard-checks:
+    post:
+      operationId: openYardCheck
+      summary: Open a yard check (OpenYardCheck)
+      description: At most one OPEN yard check per site (409 `yard-check-open`).
+      tags:
+      - Yard checks
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpenYardCheckRequest'
+      responses:
+        '201':
+          description: The open yard check.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+            Location:
+              description: Path of the created resource.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/YardCheck'
+              example:
+                yardCheckId: yck-3a4b5c6d-7e8f-4091-a2b3-c4d5e6f70819
+                siteId: WH1
+                state: OPEN
+                openedAt: '2026-11-05T15:00:00Z'
+                closedAt: null
+                observations: []
+                discrepancies: []
+                version: 1
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /yard-checks/{yardCheckId}/observations:
+    post:
+      operationId: recordObservation
+      summary: Record an observation (RecordObservation)
+      description: Records what was found at one location (a unit number, or empty). A location is observed at most once per check (409 `location-already-observed`).
+      tags:
+      - Yard checks
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - name: yardCheckId
+        in: path
+        required: true
+        description: The yard check id.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ObservationRequest'
+      responses:
+        '200':
+          description: The yard check.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/YardCheck'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /yard-checks/{yardCheckId}/closures:
+    post:
+      operationId: closeYardCheck
+      summary: Close a yard check (CloseYardCheck)
+      description: Reconciles the observations with the model and raises YardCheckClosed with the discrepancies. A location not observed is MISSING
+        when the model records a trailer there. Closing only reports; the supervisor corrects with moves.
+      tags:
+      - Yard checks
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - name: yardCheckId
+        in: path
+        required: true
+        description: The yard check id.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      responses:
+        '200':
+          description: The closed yard check.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/YardCheck'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /sites/{siteId}/yard-board:
+    get:
+      operationId: getYardBoard
+      summary: Get the yard board
+      description: 'The live spot and door map of one site: every active Yard and Dock slot with the trailer on it, the trailers in motion and
+        the open moves. A site with no known locations answers 404.'
+      tags:
+      - Yard board
+      parameters:
+      - name: siteId
+        in: path
+        required: true
+        description: The site code.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      x-pagination-exempt: view
+      responses:
+        '200':
+          description: The board.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/YardBoard'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /sites/{siteId}/yard-policy:
+    get:
+      operationId: getYardPolicy
+      summary: Get the yard policy
+      description: 'Answers the declared policy, or the default one (`declared` false) for a site that never declared one: appointments not required,
+        seal mismatch FLAG, lease 300 s, no detention free time.'
+      tags:
+      - Yard policy
+      parameters:
+      - name: siteId
+        in: path
+        required: true
+        description: The site code.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      x-pagination-exempt: view
+      responses:
+        '200':
+          description: The policy.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/YardPolicy'
+              example:
+                siteId: WH1
+                requireAppointment: false
+                holdingSpotCodes:
+                - WH1-YARD-H01
+                parkingZoneIds:
+                - zone-yard
+                dwellThresholdMinutes:
+                  DRY_VAN: 1440
+                  REEFER: 720
+                leaseSeconds: 300
+                sealMismatchAction: FLAG
+                freeTimeMinutes: 120
+                version: 1
+                declared: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    put:
+      operationId: declareYardPolicy
+      summary: Declare the yard policy (DeclareYardPolicy)
+      description: Replaces the policy of the site. Holding spots must be known Yard slots of the site (422 `unknown-location`); thresholds and
+        lease must be positive (422 `validation`). `If-Match` makes the replacement conditional on the policy version (412 `precondition-failed`).
+      tags:
+      - Yard policy
+      parameters:
+      - name: siteId
+        in: path
+        required: true
+        description: The site code.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeclareYardPolicyRequest'
+      responses:
+        '200':
+          description: The declared policy.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/YardPolicy'
+              example:
+                siteId: WH1
+                requireAppointment: false
+                holdingSpotCodes:
+                - WH1-YARD-H01
+                parkingZoneIds:
+                - zone-yard
+                dwellThresholdMinutes:
+                  DRY_VAN: 1440
+                  REEFER: 720
+                leaseSeconds: 300
+                sealMismatchAction: FLAG
+                freeTimeMinutes: 120
+                version: 1
+                declared: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /dwell-sweeps:
+    post:
+      operationId: sweepDwell
+      summary: Run the dwell sweep (DwellSweep)
+      description: Raises TrailerDwellExceeded once per trailer and threshold crossing (the trailer remembers the highest threshold alerted).
+        Naturally idempotent; run by a CronJob.
+      tags:
+      - Sweeps
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DwellSweepRequest'
+      responses:
+        '200':
+          description: The sweep result.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Sweep'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /move-lease-sweeps:
+    post:
+      operationId: sweepMoveLeases
+      summary: Run the lease-expiry sweep (ExpireLease)
+      description: Returns every CLAIMED HOSTLER move whose lease ran out to REQUESTED and the trailer to where it was (ReturnToOrigin). Naturally
+        idempotent; run by a CronJob.
+      tags:
+      - Sweeps
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: The sweep result.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Sweep'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /reports/yard-dwell:
+    get:
+      operationId: getYardDwellReport
+      summary: Yard dwell report
+      description: Read-only analytics over the analytical database, served by the separate `yard-reports` binary (ADR 0006), not the transactional
+        API process. `from` and `to` are required RFC 3339 instants (to after from, at most 92 days).
+      tags:
+      - Reports
+      parameters:
+      - $ref: '#/components/parameters/ReportFrom'
+      - $ref: '#/components/parameters/ReportTo'
+      - name: siteId
+        in: query
+        required: false
+        description: Only this site.
+        schema:
+          type: string
+      responses:
+        '200':
+          description: The report.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/YardDwellReport'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /reports/door-utilisation:
+    get:
+      operationId: getDoorUtilisationReport
+      summary: Door utilisation report
+      description: Read-only analytics over the analytical database, served by the separate `yard-reports` binary (ADR 0006), not the transactional
+        API process. `from` and `to` are required RFC 3339 instants (to after from, at most 92 days).
+      tags:
+      - Reports
+      parameters:
+      - $ref: '#/components/parameters/ReportFrom'
+      - $ref: '#/components/parameters/ReportTo'
+      - name: siteId
+        in: query
+        required: false
+        description: Only this site.
+        schema:
+          type: string
+      responses:
+        '200':
+          description: The report.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DoorUtilisationReport'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /reports/hostler-productivity:
+    get:
+      operationId: getHostlerProductivityReport
+      summary: Hostler productivity report
+      description: Read-only analytics over the analytical database, served by the separate `yard-reports` binary (ADR 0006), not the transactional
+        API process. `from` and `to` are required RFC 3339 instants (to after from, at most 92 days).
+      tags:
+      - Reports
+      parameters:
+      - $ref: '#/components/parameters/ReportFrom'
+      - $ref: '#/components/parameters/ReportTo'
+      - name: siteId
+        in: query
+        required: false
+        description: Only this site.
+        schema:
+          type: string
+      responses:
+        '200':
+          description: The report.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HostlerProductivityReport'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /reports/freshness:
+    get:
+      operationId: getReportsFreshness
+      summary: Report freshness
+      description: When the projector last folded an event.
+      tags:
+      - Reports
+      responses:
+        '200':
+          description: The freshness.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  lastEventAt:
+                    type: string
+                    format: date-time
+                    nullable: true
+                  asOf:
+                    type: string
+                    format: date-time
+                required:
+                - asOf
+        '500':
+          $ref: '#/components/responses/InternalError'
+components:
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: 'Caller-generated unique key (a UUID per logical submit, 1-128 printable ASCII characters) that makes a retried request safe.
+        Required on every POST and PUT (400 `idempotency-key-required`; `idempotency-key-invalid` when malformed). A replay with the same key,
+        method, path and body returns the original response with `Idempotency-Replayed: true`; the same key with a different method, path or body
+        is 409 `idempotency-key-reused`.'
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+    IfMatch:
+      name: If-Match
+      in: header
+      required: false
+      description: The ETag of the policy version the caller read.
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      required: false
+      description: Page size, 1-500, default 100.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 500
+        default: 100
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: The opaque `nextCursor` of the previous page.
+      schema:
+        type: string
+    ReportFrom:
+      name: from
+      in: query
+      required: true
+      description: Start of the report window (RFC 3339).
+      schema:
+        type: string
+        format: date-time
+    ReportTo:
+      name: to
+      in: query
+      required: true
+      description: End of the report window (RFC 3339), after `from`, at most 92 days later.
+      schema:
+        type: string
+        format: date-time
+  headers:
+    IdempotencyReplayed:
+      description: Present, with the value `true`, only when the answer is a replay of the stored answer of an earlier request with the same Idempotency-Key.
+      schema:
+        type: string
+        enum:
+        - 'true'
+    ETag:
+      description: A weak validator of the aggregate version, e.g. `W/"3"`.
+      schema:
+        type: string
+  responses:
+    BadRequest:
+      description: Malformed JSON body, an unknown field, a NUL byte, a missing or invalid Idempotency-Key, or an invalid path or query parameter.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            malformedBody:
+              value:
+                type: https://errors.yard-management.warehouse-systems.dev/malformed-request-body
+                title: Malformed request body
+                status: 400
+                detail: request body is not valid JSON for this operation
+                instance: /trailers
+            idempotencyKeyRequired:
+              value:
+                type: https://errors.yard-management.warehouse-systems.dev/idempotency-key-required
+                title: Idempotency-Key header is required
+                status: 400
+                detail: send an Idempotency-Key header
+                instance: /trailers
+    NotFound:
+      description: The addressed resource does not exist.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            trailerNotFound:
+              value:
+                type: https://errors.yard-management.warehouse-systems.dev/trailer-not-found
+                title: Trailer not found
+                status: 404
+                detail: trailer not found
+                instance: /trailers
+    Conflict:
+      description: The request conflicts with the state of the yard (an occupied place, an open move, an illegal transition) or reuses an Idempotency-Key.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            locationOccupied:
+              value:
+                type: https://errors.yard-management.warehouse-systems.dev/location-occupied
+                title: The location already holds a trailer
+                status: 409
+                detail: location is occupied
+                instance: /trailers
+            idempotencyKeyReused:
+              value:
+                type: https://errors.yard-management.warehouse-systems.dev/idempotency-key-reused
+                title: Idempotency-Key was already used with a different request
+                status: 409
+                detail: the key was used with another request
+                instance: /trailers
+    Unprocessable:
+      description: A value or reference rule failed (unknown location or appointment, invalid carrier, unexplained destination, validation).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            unknownLocation:
+              value:
+                type: https://errors.yard-management.warehouse-systems.dev/unknown-location
+                title: Unknown location
+                status: 422
+                detail: location is not an active slot of the site
+                instance: /trailers
+    PreconditionFailed:
+      description: The If-Match version is not the current version.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            stale:
+              value:
+                type: https://errors.yard-management.warehouse-systems.dev/precondition-failed
+                title: Precondition failed
+                status: 412
+                detail: the policy version changed
+                instance: /trailers
+    InternalError:
+      description: Unexpected failure; the detail never leaks internals.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            internal:
+              value:
+                type: https://errors.yard-management.warehouse-systems.dev/internal-error
+                title: Internal server error
+                status: 500
+                detail: an unexpected error occurred
+                instance: /trailers
+    ServiceUnavailable:
+      description: A runtime dependency (Postgres or Kafka) is unavailable or the process is draining.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            down:
+              value:
+                type: https://errors.yard-management.warehouse-systems.dev/dependency-unavailable
+                title: A runtime dependency is unavailable
+                status: 503
+                detail: 'postgres: connection refused'
+                instance: /trailers
+  schemas:
+    Problem:
+      type: object
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+          format: int32
+        detail:
+          type: string
+        instance:
+          type: string
+      required:
+      - type
+      - title
+      - status
+      - detail
+      - instance
+      description: RFC 7807 problem document used for every non-2xx response.
+    Status:
+      type: object
+      properties:
+        status:
+          type: string
+          description: '`ok` (healthz), `ready` or `not_ready` (readyz).'
+      required:
+      - status
+    Location:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum:
+          - SPOT
+          - DOOR
+        code:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: A facility-layout locationCode.
+      required:
+      - kind
+      - code
+    TrailerIn:
+      type: object
+      properties:
+        unitNumber:
+          type: string
+          minLength: 1
+          maxLength: 64
+        carrierScac:
+          type: string
+          pattern: ^[A-Z]{2,4}$
+          description: Defaults to the visit's carrierScac.
+        kind:
+          type: string
+          enum:
+          - DRY_VAN
+          - REEFER
+          - FLATBED
+          - CONTAINER
+        loadState:
+          type: string
+          enum:
+          - EMPTY
+          - LOADED
+          - PARTIAL
+        sealNumber:
+          type: string
+          maxLength: 64
+          description: The seal found at the gate; compared with the appointment's expected seal.
+      required:
+      - unitNumber
+      - kind
+      - loadState
+    CheckInVisitRequest:
+      type: object
+      properties:
+        siteId:
+          type: string
+          minLength: 1
+          maxLength: 64
+        carrier:
+          type: string
+          minLength: 1
+          maxLength: 100
+        carrierScac:
+          type: string
+          pattern: ^[A-Z]{2,4}$
+        tractorPlate:
+          type: string
+          minLength: 1
+          maxLength: 32
+        driverRef:
+          type: string
+          maxLength: 64
+          description: Opaque reference, never a name or licence number.
+        purpose:
+          type: string
+          enum:
+          - DROP
+          - LIVE_UNLOAD
+          - LIVE_LOAD
+          - PICKUP
+          - BOBTAIL
+        appointmentId:
+          type: string
+          maxLength: 64
+        trailers:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrailerIn'
+          description: Trailers brought in. BOBTAIL and PICKUP bring none; a visit that names an appointment brings exactly one.
+      required:
+      - siteId
+      - carrier
+      - tractorPlate
+      - purpose
+    RejectVisitRequest:
+      type: object
+      properties:
+        siteId:
+          type: string
+          minLength: 1
+          maxLength: 64
+        carrier:
+          type: string
+          minLength: 1
+          maxLength: 100
+        carrierScac:
+          type: string
+          pattern: ^[A-Z]{2,4}$
+        tractorPlate:
+          type: string
+          minLength: 1
+          maxLength: 32
+        appointmentId:
+          type: string
+          maxLength: 64
+        reason:
+          type: string
+          enum:
+          - APPOINTMENT_REQUIRED
+          - UNKNOWN_APPOINTMENT
+          - SEAL_MISMATCH
+          - TRAILER_ALREADY_ON_SITE
+          - SITE_REQUEST
+      required:
+      - siteId
+      - carrier
+      - tractorPlate
+      - reason
+    Visit:
+      type: object
+      properties:
+        visitId:
+          type: string
+        siteId:
+          type: string
+        carrier:
+          type: string
+        carrierScac:
+          type: string
+          nullable: true
+        tractorPlate:
+          type: string
+        driverRef:
+          type: string
+          nullable: true
+        purpose:
+          type: string
+          enum:
+          - DROP
+          - LIVE_UNLOAD
+          - LIVE_LOAD
+          - PICKUP
+          - BOBTAIL
+        appointmentId:
+          type: string
+          nullable: true
+        state:
+          type: string
+          enum:
+          - CHECKED_IN
+          - CHECKED_OUT
+          - REJECTED
+        rejectionReason:
+          type: string
+          enum:
+          - APPOINTMENT_REQUIRED
+          - UNKNOWN_APPOINTMENT
+          - SEAL_MISMATCH
+          - TRAILER_ALREADY_ON_SITE
+          - SITE_REQUEST
+          - null
+          nullable: true
+        trailersIn:
+          type: array
+          items:
+            type: string
+        trailersOut:
+          type: array
+          items:
+            type: string
+        arrivedAt:
+          type: string
+          format: date-time
+        departedAt:
+          type: string
+          format: date-time
+          nullable: true
+        version:
+          type: integer
+          minimum: 1
+      required:
+      - visitId
+      - siteId
+      - carrier
+      - tractorPlate
+      - purpose
+      - state
+      - trailersIn
+      - trailersOut
+      - arrivedAt
+      - version
+    Seal:
+      type: object
+      properties:
+        number:
+          type: string
+          nullable: true
+        state:
+          type: string
+          enum:
+          - NONE
+          - INTACT
+          - BROKEN
+      required:
+      - number
+      - state
+    Trailer:
+      type: object
+      properties:
+        trailerId:
+          type: string
+        siteId:
+          type: string
+        unitNumber:
+          type: string
+        carrierScac:
+          type: string
+          nullable: true
+        kind:
+          type: string
+          enum:
+          - DRY_VAN
+          - REEFER
+          - FLATBED
+          - CONTAINER
+        loadState:
+          type: string
+          enum:
+          - EMPTY
+          - LOADED
+          - PARTIAL
+        state:
+          type: string
+          enum:
+          - PARKED
+          - IN_MOVE
+          - DOCKED
+          - DEPARTED
+        location:
+          type: object
+          allOf:
+          - $ref: '#/components/schemas/Location'
+          nullable: true
+        doorWork:
+          type: string
+          enum:
+          - WAITING
+          - IN_PROGRESS
+          - DONE
+          - null
+          nullable: true
+        seal:
+          $ref: '#/components/schemas/Seal'
+        hold:
+          type: string
+          enum:
+          - DAMAGED
+          - SEAL_BROKEN
+          - NOT_FOUND
+          - QUALITY
+          - SECURITY
+          - null
+          nullable: true
+        asnNumbers:
+          type: array
+          items:
+            type: string
+        outboundRef:
+          type: string
+          nullable: true
+        visitId:
+          type: string
+          nullable: true
+        appointmentId:
+          type: string
+          nullable: true
+        arrivedAt:
+          type: string
+          format: date-time
+        departedAt:
+          type: string
+          format: date-time
+          nullable: true
+        openMoveId:
+          type: string
+          nullable: true
+        version:
+          type: integer
+          minimum: 1
+      required:
+      - trailerId
+      - siteId
+      - unitNumber
+      - kind
+      - loadState
+      - state
+      - seal
+      - asnNumbers
+      - arrivedAt
+      - version
+    Priority:
+      type: object
+      properties:
+        band:
+          type: integer
+          minimum: 1
+          maximum: 9
+          description: 1 is the most urgent.
+        dueBy:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - band
+    Move:
+      type: object
+      properties:
+        moveId:
+          type: string
+        siteId:
+          type: string
+        trailerId:
+          type: string
+        appointmentId:
+          type: string
+          nullable: true
+        performer:
+          type: string
+          enum:
+          - HOSTLER
+          - VISITING_DRIVER
+        from:
+          type: object
+          allOf:
+          - $ref: '#/components/schemas/Location'
+          nullable: true
+        to:
+          $ref: '#/components/schemas/Location'
+        reason:
+          type: string
+          enum:
+          - TO_DOOR
+          - FROM_DOOR
+          - TO_SPOT
+          - RELOCATE
+          - TO_HOLDING
+        priority:
+          $ref: '#/components/schemas/Priority'
+        state:
+          type: string
+          enum:
+          - REQUESTED
+          - CLAIMED
+          - COMPLETED
+          - CANCELLED
+        hostlerRef:
+          type: string
+          nullable: true
+        leaseExpiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        actualLocation:
+          type: object
+          allOf:
+          - $ref: '#/components/schemas/Location'
+          nullable: true
+        claimedAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        requestedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          minimum: 1
+      required:
+      - moveId
+      - siteId
+      - trailerId
+      - performer
+      - to
+      - reason
+      - priority
+      - state
+      - requestedAt
+      - version
+    CheckIn:
+      type: object
+      properties:
+        visit:
+          $ref: '#/components/schemas/Visit'
+        trailers:
+          type: array
+          items:
+            $ref: '#/components/schemas/Trailer'
+        moves:
+          type: array
+          items:
+            $ref: '#/components/schemas/Move'
+      required:
+      - visit
+      - trailers
+      - moves
+      description: The visit, the trailers it brought and the moves DirectOnCheckIn created (one per trailer, created CLAIMED by the VISITING_DRIVER).
+        A seal mismatch under the REJECT policy answers 201 with a REJECTED visit, no trailers and no moves.
+    CheckOutRequest:
+      type: object
+      properties:
+        trailersOut:
+          type: array
+          items:
+            type: object
+            properties:
+              trailerId:
+                type: string
+            required:
+            - trailerId
+          description: Trailers leaving with the tractor. Empty for a drop or a bobtail.
+      required:
+      - trailersOut
+    RequestMoveRequest:
+      type: object
+      properties:
+        trailerId:
+          type: string
+        to:
+          $ref: '#/components/schemas/Location'
+        reason:
+          type: string
+          enum:
+          - TO_DOOR
+          - FROM_DOOR
+          - TO_SPOT
+          - RELOCATE
+          - TO_HOLDING
+        priorityBand:
+          type: integer
+          minimum: 1
+          maximum: 9
+          default: 5
+        dueBy:
+          type: string
+          format: date-time
+      required:
+      - trailerId
+      - to
+    ClaimMoveRequest:
+      type: object
+      properties:
+        siteId:
+          type: string
+          minLength: 1
+        hostlerRef:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: Opaque hostler reference.
+      required:
+      - siteId
+      - hostlerRef
+    CompleteMoveRequest:
+      type: object
+      properties:
+        hostlerRef:
+          type: string
+          description: The lease holder; omitted when a gate clerk or dock operator completes a VISITING_DRIVER move.
+        actualLocation:
+          $ref: '#/components/schemas/Location'
+        deviationNote:
+          type: string
+          description: Required when actualLocation is not the destination.
+    CancelMoveRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 200
+    DoorWorkCompletionRequest:
+      type: object
+      properties:
+        loadState:
+          type: string
+          enum:
+          - EMPTY
+          - LOADED
+          - PARTIAL
+    HoldRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          enum:
+          - DAMAGED
+          - SEAL_BROKEN
+          - NOT_FOUND
+          - QUALITY
+          - SECURITY
+      required:
+      - reason
+    SealRequest:
+      type: object
+      properties:
+        state:
+          type: string
+          enum:
+          - INTACT
+          - BROKEN
+        sealNumber:
+          type: string
+          maxLength: 64
+          description: Required for INTACT; BROKEN keeps the recorded number.
+      required:
+      - state
+    YardCheck:
+      type: object
+      properties:
+        yardCheckId:
+          type: string
+        siteId:
+          type: string
+        state:
+          type: string
+          enum:
+          - OPEN
+          - CLOSED
+        openedAt:
+          type: string
+          format: date-time
+        closedAt:
+          type: string
+          format: date-time
+          nullable: true
+        observations:
+          type: array
+          items:
+            type: object
+            properties:
+              locationCode:
+                type: string
+              unitNumber:
+                type: string
+                nullable: true
+            required:
+            - locationCode
+        discrepancies:
+          type: array
+          items:
+            type: object
+            properties:
+              kind:
+                type: string
+                enum:
+                - MISSING
+                - UNEXPECTED
+                - WRONG_LOCATION
+              locationCode:
+                type: string
+              trailerId:
+                type: string
+                nullable: true
+              unitNumber:
+                type: string
+                nullable: true
+            required:
+            - kind
+            - locationCode
+        version:
+          type: integer
+          minimum: 1
+      required:
+      - yardCheckId
+      - siteId
+      - state
+      - openedAt
+      - observations
+      - discrepancies
+      - version
+    OpenYardCheckRequest:
+      type: object
+      properties:
+        siteId:
+          type: string
+          minLength: 1
+      required:
+      - siteId
+    ObservationRequest:
+      type: object
+      properties:
+        locationCode:
+          type: string
+          minLength: 1
+        unitNumber:
+          type: string
+          description: Absent when the location was found empty.
+      required:
+      - locationCode
+    YardPolicy:
+      type: object
+      properties:
+        siteId:
+          type: string
+        requireAppointment:
+          type: boolean
+        holdingSpotCodes:
+          type: array
+          items:
+            type: string
+        parkingZoneIds:
+          type: array
+          items:
+            type: string
+        dwellThresholdMinutes:
+          type: object
+          additionalProperties:
+            type: integer
+            minimum: 1
+          description: Per trailer kind (DRY_VAN, REEFER, FLATBED, CONTAINER); a kind without an entry is never alerted.
+        leaseSeconds:
+          type: integer
+          minimum: 1
+        sealMismatchAction:
+          type: string
+          enum:
+          - FLAG
+          - REJECT
+        freeTimeMinutes:
+          type: integer
+          minimum: 1
+          nullable: true
+        version:
+          type: integer
+          minimum: 1
+        declared:
+          type: boolean
+          description: False while the answer is the default policy of an undeclared site.
+      required:
+      - siteId
+      - requireAppointment
+      - holdingSpotCodes
+      - parkingZoneIds
+      - dwellThresholdMinutes
+      - leaseSeconds
+      - sealMismatchAction
+      - version
+      - declared
+    DeclareYardPolicyRequest:
+      type: object
+      properties:
+        requireAppointment:
+          type: boolean
+        holdingSpotCodes:
+          type: array
+          items:
+            type: string
+        parkingZoneIds:
+          type: array
+          items:
+            type: string
+        dwellThresholdMinutes:
+          type: object
+          additionalProperties:
+            type: integer
+            minimum: 1
+        leaseSeconds:
+          type: integer
+          minimum: 1
+        sealMismatchAction:
+          type: string
+          enum:
+          - FLAG
+          - REJECT
+        freeTimeMinutes:
+          type: integer
+          minimum: 1
+      required:
+      - requireAppointment
+      - sealMismatchAction
+      - leaseSeconds
+    YardBoard:
+      type: object
+      properties:
+        siteId:
+          type: string
+        asOf:
+          type: string
+          format: date-time
+        spots:
+          type: array
+          items:
+            $ref: '#/components/schemas/BoardPlace'
+        doors:
+          type: array
+          items:
+            $ref: '#/components/schemas/BoardPlace'
+        inMove:
+          type: array
+          items:
+            $ref: '#/components/schemas/Trailer'
+        openMoves:
+          type: array
+          items:
+            $ref: '#/components/schemas/Move'
+      required:
+      - siteId
+      - asOf
+      - spots
+      - doors
+      - inMove
+      - openMoves
+    BoardPlace:
+      type: object
+      properties:
+        code:
+          type: string
+        kind:
+          type: string
+          enum:
+          - SPOT
+          - DOOR
+        dockFlow:
+          type: string
+          enum:
+          - Inbound
+          - Outbound
+          - Both
+          - null
+          nullable: true
+        closed:
+          type: boolean
+        trailer:
+          type: object
+          allOf:
+          - $ref: '#/components/schemas/Trailer'
+          nullable: true
+      required:
+      - code
+      - kind
+      - closed
+    Sweep:
+      type: object
+      properties:
+        sweptAt:
+          type: string
+          format: date-time
+        count:
+          type: integer
+          minimum: 0
+      required:
+      - sweptAt
+      - count
+      description: How many trailers were alerted (dwell) or moves returned to REQUESTED (lease).
+    DwellSweepRequest:
+      type: object
+      properties:
+        siteId:
+          type: string
+          description: Limit the sweep to one site; absent sweeps every site.
+    YardDwellReport:
+      type: object
+      properties:
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+        siteId:
+          type: string
+          nullable: true
+        rows:
+          type: array
+          items:
+            type: object
+            properties:
+              kind:
+                type: string
+                enum:
+                - DRY_VAN
+                - REEFER
+                - FLATBED
+                - CONTAINER
+              trailers:
+                type: integer
+              avgDwellMinutes:
+                type: number
+              maxDwellMinutes:
+                type: integer
+              avgDriverWaitMinutes:
+                type: number
+                nullable: true
+            required:
+            - kind
+            - trailers
+            - avgDwellMinutes
+            - maxDwellMinutes
+            - avgDriverWaitMinutes
+      required:
+      - from
+      - to
+      - siteId
+      - rows
+    DoorUtilisationReport:
+      type: object
+      properties:
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+        siteId:
+          type: string
+          nullable: true
+        rows:
+          type: array
+          items:
+            type: object
+            properties:
+              siteId:
+                type: string
+              doorCode:
+                type: string
+              dockings:
+                type: integer
+              occupiedMinutes:
+                type: integer
+              utilisation:
+                type: number
+                description: occupied minutes over the report window, 0..1.
+            required:
+            - siteId
+            - doorCode
+            - dockings
+            - occupiedMinutes
+            - utilisation
+      required:
+      - from
+      - to
+      - siteId
+      - rows
+    HostlerProductivityReport:
+      type: object
+      properties:
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+        siteId:
+          type: string
+          nullable: true
+        rows:
+          type: array
+          items:
+            type: object
+            properties:
+              siteId:
+                type: string
+              hostlerRef:
+                type: string
+              moves:
+                type: integer
+              avgMoveSeconds:
+                type: number
+              movesPerHour:
+                type: number
+                description: moves over the elapsed time between the hostler's first claim and last completion in the window.
+            required:
+            - siteId
+            - hostlerRef
+            - moves
+            - avgMoveSeconds
+            - movesPerHour
+      required:
+      - from
+      - to
+      - siteId
+      - rows
+    VisitPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Visit'
+        nextCursor:
+          type: string
+          nullable: true
+          description: Absent on the last page.
+      required:
+      - items
+    TrailerPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Trailer'
+        nextCursor:
+          type: string
+          nullable: true
+          description: Absent on the last page.
+      required:
+      - items
+    MovePage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Move'
+        nextCursor:
+          type: string
+          nullable: true
+          description: Absent on the last page.
+      required:
+      - items
