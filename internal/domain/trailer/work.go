@@ -154,6 +154,7 @@ func (t *Trailer) SweepDwell(now time.Time, thresholdMinutes int64) bool {
 		return false
 	}
 	t.dwellAlertedAt = now.UTC()
+	t.version++
 	t.emit(TrailerDwellExceeded{
 		Header: t.header("TrailerDwellExceeded", now), TrailerID: t.id, SiteID: t.site, Kind: t.kind,
 		DwellMinutes: dwell, ThresholdMinutes: thresholdMinutes, LocationCode: shared.Str(t.loc.Code),

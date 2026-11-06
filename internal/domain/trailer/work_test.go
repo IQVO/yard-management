@@ -255,8 +255,8 @@ func TestSweepDwell(t *testing.T) {
 	if tr.SweepDwell(at(600), 60) || len(tr.PullEvents()) != 0 {
 		t.Fatal("alerted once per trailer")
 	}
-	if tr.Version() != 2 || tr.Snapshot().DwellAlertedAt.IsZero() {
-		t.Fatal("the alert marker is persisted and does not bump the version")
+	if tr.Version() != 3 || tr.Snapshot().DwellAlertedAt.IsZero() {
+		t.Fatal("the alert marker is persisted and is an accepted change (version +1)")
 	}
 }
 

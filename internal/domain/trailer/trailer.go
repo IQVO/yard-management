@@ -214,3 +214,21 @@ func (t *Trailer) ReleasedForDeparture(hasOpenMove bool) bool {
 	}
 	return t.state == Parked || (t.state == Docked && t.work == WorkDone)
 }
+
+// UnitNumber returns the unit number (the natural key is scac + number).
+func (t *Trailer) UnitNumber() string { return t.number }
+
+// SCAC returns the carrier code of the unit ("" when none).
+func (t *Trailer) SCAC() string { return t.scac }
+
+// Purpose returns the purpose of the visit that brought the trailer.
+func (t *Trailer) Purpose() shared.Purpose { return t.purpose }
+
+// LoadState returns what the trailer holds.
+func (t *Trailer) LoadState() shared.LoadState { return t.load }
+
+// SealNumber returns the recorded seal number ("" when none).
+func (t *Trailer) SealNumber() string { return t.sealNumber }
+
+// ASNNumbers returns the ASNs the trailer holds (inbound contents).
+func (t *Trailer) ASNNumbers() []string { return shared.Strings(t.asn) }
