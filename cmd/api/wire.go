@@ -10,6 +10,7 @@ import (
 
 	inboundhttp "github.com/claudioed/yard-management/internal/adapters/inbound/http"
 	inboundkafka "github.com/claudioed/yard-management/internal/adapters/inbound/kafka"
+	"github.com/claudioed/yard-management/internal/adapters/outbound/analyticsstore"
 	outboundkafka "github.com/claudioed/yard-management/internal/adapters/outbound/kafka"
 	"github.com/claudioed/yard-management/internal/adapters/outbound/postgres"
 	"github.com/claudioed/yard-management/internal/adapters/outbound/system"
@@ -49,9 +50,18 @@ func retry(ctx context.Context, logger *slog.Logger, what string, fn func() erro
 // runtime is everything the process wires from the environment.
 type runtime struct {
 	pool      *pgxpool.Pool
+	analytics *pgxpool.Pool // read-only pool of the reports role; nil when not configured
 	server    *inboundhttp.Server
 	readiness *inboundhttp.Readiness
 	consumers []*inboundkafka.Consumer
+}
+
+// close releases the pools; the caller stops the HTTP server and the consumers first.
+func (rt *runtime) close() {
+	if rt.analytics != nil {
+		rt.analytics.Close()
+	}
+	rt.pool.Close()
 }
 
 // wire opens Postgres (running the embedded migrations first, on
@@ -79,9 +89,6 @@ func wire(ctx context.Context, cfg config, getenv func(string) string, logger *s
 		inboundhttp.Dependency{Name: "postgres", Check: pool.Ping},
 		inboundhttp.Dependency{Name: "kafka", Check: outboundkafka.NewBrokerCheck(cfg.brokers).Check},
 	)
-	// Reports is left unset: the analytics read side (ADR 0006) is a later
-	// binary's job, and the report routes answer the contract shape with no
-	// rows until it is wired.
 	yard := usecases.New(deps(pool, uow, locks, clock))
 	server := &inboundhttp.Server{
 		Yard:             yard,
@@ -89,12 +96,23 @@ func wire(ctx context.Context, cfg config, getenv func(string) string, logger *s
 		SweepIdempotency: inboundhttp.NewOptionalIdempotency(idem),
 		Readiness:        readiness,
 	}
-	consumers, err := buildConsumers(cfg, yard, logger)
-	if err != nil {
-		pool.Close()
+	rt := &runtime{pool: pool, server: server, readiness: readiness}
+	// The analytics read side (ADR 0006) is optional here: with a reader DSN the
+	// report routes answer from the analytical schema (read-only pool); without
+	// one they answer the contract shape with no rows. cmd/yard-reports serves
+	// the same routes as a process of its own.
+	if cfg.analyticsReaderURL != "" {
+		if rt.analytics, err = analyticsstore.NewReadOnlyPool(ctx, cfg.analyticsReaderURL); err != nil {
+			pool.Close()
+			return nil, fmt.Errorf("open the analytics reader pool on %s: %w", envAnalyticsRead, err)
+		}
+		server.Reports = analyticsstore.NewReader(rt.analytics)
+	}
+	if rt.consumers, err = buildConsumers(cfg, yard, logger); err != nil {
+		rt.close()
 		return nil, fmt.Errorf("build the kafka consumers: %w", err)
 	}
-	return &runtime{pool: pool, server: server, readiness: readiness, consumers: consumers}, nil
+	return rt, nil
 }
 
 // deps wires every port of the use cases to its Postgres adapter.

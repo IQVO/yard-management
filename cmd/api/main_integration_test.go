@@ -26,6 +26,7 @@ func TestAPIOnRealPostgresAndKafka(t *testing.T) {
 	for _, topic := range append(outboundkafka.Topics(), topicDockScheduling, topicFacility, topicInboundReceiving) {
 		kafkatest.CreateTopic(t, topic)
 	}
+	startAnalytics(t)
 	a, dsn := boot(t)
 	startRelay(t, dsn)
 	pool := pgtest.Open(t, dsn)
@@ -39,6 +40,7 @@ func TestAPIOnRealPostgresAndKafka(t *testing.T) {
 		{"a drop visit is checked in, parked, docked and worked", dropVisitFlow},
 		{"check-in directs a trailer with an appointment to its door; ReceiptClosed completes door work only when every ASN is closed", appointmentToDoorAndReceipts},
 		{"a NoShow cancels the open TO_DOOR move of the appointment", noShowCancelsToDoorMove},
+		{"the reports show the work through the analytics read side", reportsFromTheProjection},
 		{"two moves to one door: exactly one wins", occupancyRace},
 		{"one Idempotency-Key runs once even when sent concurrently", concurrentKey},
 		{"readiness turns 503 dependency-unavailable when Kafka stops", readinessWhenKafkaStops},

@@ -23,6 +23,7 @@ type DoorRow struct {
 	DoorCode        string  `json:"doorCode"`
 	Dockings        int     `json:"dockings"`
 	OccupiedMinutes int64   `json:"occupiedMinutes"`
+	WorkMinutes     int64   `json:"workMinutes"`
 	Utilisation     float64 `json:"utilisation"`
 }
 

@@ -17,6 +17,7 @@ const (
 	envDockGroup      = "DOCK_SCHEDULING_CONSUMER_GROUP"
 	envFacilityGroup  = "FACILITY_CONSUMER_GROUP"
 	envInboundRecvGrp = "INBOUND_RECEIVING_CONSUMER_GROUP"
+	envAnalyticsRead  = "ANALYTICS_READER_DATABASE_URL"
 	defaultHTTPAddr   = ":8080"
 	defaultDrainWait  = 5 * time.Second
 )
@@ -31,6 +32,11 @@ type config struct {
 	// The three consumer groups (ADR 0009). Mandatory and never defaulted: a
 	// process started by hand must not join a live group by accident.
 	dockGroup, facilityGroup, inboundGroup string
+
+	// analyticsReaderURL is the OPTIONAL DSN of the analytics reports role
+	// (ADR 0006). Set, GET /reports/* answers from the analytical schema; unset,
+	// the report routes answer the contract shape with no rows.
+	analyticsReaderURL string
 }
 
 // loadConfig reads and validates the environment. DATABASE_URL, KAFKA_BROKERS
@@ -60,6 +66,7 @@ func loadConfig(getenv func(string) string) (config, error) {
 			problems = append(problems, fmt.Errorf("%s is required: the consumer group of %s", g.env, g.what))
 		}
 	}
+	cfg.analyticsReaderURL = strings.TrimSpace(getenv(envAnalyticsRead))
 	if v := getenv(envHTTPAddr); v != "" {
 		cfg.httpAddr = v
 	}

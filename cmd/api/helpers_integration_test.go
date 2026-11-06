@@ -21,6 +21,8 @@ import (
 	_ "github.com/testcontainers/testcontainers-go/modules/kafka"
 	_ "github.com/testcontainers/testcontainers-go/modules/postgres"
 
+	inboundkafka "github.com/claudioed/yard-management/internal/adapters/inbound/kafka"
+	"github.com/claudioed/yard-management/internal/adapters/outbound/analyticsstore"
 	outboundkafka "github.com/claudioed/yard-management/internal/adapters/outbound/kafka"
 	"github.com/claudioed/yard-management/internal/adapters/outbound/postgres"
 	"github.com/claudioed/yard-management/internal/testing/kafkatest"
@@ -249,4 +251,40 @@ func keysOf(m map[string]any) []string {
 	}
 	slices.Sort(out)
 	return out
+}
+
+// startAnalytics gives the API its analytical side the way a deployment does:
+// a migrated analytical database, the projector's consumer folding the real
+// analytics topic into it (what cmd/yard-projector runs), and the reports role's
+// DSN handed to the API through ANALYTICS_READER_DATABASE_URL. Call it BEFORE
+// boot, which inherits the environment.
+func startAnalytics(t *testing.T) {
+	t.Helper()
+	dsn := pgtest.EmptyURL(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	if err := analyticsstore.RunMigrations(ctx, dsn); err != nil {
+		cancel()
+		t.Fatalf("analytics migrations: %v", err)
+	}
+	pool, err := analyticsstore.NewPool(ctx, dsn)
+	if err != nil {
+		cancel()
+		t.Fatal(err)
+	}
+	quiet := slog.New(slog.NewTextHandler(io.Discard, nil))
+	consumer, err := inboundkafka.NewAnalyticsConsumer(inboundkafka.NewFactory(kafkatest.Brokers(t), quiet),
+		fmt.Sprintf("itest-projector-%d", time.Now().UnixNano()), analyticsstore.NewProjection(pool), quiet)
+	if err != nil {
+		cancel()
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	go func() { defer close(done); _ = consumer.Run(ctx) }()
+	t.Cleanup(func() {
+		cancel()
+		<-done
+		_ = consumer.Close()
+		pool.Close()
+	})
+	t.Setenv("ANALYTICS_READER_DATABASE_URL", dsn)
 }

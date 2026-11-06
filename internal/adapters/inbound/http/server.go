@@ -37,21 +37,7 @@ type Server struct {
 
 // NewRouter builds the chi router for every route of apis/openapi.yaml.
 func NewRouter(s *Server) http.Handler {
-	r := chi.NewRouter()
-	// A NUL (U+0000) in the path, the query or a body is a uniform client
-	// error here, never a Postgres 22021 -> 500; it runs before the
-	// route-scoped idempotency middleware so a rejected request never
-	// records its key.
-	r.Use(rejectNUL)
-	r.NotFound(func(w http.ResponseWriter, req *http.Request) {
-		writeProblem(w, req, notFoundResource, "no resource matches the requested path")
-	})
-	r.MethodNotAllowed(func(w http.ResponseWriter, req *http.Request) {
-		writeProblem(w, req, methodNotAllowed, "the resource does not take this method")
-	})
-	r.Get("/healthz", handleHealthz)
-	r.Get("/readyz", s.handleReadyz)
-
+	r := newBase(s)
 	keyed := wrap(r, s.Idempotency)
 	swept := wrap(r, s.SweepIdempotency)
 
@@ -86,11 +72,49 @@ func NewRouter(s *Server) http.Handler {
 	swept.Post("/dwell-sweeps", s.handleDwellSweep)
 	swept.Post("/move-lease-sweeps", s.handleLeaseSweep)
 
+	s.mountReports(r)
+	return r
+}
+
+// NewReportsRouter builds the router of cmd/yard-reports: the probes and the
+// four report routes of apis/openapi.yaml, nothing that writes.
+func NewReportsRouter(s *Server) http.Handler {
+	r := newBase(s)
+	s.mountReports(r)
+	return r
+}
+
+// NewAdminRouter builds the probe-only router of the workers (cmd/yard-projector):
+// /healthz and /readyz.
+func NewAdminRouter(readiness *Readiness) http.Handler {
+	return newBase(&Server{Readiness: readiness})
+}
+
+// newBase is the router every process shares: the NUL guard, the problem
+// documents for unknown paths and methods, and the probes.
+func newBase(s *Server) chi.Router {
+	r := chi.NewRouter()
+	// A NUL (U+0000) in the path, the query or a body is a uniform client
+	// error here, never a Postgres 22021 -> 500; it runs before the
+	// route-scoped idempotency middleware so a rejected request never
+	// records its key.
+	r.Use(rejectNUL)
+	r.NotFound(func(w http.ResponseWriter, req *http.Request) {
+		writeProblem(w, req, notFoundResource, "no resource matches the requested path")
+	})
+	r.MethodNotAllowed(func(w http.ResponseWriter, req *http.Request) {
+		writeProblem(w, req, methodNotAllowed, "the resource does not take this method")
+	})
+	r.Get("/healthz", handleHealthz)
+	r.Get("/readyz", s.handleReadyz)
+	return r
+}
+
+func (s *Server) mountReports(r chi.Router) {
 	r.Get("/reports/yard-dwell", s.handleYardDwell)
 	r.Get("/reports/door-utilisation", s.handleDoorUtilisation)
 	r.Get("/reports/hostler-productivity", s.handleHostlerProductivity)
 	r.Get("/reports/freshness", s.handleFreshness)
-	return r
 }
 
 // wrap returns the router with mw applied route by route; a nil mw (handler

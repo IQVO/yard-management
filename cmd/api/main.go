@@ -12,6 +12,8 @@
 //	DOCK_SCHEDULING_CONSUMER_GROUP    consumer group of warehouse.dock-scheduling.events (REQUIRED)
 //	FACILITY_CONSUMER_GROUP           consumer group of warehouse.facility.events (REQUIRED)
 //	INBOUND_RECEIVING_CONSUMER_GROUP  consumer group of warehouse.inbound-receiving.events (REQUIRED)
+//	ANALYTICS_READER_DATABASE_URL     DSN of the analytics reports role; when set GET /reports/* answers
+//	                                  from the analytical schema, else with no rows (OPTIONAL)
 //	SHUTDOWN_DRAIN_DELAY              wait after flipping /readyz before closing (default 5s)
 //	LOG_LEVEL                         debug|info|warn|error (default info)
 //
@@ -67,7 +69,7 @@ func run(ctx context.Context) error {
 		return err
 	}
 	// The pool closes LAST, after the HTTP drain and the consumers' stop.
-	defer rt.pool.Close()
+	defer rt.close()
 
 	ln, err := net.Listen("tcp", cfg.httpAddr)
 	if err != nil {

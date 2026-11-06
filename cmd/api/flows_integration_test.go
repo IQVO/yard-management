@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"testing"
 	"time"
 
@@ -91,6 +92,64 @@ func appointmentToDoorAndReceipts(t *testing.T, a *api, dsn string, pool *pgxpoo
 	closeReceipt(2, "ASN-A2")
 	if tr := a.trailerView(trailerID); tr["state"] != "DOCKED" || tr["doorWork"] != "DONE" || tr["loadState"] != "EMPTY" {
 		t.Fatalf("every ASN closed must complete door work and leave the trailer empty: %v", tr)
+	}
+
+	// The live visit departs from the door: the dwell, the docking and the door
+	// work the reports are built from end here.
+	visitID := in["visit"].(map[string]any)["visitId"].(string)
+	a.mustPost("/visits/"+visitID+"/check-outs", map[string]any{"trailersOut": []map[string]string{{"trailerId": trailerID}}}, http.StatusOK)
+	if tr := a.trailerView(trailerID); tr["state"] != "DEPARTED" {
+		t.Fatalf("the trailer left the site: %v", tr)
+	}
+}
+
+// reportsFromTheProjection: the visit of appointmentToDoorAndReceipts and the
+// hostler move of dropVisitFlow come back through the analytics topic, the
+// projector and the reports role, served by the API's GET /reports/*.
+func reportsFromTheProjection(t *testing.T, a *api, dsn string, pool *pgxpool.Pool) {
+	t.Helper()
+	window := fmt.Sprintf("from=%s&to=%s&siteId=WH1", url.QueryEscape(time.Now().Add(-time.Hour).UTC().Format(time.RFC3339)), url.QueryEscape(time.Now().Add(time.Hour).UTC().Format(time.RFC3339)))
+	rows := func(report string, want int) []any {
+		var items []any
+		eventually(t, report+" to have rows", func() bool {
+			r := a.call(http.MethodGet, "/reports/"+report+"?"+window, nil, "")
+			if r.Code != http.StatusOK {
+				t.Fatalf("GET /reports/%s = %d %s", report, r.Code, r.Body)
+			}
+			items = r.JSON()["rows"].([]any)
+			return len(items) >= want
+		})
+		return items
+	}
+
+	dwell := rows("yard-dwell", 1)
+	if len(dwell) != 1 {
+		t.Fatalf("dwell rows %v, want the single departed DRY_VAN", dwell)
+	}
+	d := dwell[0].(map[string]any)
+	if d["kind"] != "DRY_VAN" || d["trailers"] != float64(1) || d["avgDriverWaitMinutes"] == nil || d["avgDwellMinutes"].(float64) < 0 {
+		t.Fatalf("dwell row %v: one DRY_VAN, with a driver wait (door work started after arrival)", d)
+	}
+
+	// Two doors saw a docking: the drop visit's WH1-D02 and the appointment's WH1-D04.
+	doors := rows("door-utilisation", 2)
+	if len(doors) != 2 {
+		t.Fatalf("door rows %v, want WH1-D02 and WH1-D04", doors)
+	}
+	door := doors[1].(map[string]any)
+	if doors[0].(map[string]any)["doorCode"] != "WH1-D02" || door["doorCode"] != "WH1-D04" || door["dockings"] != float64(1) || door["siteId"] != "WH1" || door["utilisation"].(float64) <= 0 {
+		t.Fatalf("door row %v: the appointment's door, docked once", door)
+	}
+
+	hostlers := rows("hostler-productivity", 1)
+	h := hostlers[0].(map[string]any)
+	if h["hostlerRef"] != "h1" || h["moves"] != float64(1) || h["movesPerHour"] != float64(1) {
+		t.Fatalf("hostler row %v: h1 completed one move (the visiting driver's moves do not count)", h)
+	}
+
+	f := a.call(http.MethodGet, "/reports/freshness", nil, "").JSON()
+	if f["lastEventAt"] == nil {
+		t.Fatalf("freshness %v: the projector has folded events", f)
 	}
 }
 
