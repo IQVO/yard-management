@@ -167,6 +167,11 @@ func (y *Yard) autoCompleteUnload(ctx context.Context, appointmentID string) err
 		if err := tr.StartDoorWork(now); err != nil {
 			return ignoreHold(err)
 		}
+		// One save per accepted change: the version guard persists exactly one
+		// transition at a time.
+		if err := y.saveTrailer(ctx, tr); err != nil {
+			return err
+		}
 	}
 	if err := tr.CompleteDoorWork(shared.LoadEmpty, now); err != nil {
 		return err

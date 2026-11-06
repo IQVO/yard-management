@@ -49,7 +49,7 @@ func TestIsBlank(t *testing.T) {
 }
 
 func TestValidateSCAC(t *testing.T) {
-	for _, ok := range []string{"", "AB", "ABC", "ABCD"} {
+	for _, ok := range []string{"", "AB", "ABC", "ABCD", "AA", "ZZ", "AZ"} {
 		if err := shared.ValidateSCAC(ok); err != nil {
 			t.Errorf("%q: %v", ok, err)
 		}

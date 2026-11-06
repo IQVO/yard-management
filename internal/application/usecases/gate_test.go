@@ -189,3 +189,73 @@ func assertInMove(t *testing.T, tr views.Trailer, moveID string) {
 		t.Fatalf("trailer %+v", tr)
 	}
 }
+
+// TestArrivalToleranceDecidesDoorOrHolding pins X1/X6: an arrival earlier than
+// window_start minus the appointment's arrival_tolerance_minutes goes TO_HOLDING,
+// one exactly at the limit goes to the door.
+func TestArrivalToleranceDecidesDoorOrHolding(t *testing.T) {
+	cases := []struct {
+		name      string
+		start     time.Duration
+		tolerance int
+		want      string
+	}{
+		{"exactly at the tolerance limit", 15 * time.Minute, 15, "TO_DOOR"},
+		{"one minute earlier than the limit", 16 * time.Minute, 15, "TO_HOLDING"},
+		{"a wider tolerance admits it", 30 * time.Minute, 30, "TO_DOOR"},
+		{"a narrow tolerance holds it", 10 * time.Minute, 5, "TO_HOLDING"},
+		{"late arrival", -2 * time.Hour, 15, "TO_DOOR"},
+	}
+	for _, c := range cases {
+		e := yardEnv()
+		e.Book(appointment("appt-1", "WH1-D1", yardtest.T0.Add(c.start), func(a *views.Appointment) { a.ToleranceMinutes = c.tolerance }))
+		ci := checkIn(t, e, withAppointment("appt-1"))
+		if got := ci.Moves[0].Reason; got != c.want {
+			t.Errorf("%s: reason %s, want %s", c.name, got, c.want)
+		}
+	}
+}
+
+func TestACancelledAppointmentOnAWalkInSiteIsDropped(t *testing.T) {
+	e := yardEnv()
+	e.Book(appointment("appt-1", "WH1-D1", yardtest.T0, func(a *views.Appointment) { a.Status = views.ApptCancelled }))
+	ci := checkIn(t, e, withAppointment("appt-1"))
+	if ci.Visit.AppointmentID != nil || ci.Moves[0].Reason != "TO_HOLDING" {
+		t.Fatalf("a cancelled appointment makes the visit a walk-in: %+v", ci)
+	}
+	requireAppointments(t, e)
+	_, err := e.Yard.CheckInVisit(e.Ctx, checkInput(withAppointment("appt-1"), func(in *usecases.CheckInInput) {
+		in.TractorPlate, in.Trailers[0].UnitNumber = "PLATE2", "T2"
+	}))
+	is(t, err, yardvisit.ErrAppointmentRequired)
+}
+
+func TestAnAppointmentOfAnotherSiteIsUnknown(t *testing.T) {
+	e := yardEnv()
+	e.Book(appointment("appt-1", "WH1-D1", yardtest.T0, func(a *views.Appointment) { a.SiteID = "WH2" }))
+	_, err := e.Yard.CheckInVisit(e.Ctx, checkInput(withAppointment("appt-1")))
+	is(t, err, yardvisit.ErrUnknownAppointment)
+}
+
+func TestAnAppointmentCoversExactlyOneTrailer(t *testing.T) {
+	e := yardEnv()
+	e.Book(appointment("appt-1", "WH1-D1", yardtest.T0))
+	_, err := e.Yard.CheckInVisit(e.Ctx, checkInput(withAppointment("appt-1"), func(in *usecases.CheckInInput) {
+		in.Trailers = append(in.Trailers, usecases.TrailerInput{UnitNumber: "T2", Kind: "DRY_VAN", LoadState: "LOADED"})
+	}))
+	is(t, err, yardvisit.ErrUnknownAppointment)
+}
+
+func TestSealMatchAndMissingSealRaiseNothing(t *testing.T) {
+	e := yardEnv()
+	e.Book(appointment("appt-1", "WH1-D1", yardtest.T0))
+	checkIn(t, e, withAppointment("appt-1"), func(in *usecases.CheckInInput) { in.Trailers[0].SealNumber = "SL-1" })
+	e2 := yardEnv()
+	e2.Book(appointment("appt-1", "WH1-D1", yardtest.T0))
+	checkIn(t, e2, withAppointment("appt-1"))
+	for _, env := range []*yardtest.Env{e, e2} {
+		if contains(env.Store.EventNames(), "SealExceptionRaised") {
+			t.Fatalf("events %v", env.Store.EventNames())
+		}
+	}
+}
