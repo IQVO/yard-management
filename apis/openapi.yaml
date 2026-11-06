@@ -42,7 +42,7 @@ tags:
 - name: Sweeps
   description: Scheduler-driven sweeps (CronJobs).
 - name: Reports
-  description: Read-only analytics reports served by yard-reports.
+  description: Read-only analytics reports (ADR 0006).
 - name: Health
   description: Liveness and readiness probes.
 paths:
@@ -122,7 +122,7 @@ paths:
             Idempotency-Replayed:
               $ref: '#/components/headers/IdempotencyReplayed'
             Location:
-              description: Path of the created resource.
+              description: Path of the visit, `/visits/{visitId}`.
               schema:
                 type: string
           content:
@@ -300,7 +300,7 @@ paths:
             Idempotency-Replayed:
               $ref: '#/components/headers/IdempotencyReplayed'
             Location:
-              description: Path of the created resource.
+              description: Path of the visit, `/visits/{visitId}`.
               schema:
                 type: string
           content:
@@ -320,7 +320,7 @@ paths:
       operationId: listTrailers
       summary: List trailers
       description: 'Lists trailers by arrival, one keyset page at a time. Filters: `siteId`, `state` (default: not DEPARTED), `kind`, `locationCode`,
-        `unitNumber`.'
+        `unitNumber`, `visitId` (the visit the trailer is attached to: the one that brought it, until a later visit takes it).'
       tags:
       - Trailers
       parameters:
@@ -362,6 +362,12 @@ paths:
         in: query
         required: false
         description: Unit number.
+        schema:
+          type: string
+      - name: visitId
+        in: query
+        required: false
+        description: Only the trailers attached to this visit.
         schema:
           type: string
       - $ref: '#/components/parameters/Limit'
@@ -663,10 +669,6 @@ paths:
           headers:
             Idempotency-Replayed:
               $ref: '#/components/headers/IdempotencyReplayed'
-            Location:
-              description: Path of the created resource.
-              schema:
-                type: string
           content:
             application/json:
               schema:
@@ -710,7 +712,8 @@ paths:
     get:
       operationId: listMoves
       summary: List moves
-      description: 'Lists moves oldest first, one keyset page at a time. Filters: `siteId`, `state`, `trailerId`.'
+      description: 'Lists moves oldest first, one keyset page at a time. Filters: `siteId`, `state`, `trailerId`, `hostlerRef` (the moves a hostler holds
+        or held).'
       tags:
       - Moves
       parameters:
@@ -735,6 +738,12 @@ paths:
         in: query
         required: false
         description: Only moves of this trailer.
+        schema:
+          type: string
+      - name: hostlerRef
+        in: query
+        required: false
+        description: Only moves leased to this hostler.
         schema:
           type: string
       - $ref: '#/components/parameters/Limit'
@@ -900,10 +909,6 @@ paths:
           headers:
             Idempotency-Replayed:
               $ref: '#/components/headers/IdempotencyReplayed'
-            Location:
-              description: Path of the created resource.
-              schema:
-                type: string
           content:
             application/json:
               schema:
@@ -1156,9 +1161,9 @@ paths:
       tags:
       - Sweeps
       parameters:
-      - $ref: '#/components/parameters/IdempotencyKey'
+      - $ref: '#/components/parameters/OptionalIdempotencyKey'
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema:
@@ -1188,7 +1193,7 @@ paths:
       tags:
       - Sweeps
       parameters:
-      - $ref: '#/components/parameters/IdempotencyKey'
+      - $ref: '#/components/parameters/OptionalIdempotencyKey'
       responses:
         '200':
           description: The sweep result.
@@ -1209,8 +1214,8 @@ paths:
     get:
       operationId: getYardDwellReport
       summary: Yard dwell report
-      description: Read-only analytics over the analytical database, served by the separate `yard-reports` binary (ADR 0006), not the transactional
-        API process. `from` and `to` are required RFC 3339 instants (to after from, at most 92 days).
+      description: Read-only analytics over the analytical database (ADR 0006). The API answers the contract shape from the analytics read-side port;
+        until the analytics read side is wired the report has no rows. `from` and `to` are required RFC 3339 instants (to after from, at most 92 days).
       tags:
       - Reports
       parameters:
@@ -1237,8 +1242,8 @@ paths:
     get:
       operationId: getDoorUtilisationReport
       summary: Door utilisation report
-      description: Read-only analytics over the analytical database, served by the separate `yard-reports` binary (ADR 0006), not the transactional
-        API process. `from` and `to` are required RFC 3339 instants (to after from, at most 92 days).
+      description: Read-only analytics over the analytical database (ADR 0006). The API answers the contract shape from the analytics read-side port;
+        until the analytics read side is wired the report has no rows. `from` and `to` are required RFC 3339 instants (to after from, at most 92 days).
       tags:
       - Reports
       parameters:
@@ -1265,8 +1270,8 @@ paths:
     get:
       operationId: getHostlerProductivityReport
       summary: Hostler productivity report
-      description: Read-only analytics over the analytical database, served by the separate `yard-reports` binary (ADR 0006), not the transactional
-        API process. `from` and `to` are required RFC 3339 instants (to after from, at most 92 days).
+      description: Read-only analytics over the analytical database (ADR 0006). The API answers the contract shape from the analytics read-side port;
+        until the analytics read side is wired the report has no rows. `from` and `to` are required RFC 3339 instants (to after from, at most 92 days).
       tags:
       - Reports
       parameters:
@@ -1325,6 +1330,17 @@ components:
         Required on every POST and PUT (400 `idempotency-key-required`; `idempotency-key-invalid` when malformed). A replay with the same key,
         method, path and body returns the original response with `Idempotency-Replayed: true`; the same key with a different method, path or body
         is 409 `idempotency-key-reused`.'
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+    OptionalIdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: 'Optional on the sweeps, which are naturally idempotent (a repeat finds nothing new to do). When sent it behaves as on every other
+        POST: a replay with the same key, method, path and body returns the stored answer with `Idempotency-Replayed: true`, and the same key with a
+        different request is 409 `idempotency-key-reused`.'
       schema:
         type: string
         minLength: 1
@@ -1416,6 +1432,41 @@ components:
                 status: 404
                 detail: trailer not found
                 instance: /trailers
+            visitNotFound:
+              value:
+                type: https://errors.yard-management.warehouse-systems.dev/visit-not-found
+                title: Visit not found
+                status: 404
+                detail: visit not found
+                instance: /visits
+            moveNotFound:
+              value:
+                type: https://errors.yard-management.warehouse-systems.dev/move-not-found
+                title: Move not found
+                status: 404
+                detail: move not found
+                instance: /moves
+            yardCheckNotFound:
+              value:
+                type: https://errors.yard-management.warehouse-systems.dev/yard-check-not-found
+                title: Yard check not found
+                status: 404
+                detail: yard check not found
+                instance: /yard-checks
+            siteNotFound:
+              value:
+                type: https://errors.yard-management.warehouse-systems.dev/site-not-found
+                title: Site not found
+                status: 404
+                detail: site not found
+                instance: /sites
+            noClaimableMove:
+              value:
+                type: https://errors.yard-management.warehouse-systems.dev/no-claimable-move
+                title: No move waits for a hostler
+                status: 404
+                detail: no claimable move
+                instance: /moves/claims
     Conflict:
       description: The request conflicts with the state of the yard (an occupied place, an open move, an illegal transition) or reuses an Idempotency-Key.
       content:
