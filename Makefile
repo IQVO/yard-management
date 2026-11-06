@@ -21,12 +21,12 @@ COVERAGE_OUT       := coverage.out
 COVERAGE_PKGS      := ./internal/domain/...,./internal/application/...
 COVERAGE_THRESHOLD := 90
 
-# The fast mutation subset — kept in sync with the `mutation-fast` CI job.
+# The fast mutation subset — kept in sync with the `mutation-fast` CI job:
+# gremlins runs once per package below EVERY internal/domain/* package (a new
+# package is picked up by the wildcard), so no aggregate escapes the sensor.
 # Thresholds/workers/timeout live in .gremlins.yaml so both use identical
-# settings. Pick your richest, most behaviourally-dense aggregate here —
-# not necessarily the biggest package, the one with the most branching
-# domain logic (see HARNESS.md's mutation-testing section).
-MUTATION_FAST_PKG  := ./internal/domain/trailer
+# settings (measured per package, set strictly below the measurement).
+MUTATION_FAST_PKGS := $(patsubst %/,./%,$(sort $(wildcard internal/domain/*/)))
 # The exhaustive scheduled run — kept in sync with the `mutation` CI job.
 MUTATION_FULL_PKG  := ./internal/domain
 
@@ -49,7 +49,7 @@ help:
 	@echo "                 (testcontainers boots its own Postgres/Kafka; needs only Docker; not in check)"
 	@echo "  bdd            go test ./... -run TestFeatures -v — godog/Gherkin acceptance"
 	@echo "  arch-test      go test ./internal/architecture/... -v — hexagonal fitness"
-	@echo "  mutation       gremlins on $(MUTATION_FAST_PKG) — the fast blocking subset"
+	@echo "  mutation       gremlins on every internal/domain/* package, one run each — the fast blocking subset"
 	@echo "  mutation-full  gremlins on $(MUTATION_FULL_PKG) — the exhaustive scheduled run"
 	@echo "  vuln           govulncheck ./... — supply-chain / stdlib CVE sensor"
 	@echo ""
@@ -122,7 +122,10 @@ mutation:
 		echo "  go install github.com/go-gremlins/gremlins/cmd/gremlins@$(GREMLINS_VERSION)"; \
 		exit 1; \
 	fi
-	$(GREMLINS) unleash $(MUTATION_FAST_PKG)
+	@for pkg in $(MUTATION_FAST_PKGS); do \
+		echo "== gremlins unleash $$pkg"; \
+		$(GREMLINS) unleash $$pkg || exit 1; \
+	done
 
 mutation-full:
 	@if ! command -v $(GREMLINS) >/dev/null 2>&1; then \

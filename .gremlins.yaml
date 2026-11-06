@@ -27,5 +27,19 @@ unleash:
     # differs. See HARNESS.md's mutation-testing section for the
     # tagless-switch-under-reports pitfall before assuming a low number
     # means missing tests.
-    efficacy: "0"
-    mutant-coverage: "0"
+    #
+    # Measured per domain package (gremlins 0.6.0, workers 1), 2026-11-06:
+    #   package      killed lived not-covered  efficacy  mutator-coverage
+    #   shared           25     0           2   100.00%   92.59%
+    #   trailer          99     0           0   100.00%  100.00%
+    #   yardcheck        18     1           8    94.74%   70.37%
+    #   yardmove         55     0           0   100.00%  100.00%
+    #   yardpolicy       19     0           1   100.00%   95.00%
+    #   yardvisit        37     0           0   100.00%  100.00%
+    # One file serves every package, so the floor is the weakest package
+    # minus margin. yardcheck's 8 "not covered" are the tagless-switch
+    # under-report (validateSnapshot is 100% statement-covered by
+    # `go test -cover`); its single LIVED mutant is the equivalent
+    # boundary flip in the sort comparator over unique location codes.
+    efficacy: "90"
+    mutant-coverage: "65"
