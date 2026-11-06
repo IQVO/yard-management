@@ -228,6 +228,12 @@ func moveLists(t *testing.T, s Store) {
 	if got := ids(s.Moves.List(bg, views.MoveFilter{State: "CANCELLED", TrailerID: "trl-c"}, nil, 10)); !reflect.DeepEqual(got, []string{"mv-c"}) {
 		t.Fatalf("filtered = %v", got)
 	}
+	if got := ids(s.Moves.List(bg, views.MoveFilter{HostlerRef: "h1"}, nil, 10)); !reflect.DeepEqual(got, []string{"mv-b"}) {
+		t.Fatalf("by hostler = %v", got)
+	}
+	if got := ids(s.Moves.List(bg, views.MoveFilter{HostlerRef: "nobody"}, nil, 10)); len(got) != 0 {
+		t.Fatalf("unknown hostler = %v", got)
+	}
 	found, err := s.Moves.FindOpenByTrailer(bg, "trl-b")
 	must(t, err)
 	if found.ID() != "mv-b" || found.HostlerRef() != "h1" {

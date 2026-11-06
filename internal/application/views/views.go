@@ -174,10 +174,10 @@ type Key struct {
 type VisitFilter struct{ SiteID, State, TractorPlate string }
 
 // TrailerFilter narrows ListTrailers. An empty State means "not DEPARTED".
-type TrailerFilter struct{ SiteID, State, Kind, LocationCode, UnitNumber string }
+type TrailerFilter struct{ SiteID, State, Kind, LocationCode, UnitNumber, VisitID string }
 
 // MoveFilter narrows ListMoves.
-type MoveFilter struct{ SiteID, State, TrailerID string }
+type MoveFilter struct{ SiteID, State, TrailerID, HostlerRef string }
 
 // LocationInfo is the local copy of one facility-layout slot.
 type LocationInfo struct {

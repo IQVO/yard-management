@@ -310,6 +310,16 @@ func trailerFinders(t *testing.T, s Store) {
 	if got := ids(filtered); !reflect.DeepEqual(got, []string{"trl-b"}) {
 		t.Fatalf("filtered = %v", got)
 	}
+	byVisit, err := s.Trailers.List(bg, views.TrailerFilter{VisitID: "visit-1"}, nil, 10)
+	must(t, err)
+	if got := ids(byVisit); !reflect.DeepEqual(got, []string{"trl-a", "trl-b", "trl-c"}) {
+		t.Fatalf("by visit = %v", got)
+	}
+	noVisit, err := s.Trailers.List(bg, views.TrailerFilter{VisitID: "visit-404"}, nil, 10)
+	must(t, err)
+	if len(noVisit) != 0 {
+		t.Fatalf("unknown visit = %v", ids(noVisit))
+	}
 	inMove, err := s.Trailers.List(bg, views.TrailerFilter{State: "IN_MOVE"}, nil, 10)
 	must(t, err)
 	if got := ids(inMove); !reflect.DeepEqual(got, []string{"trl-a", "trl-c"}) {

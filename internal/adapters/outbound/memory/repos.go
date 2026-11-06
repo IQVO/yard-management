@@ -216,7 +216,7 @@ func (r *Trailers) List(_ context.Context, f views.TrailerFilter, after *views.K
 		stateOK := (f.State == "" && s.State != trailer.Departed) || string(s.State) == f.State
 		afterOK := after == nil || keyBefore(after.At, after.ID, s.ArrivedAt, s.ID)
 		return stateOK && afterOK && (f.SiteID == "" || s.SiteID == f.SiteID) && (f.Kind == "" || string(s.Kind) == f.Kind) &&
-			(f.LocationCode == "" || s.Location.Code == f.LocationCode) && (f.UnitNumber == "" || s.Number == f.UnitNumber)
+			(f.LocationCode == "" || s.Location.Code == f.LocationCode) && (f.UnitNumber == "" || s.Number == f.UnitNumber) && (f.VisitID == "" || s.VisitID == f.VisitID)
 	})
 	return restoreAll(rows, limit)
 }
@@ -358,7 +358,7 @@ func (r *Moves) ListOpen(_ context.Context, siteID string) ([]*yardmove.Move, er
 func (r *Moves) List(_ context.Context, f views.MoveFilter, after *views.Key, limit int) ([]*yardmove.Move, error) {
 	moves, err := r.sorted(func(s yardmove.Snapshot) bool {
 		afterOK := after == nil || keyBefore(after.At, after.ID, s.RequestedAt, s.ID)
-		return afterOK && (f.SiteID == "" || s.SiteID == f.SiteID) && (f.State == "" || string(s.State) == f.State) && (f.TrailerID == "" || s.TrailerID == f.TrailerID)
+		return afterOK && (f.SiteID == "" || s.SiteID == f.SiteID) && (f.State == "" || string(s.State) == f.State) && (f.TrailerID == "" || s.TrailerID == f.TrailerID) && (f.HostlerRef == "" || s.HostlerRef == f.HostlerRef)
 	}, byRequest)
 	if limit > 0 && len(moves) > limit {
 		moves = moves[:limit]

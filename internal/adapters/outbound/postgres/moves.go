@@ -137,6 +137,9 @@ func (r *Moves) List(ctx context.Context, f views.MoveFilter, after *views.Key, 
 	if f.TrailerID != "" {
 		w.add("trailer_id = ?", f.TrailerID)
 	}
+	if f.HostlerRef != "" {
+		w.add("hostler_ref = ?", f.HostlerRef)
+	}
 	if after != nil {
 		w.args = append(w.args, after.At.UTC(), after.ID)
 		w.raw(fmt.Sprintf("(requested_at, move_id) > ($%d, $%d)", len(w.args)-1, len(w.args)))

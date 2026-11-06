@@ -125,6 +125,9 @@ func (r *Trailers) List(ctx context.Context, f views.TrailerFilter, after *views
 	if f.UnitNumber != "" {
 		w.add("unit_number = ?", f.UnitNumber)
 	}
+	if f.VisitID != "" {
+		w.add("visit_id = ?", f.VisitID)
+	}
 	if after != nil {
 		w.args = append(w.args, after.At.UTC(), after.ID)
 		w.raw(fmt.Sprintf("(arrived_at, trailer_id) > ($%d, $%d)", len(w.args)-1, len(w.args)))
