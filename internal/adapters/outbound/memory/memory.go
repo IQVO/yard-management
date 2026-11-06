@@ -65,6 +65,11 @@ func (s state) clone() state {
 
 // Store is the in-memory implementation of every application port.
 type Store struct {
+	// run serialises the outermost unit of work, as a database serialises two
+	// transactions that need the same row: the in-memory store has no row locks,
+	// so without it two concurrent writers would snapshot the same state and
+	// the loser's rollback would erase the winner's commit.
+	run sync.Mutex
 	mu  sync.Mutex
 	st  state
 	now time.Time
@@ -84,6 +89,8 @@ func (s *Store) Do(ctx context.Context, fn func(ctx context.Context) error) erro
 	if ctx.Value(ctxKey{}) != nil {
 		return fn(ctx)
 	}
+	s.run.Lock()
+	defer s.run.Unlock()
 	s.mu.Lock()
 	before := s.st.clone()
 	s.mu.Unlock()
