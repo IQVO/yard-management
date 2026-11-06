@@ -119,6 +119,18 @@ func Shutdown() {
 	}
 }
 
+// Stop stops the shared broker WITHOUT removing it (the proof that /readyz
+// notices a Kafka that went away). Nothing that needs Kafka can run after it
+// in the same test binary; Shutdown still cleans up.
+func Stop(t *testing.T) {
+	t.Helper()
+	Brokers(t)
+	timeout := 30 * time.Second
+	if err := container.Stop(context.Background(), &timeout); err != nil {
+		t.Fatalf("stop kafka container: %v", err)
+	}
+}
+
 // Produce writes messages to topic (key and headers as given) and waits for
 // the broker's acknowledgement.
 func Produce(t *testing.T, topic string, msgs ...Message) {

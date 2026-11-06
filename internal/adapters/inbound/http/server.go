@@ -43,7 +43,12 @@ func NewRouter(s *Server) http.Handler {
 	// route-scoped idempotency middleware so a rejected request never
 	// records its key.
 	r.Use(rejectNUL)
-
+	r.NotFound(func(w http.ResponseWriter, req *http.Request) {
+		writeProblem(w, req, notFoundResource, "no resource matches the requested path")
+	})
+	r.MethodNotAllowed(func(w http.ResponseWriter, req *http.Request) {
+		writeProblem(w, req, methodNotAllowed, "the resource does not take this method")
+	})
 	r.Get("/healthz", handleHealthz)
 	r.Get("/readyz", s.handleReadyz)
 

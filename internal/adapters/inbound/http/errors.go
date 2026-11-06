@@ -33,6 +33,9 @@ type problem struct {
 
 var internalProblem = problem{http.StatusInternalServerError, "internal-error", "Internal server error"}
 
+// methodNotAllowed is the 405 of a known path with an unsupported method.
+var methodNotAllowed = problem{http.StatusMethodNotAllowed, "method-not-allowed", "Method not allowed"}
+
 // Problems the middleware writes itself, before any use case runs.
 var (
 	idempotencyKeyRequired = problem{http.StatusBadRequest, "idempotency-key-required", "Idempotency-Key header is required"}

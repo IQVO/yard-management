@@ -203,3 +203,23 @@ func TestListsPageByKeyset(t *testing.T) {
 		t.Errorf("an empty page is an empty list")
 	}
 }
+
+func TestUnknownRoutesAndMethodsAreProblems(t *testing.T) {
+	g := newRig(t)
+	for _, c := range []struct {
+		method, path string
+		code         int
+		slug         string
+	}{
+		{"GET", "/nowhere", http.StatusNotFound, "resource-not-found"},
+		// F5: there is no lease renewal endpoint in v1.
+		{"POST", "/moves/mv-1/lease-renewals", http.StatusNotFound, "resource-not-found"},
+		{"PUT", "/moves/claims", http.StatusMethodNotAllowed, "method-not-allowed"},
+		{"DELETE", "/visits", http.StatusMethodNotAllowed, "method-not-allowed"},
+	} {
+		r := g.do(c.method, c.path, nil, "Idempotency-Key", "k")
+		if r.Code != c.code || r.Slug() != c.slug || r.Header.Get("Content-Type") != "application/problem+json" {
+			t.Errorf("%s %s: %d %q %s", c.method, c.path, r.Code, r.Header.Get("Content-Type"), r.Body)
+		}
+	}
+}
