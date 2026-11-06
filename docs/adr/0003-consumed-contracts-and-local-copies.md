@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (2026-11-05).
+Accepted (2026-11-05). Failure handling (retry versus dead letter) is refined by ADR 0009.
 
 ## Context
 
