@@ -23,7 +23,6 @@ import (
 
 	outboundkafka "github.com/claudioed/yard-management/internal/adapters/outbound/kafka"
 	"github.com/claudioed/yard-management/internal/adapters/outbound/postgres"
-	"github.com/claudioed/yard-management/internal/domain/shared"
 	"github.com/claudioed/yard-management/internal/testing/kafkatest"
 	"github.com/claudioed/yard-management/internal/testing/pgtest"
 )
@@ -117,6 +116,9 @@ func boot(t *testing.T) (*api, string) {
 	_ = l.Close()
 	t.Setenv("DATABASE_URL", dsn)
 	t.Setenv("KAFKA_BROKERS", strings.Join(kafkatest.Brokers(t), ","))
+	t.Setenv("DOCK_SCHEDULING_CONSUMER_GROUP", fmt.Sprintf("itest-dock-%d", time.Now().UnixNano()))
+	t.Setenv("FACILITY_CONSUMER_GROUP", fmt.Sprintf("itest-facility-%d", time.Now().UnixNano()))
+	t.Setenv("INBOUND_RECEIVING_CONSUMER_GROUP", fmt.Sprintf("itest-inbound-%d", time.Now().UnixNano()))
 	t.Setenv("HTTP_ADDR", addr)
 	t.Setenv("SHUTDOWN_DRAIN_DELAY", "0s")
 	t.Setenv("LOG_LEVEL", "error")
@@ -143,24 +145,6 @@ func boot(t *testing.T) (*api, string) {
 			t.Fatal("the API never became ready")
 		}
 		time.Sleep(100 * time.Millisecond)
-	}
-}
-
-// seedSite feeds the local copies the way the consumers will: one site, three
-// spots and two doors.
-func seedSite(t *testing.T, dsn string) {
-	t.Helper()
-	ctx := context.Background()
-	feed := postgres.NewLocations(pgtest.Open(t, dsn))
-	for _, step := range []error{
-		feed.ApplyZone(ctx, "WH1-yard", "WH1"), feed.ApplyZone(ctx, "WH1-dock", "WH1"),
-		feed.ApplySlot(ctx, "WH1-Y01", "WH1-yard", shared.Spot, ""), feed.ApplySlot(ctx, "WH1-Y02", "WH1-yard", shared.Spot, ""),
-		feed.ApplySlot(ctx, "WH1-Y03", "WH1-yard", shared.Spot, ""),
-		feed.ApplySlot(ctx, "WH1-D01", "WH1-dock", shared.Door, "Inbound"), feed.ApplySlot(ctx, "WH1-D02", "WH1-dock", shared.Door, "Both"),
-	} {
-		if step != nil {
-			t.Fatal(step)
-		}
 	}
 }
 

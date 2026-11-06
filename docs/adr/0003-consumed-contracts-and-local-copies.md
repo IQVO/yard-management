@@ -50,13 +50,16 @@ Rescheduled carries `previous_door_code`; the copy relies on `appointment_id`, `
 - `door_closures(closure_id pk, site_id, door_code, closed_from, closed_to, lifted)`.
 - `asns(asn_number pk, expected_arrival, cancelled)`; `receipts(receipt_id pk, asn_number, appointment_id, door_code,
   closed_at)`.
-- `processed_events(event_id pk, consumer)` is the inbox: a consumed CloudEvent id is claimed in the same unit of work as its
-  effect, so a redelivery after a rollback is processed and a duplicate is skipped.
+- `processed_events(event_id pk, processed_at)` is the inbox: a consumed CloudEvent id is claimed in the same unit of work as its
+  effect, so a redelivery after a rollback is processed and a duplicate is skipped. The table is not keyed by consumer: a
+  CloudEvents id is unique fleet-wide and each type is handled by exactly one consumer.
 
 ### Rules
 
 - Dispatch on the full CloudEvents `type`; unknown types are ignored; a message that is not a CloudEvent is skipped; a payload
-  that can never be applied is dead-lettered to `<topic>.dlq`; any other error is retried and dead-lettered after 5 attempts.
+  that can never be applied (poison) is dead-lettered to `<topic>.dlq` at once. Any other error is transient: the same
+  message is retried with capped exponential backoff (200 ms doubling to 5 s) and its offset is not committed until it
+  succeeds; nothing is dead-lettered because of a retry count (ADR 0009).
 - Tolerant decoding: unknown fields are ignored, optional fields default.
 - Consumer groups are mandatory and named by environment; boot fails naming the missing variable.
 - Out-of-order tolerance: facility slots before zones (above); a Rescheduled or Cancelled for an unseen appointment creates the

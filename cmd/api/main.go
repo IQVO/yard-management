@@ -5,15 +5,22 @@
 //
 // Environment:
 //
-//	HTTP_ADDR               listen address (default :8080)
-//	DATABASE_URL            Postgres DSN (REQUIRED; boot error naming it)
-//	MIGRATIONS_DATABASE_URL direct DSN for the boot migrations (default DATABASE_URL)
-//	KAFKA_BROKERS           comma-separated brokers (REQUIRED; /readyz asks one for metadata)
-//	SHUTDOWN_DRAIN_DELAY    wait after flipping /readyz before closing (default 5s)
-//	LOG_LEVEL               debug|info|warn|error (default info)
+//	HTTP_ADDR                         listen address (default :8080)
+//	DATABASE_URL                      Postgres DSN (REQUIRED; boot error naming it)
+//	MIGRATIONS_DATABASE_URL           direct DSN for the boot migrations (default DATABASE_URL)
+//	KAFKA_BROKERS                     comma-separated brokers (REQUIRED; /readyz asks one for metadata)
+//	DOCK_SCHEDULING_CONSUMER_GROUP    consumer group of warehouse.dock-scheduling.events (REQUIRED)
+//	FACILITY_CONSUMER_GROUP           consumer group of warehouse.facility.events (REQUIRED)
+//	INBOUND_RECEIVING_CONSUMER_GROUP  consumer group of warehouse.inbound-receiving.events (REQUIRED)
+//	SHUTDOWN_DRAIN_DELAY              wait after flipping /readyz before closing (default 5s)
+//	LOG_LEVEL                         debug|info|warn|error (default info)
 //
 // The transactional outbox rows the use cases write are relayed to Kafka by
-// cmd/relay, not by this process; the Kafka consumers are a later binary.
+// cmd/relay, not by this process. The three Kafka consumers (ADR 0009) run in
+// this process next to the HTTP server: a consumer that dies takes the process
+// down. Shutdown order: /readyz flips to 503, the drain delay passes, the HTTP
+// server drains, the consumers stop (an interrupted message stays uncommitted
+// and is redelivered), and the Postgres pool closes last.
 // GET /readyz is 200 only while the process is not draining AND Postgres
 // answers a ping AND a Kafka broker answers a topic-less metadata request
 // (verdict cached 3 s, bounded 2 s); /healthz is liveness only.
@@ -59,21 +66,30 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	// The pool closes LAST, after the HTTP drain.
+	// The pool closes LAST, after the HTTP drain and the consumers' stop.
 	defer rt.pool.Close()
 
 	ln, err := net.Listen("tcp", cfg.httpAddr)
 	if err != nil {
+		for _, c := range rt.consumers {
+			_ = c.Close()
+		}
 		return fmt.Errorf("listen on %s: %w", cfg.httpAddr, err)
 	}
 	httpServer := &http.Server{Handler: inboundhttp.NewRouter(rt.server), ReadHeaderTimeout: 5 * time.Second}
-	return serve(ctx, logger, httpServer, ln, rt.readiness, cfg.drainDelay)
+	consumers := startConsumers(ctx, logger, rt.consumers)
+	serveErr := serve(ctx, logger, httpServer, ln, rt.readiness, cfg.drainDelay, consumers.failures())
+	// Shutdown order: /readyz flips and the HTTP server drains (serve), THEN
+	// the consumers stop (their in-flight message finishes or stays
+	// uncommitted), THEN the pool closes (deferred above).
+	return errors.Join(serveErr, consumers.stop())
 }
 
-// serve runs httpServer on ln until SIGINT/SIGTERM, ctx is cancelled or the
-// listener fails, then shuts down in the fleet order: /readyz flips to 503,
-// the drain delay passes, the server drains in-flight requests.
-func serve(ctx context.Context, logger *slog.Logger, httpServer *http.Server, ln net.Listener, readiness *inboundhttp.Readiness, drainDelay time.Duration) error {
+// serve runs httpServer on ln until SIGINT/SIGTERM, ctx is cancelled, the
+// listener fails or a consumer dies (failed), then shuts down in the fleet
+// order: /readyz flips to 503, the drain delay passes, the server drains
+// in-flight requests. The caller stops the consumers afterwards.
+func serve(ctx context.Context, logger *slog.Logger, httpServer *http.Server, ln net.Listener, readiness *inboundhttp.Readiness, drainDelay time.Duration, failed <-chan error) error {
 	errCh := make(chan error, 1)
 	go func() {
 		logger.Info("http server listening", "addr", ln.Addr().String())
@@ -84,9 +100,12 @@ func serve(ctx context.Context, logger *slog.Logger, httpServer *http.Server, ln
 
 	sigCtx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+	var consumerErr error
 	select {
 	case err := <-errCh:
 		return err
+	case consumerErr = <-failed:
+		logger.Error("a consumer died; shutting down", "error", consumerErr)
 	case <-sigCtx.Done():
 	}
 
@@ -97,7 +116,7 @@ func serve(ctx context.Context, logger *slog.Logger, httpServer *http.Server, ln
 	}
 	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownTimeout)
 	defer cancel()
-	return httpServer.Shutdown(shutdownCtx)
+	return errors.Join(consumerErr, httpServer.Shutdown(shutdownCtx))
 }
 
 // newLogger builds the JSON logger; LOG_LEVEL debug|info|warn|warning|error

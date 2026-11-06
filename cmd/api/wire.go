@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	inboundhttp "github.com/claudioed/yard-management/internal/adapters/inbound/http"
+	inboundkafka "github.com/claudioed/yard-management/internal/adapters/inbound/kafka"
 	outboundkafka "github.com/claudioed/yard-management/internal/adapters/outbound/kafka"
 	"github.com/claudioed/yard-management/internal/adapters/outbound/postgres"
 	"github.com/claudioed/yard-management/internal/adapters/outbound/system"
@@ -50,6 +51,7 @@ type runtime struct {
 	pool      *pgxpool.Pool
 	server    *inboundhttp.Server
 	readiness *inboundhttp.Readiness
+	consumers []*inboundkafka.Consumer
 }
 
 // wire opens Postgres (running the embedded migrations first, on
@@ -80,13 +82,19 @@ func wire(ctx context.Context, cfg config, getenv func(string) string, logger *s
 	// Reports is left unset: the analytics read side (ADR 0006) is a later
 	// binary's job, and the report routes answer the contract shape with no
 	// rows until it is wired.
+	yard := usecases.New(deps(pool, uow, locks, clock))
 	server := &inboundhttp.Server{
-		Yard:             usecases.New(deps(pool, uow, locks, clock)),
+		Yard:             yard,
 		Idempotency:      inboundhttp.NewIdempotency(idem),
 		SweepIdempotency: inboundhttp.NewOptionalIdempotency(idem),
 		Readiness:        readiness,
 	}
-	return &runtime{pool: pool, server: server, readiness: readiness}, nil
+	consumers, err := buildConsumers(cfg, yard, logger)
+	if err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("build the kafka consumers: %w", err)
+	}
+	return &runtime{pool: pool, server: server, readiness: readiness, consumers: consumers}, nil
 }
 
 // deps wires every port of the use cases to its Postgres adapter.

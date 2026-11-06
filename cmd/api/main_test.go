@@ -16,41 +16,81 @@ import (
 
 func env(m map[string]string) func(string) string { return func(k string) string { return m[k] } }
 
-func TestLoadConfigNamesEveryMissingRequiredVariable(t *testing.T) {
+// required is a complete valid environment; tests drop or change one entry.
+func required(overrides map[string]string) map[string]string {
+	m := map[string]string{
+		"DATABASE_URL": "postgres://x", "KAFKA_BROKERS": "k:9092",
+		"DOCK_SCHEDULING_CONSUMER_GROUP": "yard-management-dock", "FACILITY_CONSUMER_GROUP": "yard-management-facility",
+		"INBOUND_RECEIVING_CONSUMER_GROUP": "yard-management-inbound",
+	}
+	for k, v := range overrides {
+		m[k] = v
+	}
+	return m
+}
+
+var requiredVariables = []string{"DATABASE_URL", "KAFKA_BROKERS", "DOCK_SCHEDULING_CONSUMER_GROUP", "FACILITY_CONSUMER_GROUP", "INBOUND_RECEIVING_CONSUMER_GROUP"}
+
+func TestLoadConfigNamesEveryMissingRequiredVariableTogether(t *testing.T) {
 	_, err := loadConfig(env(nil))
-	if err == nil || !strings.Contains(err.Error(), "DATABASE_URL") || !strings.Contains(err.Error(), "KAFKA_BROKERS") {
-		t.Fatalf("both variables are named together: %v", err)
+	if err == nil {
+		t.Fatal("an empty environment is refused")
 	}
-	_, err = loadConfig(env(map[string]string{"DATABASE_URL": "postgres://x"}))
-	if err == nil || strings.Contains(err.Error(), "DATABASE_URL") || !strings.Contains(err.Error(), "KAFKA_BROKERS") {
-		t.Fatalf("only KAFKA_BROKERS is missing: %v", err)
-	}
-	_, err = loadConfig(env(map[string]string{"KAFKA_BROKERS": " , ", "DATABASE_URL": "postgres://x"}))
-	if err == nil || !strings.Contains(err.Error(), "KAFKA_BROKERS") {
-		t.Fatalf("blank brokers are missing brokers: %v", err)
-	}
-	_, err = loadConfig(env(map[string]string{"DATABASE_URL": "  ", "KAFKA_BROKERS": "k:9092"}))
-	if err == nil || !strings.Contains(err.Error(), "DATABASE_URL") {
-		t.Fatalf("a blank DATABASE_URL is missing: %v", err)
+	for _, name := range requiredVariables {
+		if !strings.Contains(err.Error(), name) {
+			t.Errorf("the boot error does not name %s: %v", name, err)
+		}
 	}
 }
 
-func TestLoadConfigDefaultsAndOverrides(t *testing.T) {
-	cfg, err := loadConfig(env(map[string]string{"DATABASE_URL": "postgres://x", "KAFKA_BROKERS": "a:9092, b:9092"}))
+// assertOnlyNames fails unless err names want and none of the other required
+// variables.
+func assertOnlyNames(t *testing.T, label, want string, err error) {
+	t.Helper()
+	if err == nil || !strings.Contains(err.Error(), want) {
+		t.Errorf("%s: want a boot error naming %s: %v", label, want, err)
+		return
+	}
+	for _, other := range requiredVariables {
+		if other != want && strings.Contains(err.Error(), other) {
+			t.Errorf("%s: the error also names %s: %v", label, other, err)
+		}
+	}
+}
+
+func TestLoadConfigNamesExactlyTheMissingOrBlankVariable(t *testing.T) {
+	for _, name := range requiredVariables {
+		for label, blank := range map[string]string{"missing": "", "blank": "  "} {
+			_, err := loadConfig(env(required(map[string]string{name: blank})))
+			assertOnlyNames(t, label+" "+name, name, err)
+		}
+	}
+	_, err := loadConfig(env(required(map[string]string{"KAFKA_BROKERS": " , "})))
+	assertOnlyNames(t, "blank brokers", "KAFKA_BROKERS", err)
+}
+
+func TestLoadConfigDefaults(t *testing.T) {
+	cfg, err := loadConfig(env(required(map[string]string{"KAFKA_BROKERS": "a:9092, b:9092"})))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if cfg.httpAddr != ":8080" || cfg.drainDelay != 5*time.Second || len(cfg.brokers) != 2 || cfg.brokers[1] != "b:9092" {
 		t.Fatalf("defaults %+v", cfg)
 	}
-	cfg, err = loadConfig(env(map[string]string{
-		"DATABASE_URL": "postgres://x", "KAFKA_BROKERS": "a:9092", "HTTP_ADDR": "127.0.0.1:9", "SHUTDOWN_DRAIN_DELAY": "0s", "LOG_LEVEL": "debug",
-	}))
+	if cfg.dockGroup != "yard-management-dock" || cfg.facilityGroup != "yard-management-facility" || cfg.inboundGroup != "yard-management-inbound" {
+		t.Fatalf("groups %+v", cfg)
+	}
+}
+
+func TestLoadConfigOverrides(t *testing.T) {
+	cfg, err := loadConfig(env(required(map[string]string{
+		"KAFKA_BROKERS": "a:9092", "HTTP_ADDR": "127.0.0.1:9", "SHUTDOWN_DRAIN_DELAY": "0s", "LOG_LEVEL": "debug",
+	})))
 	if err != nil || cfg.httpAddr != "127.0.0.1:9" || cfg.drainDelay != 0 || cfg.logLevel != "debug" {
 		t.Fatalf("overrides %+v %v", cfg, err)
 	}
 	for _, bad := range []string{"soon", "-1s"} {
-		_, err = loadConfig(env(map[string]string{"DATABASE_URL": "postgres://x", "KAFKA_BROKERS": "a:9092", "SHUTDOWN_DRAIN_DELAY": bad}))
+		_, err = loadConfig(env(required(map[string]string{"SHUTDOWN_DRAIN_DELAY": bad})))
 		if err == nil || !strings.Contains(err.Error(), "SHUTDOWN_DRAIN_DELAY") {
 			t.Errorf("%q: %v", bad, err)
 		}
@@ -58,11 +98,14 @@ func TestLoadConfigDefaultsAndOverrides(t *testing.T) {
 }
 
 func TestRunRefusesAMissingConfigurationBeforeOpeningAnything(t *testing.T) {
-	t.Setenv("DATABASE_URL", "")
-	t.Setenv("KAFKA_BROKERS", "")
+	for _, name := range []string{"DATABASE_URL", "KAFKA_BROKERS", "DOCK_SCHEDULING_CONSUMER_GROUP", "FACILITY_CONSUMER_GROUP", "INBOUND_RECEIVING_CONSUMER_GROUP"} {
+		t.Setenv(name, "")
+	}
 	err := run(context.Background())
-	if err == nil || !strings.Contains(err.Error(), "DATABASE_URL") || !strings.Contains(err.Error(), "KAFKA_BROKERS") {
-		t.Fatalf("run = %v", err)
+	for _, name := range []string{"DATABASE_URL", "KAFKA_BROKERS", "DOCK_SCHEDULING_CONSUMER_GROUP", "FACILITY_CONSUMER_GROUP", "INBOUND_RECEIVING_CONSUMER_GROUP"} {
+		if err == nil || !strings.Contains(err.Error(), name) {
+			t.Fatalf("run = %v, want it to name %s", err, name)
+		}
 	}
 }
 
@@ -72,6 +115,9 @@ func TestRunFailsWhenPostgresIsUnreachable(t *testing.T) {
 	defer func() { bootAttempts, bootBackoff = old, oldBackoff }()
 	t.Setenv("DATABASE_URL", "postgres://yard:yard@127.0.0.1:1/yard?sslmode=disable&connect_timeout=1")
 	t.Setenv("KAFKA_BROKERS", "127.0.0.1:1")
+	t.Setenv("DOCK_SCHEDULING_CONSUMER_GROUP", "g1")
+	t.Setenv("FACILITY_CONSUMER_GROUP", "g2")
+	t.Setenv("INBOUND_RECEIVING_CONSUMER_GROUP", "g3")
 	err := run(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "run migrations") {
 		t.Fatalf("run = %v", err)
@@ -114,7 +160,7 @@ func TestServeDrainsAndStopsWhenTheContextIsCancelled(t *testing.T) {
 	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
-	go func() { done <- serve(ctx, slog.New(slog.NewTextHandler(io.Discard, nil)), srv, ln, readiness, 0) }()
+	go func() { done <- serve(ctx, slog.New(slog.NewTextHandler(io.Discard, nil)), srv, ln, readiness, 0, nil) }()
 
 	resp, err := http.Get("http://" + ln.Addr().String())
 	if err != nil {
@@ -138,7 +184,7 @@ func TestServeReturnsAListenerFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = ln.Close()
-	err = serve(context.Background(), slog.New(slog.NewTextHandler(io.Discard, nil)), &http.Server{}, ln, inboundhttp.NewReadiness(0, 0), 0)
+	err = serve(context.Background(), slog.New(slog.NewTextHandler(io.Discard, nil)), &http.Server{}, ln, inboundhttp.NewReadiness(0, 0), 0, nil)
 	if err == nil {
 		t.Fatal("a closed listener is a serve error")
 	}

@@ -21,19 +21,24 @@ import (
 // CloudEvents out, then the broker goes away and /readyz says so. The steps
 // share one booted process and run in this order (the last two stop things).
 func TestAPIOnRealPostgresAndKafka(t *testing.T) {
-	for _, topic := range outboundkafka.Topics() {
+	// The service's own topics and the three producers' topics it consumes
+	// (the test broker has topic auto-creation off).
+	for _, topic := range append(outboundkafka.Topics(), topicDockScheduling, topicFacility, topicInboundReceiving) {
 		kafkatest.CreateTopic(t, topic)
 	}
 	a, dsn := boot(t)
-	seedSite(t, dsn)
 	startRelay(t, dsn)
 	pool := pgtest.Open(t, dsn)
+	// Zones, spots and doors reach the service ONLY through Kafka.
+	publishSite(t, pool)
 
 	for _, step := range []struct {
 		name string
 		run  func(*testing.T, *api, string, *pgxpool.Pool)
 	}{
 		{"a drop visit is checked in, parked, docked and worked", dropVisitFlow},
+		{"check-in directs a trailer with an appointment to its door; ReceiptClosed completes door work only when every ASN is closed", appointmentToDoorAndReceipts},
+		{"a NoShow cancels the open TO_DOOR move of the appointment", noShowCancelsToDoorMove},
 		{"two moves to one door: exactly one wins", occupancyRace},
 		{"one Idempotency-Key runs once even when sent concurrently", concurrentKey},
 		{"readiness turns 503 dependency-unavailable when Kafka stops", readinessWhenKafkaStops},
