@@ -90,9 +90,11 @@ Three traps, in order of how much time they cost when hit blind:
      -t warehouse/<context>-frontend:local .
    ```
 
-See this repo's own `web/Dockerfile` for the complete, working, heavily
-commented recipe — copy it rather than re-deriving these three traps from
-scratch for a new remote.
+This repo ships no web frontend (the floor client is a separate PWA
+repo); when one lands, its Dockerfile belongs in a new `web/` directory
+beside the root `Dockerfile` (which builds every cmd/* binary into one
+image) — copy that file's pinned-digest, non-root-user shape rather than
+re-deriving the traps from scratch for a new remote.
 
 ## Wiring into `warehouse-infra`'s deploy
 

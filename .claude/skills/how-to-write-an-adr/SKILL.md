@@ -15,11 +15,11 @@ addition inside an already-decided architecture doesn't.
 
 ## Numbering and location
 
-`docs/docs/adr/NNNN-kebab-case-title.md`, four-digit zero-padded,
+`docs/adr/NNNN-kebab-case-title.md`, four-digit zero-padded,
 sequential — check the highest existing number
-(`git ls-tree --name-only origin/develop -- docs/docs/adr/` and pick the
-next integer, never reuse or guess). `docs/docs/adr/about.md` explains the
-format to readers; you don't need to touch it when adding a new ADR.
+(`git ls-tree --name-only origin/develop -- docs/adr/` and pick the
+next integer, never reuse or guess). `docs/adr/index.md` explains the
+format to readers; update its table when adding a new ADR.
 
 ## Frontmatter (Docusaurus needs all five fields)
 
@@ -70,19 +70,19 @@ lists benefits reads as marketing, not a decision record.
 ```
 
 The `## Decision` section is the part worth the most editing effort: see
-ADR-0013 (`docs/docs/adr/0013-location-classification-via-facility-events.md`)
+ADR-0003 (`docs/adr/0003-consumed-contracts-and-local-copies.md`)
 for a model example — it states the exact mechanism (event-fed local
-cache replacing a synchronous HTTP read), names the readiness-gate design,
-and is specific enough that Task "how-to-add-an-integration-event"'s
-consumer-group guidance can point straight at it.
+copies of the producers' contracts replacing any synchronous read, with
+the exact types/topics/fields read from the producers' origin/develop),
+names the local-copy tables and the ownership split,
+and is specific enough that the "how-to-add-an-integration-event" skill's
+consumer guidance can point straight at it.
 
 ## Superseding an earlier ADR
 
 Don't edit the old ADR's Decision section. Add a `## Status` line noting
 `Superseded by ADR-XXXX` on the OLD one (a one-line patch), and open the
 new ADR referencing it: `**Accepted.** <date>. Supersedes [NN. Old title](./NNNN-old-slug.md).`
-— see ADR-0015 (`0015-remove-rest-identity-layer.md`) for the exact
-wording pattern superseding ADR-0014.
 
 ## Cross-repo decisions: use a companion ADR, not one repo's private opinion
 

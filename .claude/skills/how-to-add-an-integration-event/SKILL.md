@@ -16,15 +16,18 @@ shared-broker reality has already caused a real incident once.
 
 ### 1. Is it actually cross-service?
 
-Not every domain event this service raises belongs on the wire. Check
-`internal/adapters/outbound/kafka/publisher.go`'s doc comment — this repo
-forwards only `StockReserved`/`ReservationRevoked`; everything else is a
-local concern published only to the Postgres outbox
-(`internal/adapters/outbound/postgres/event_publisher.go`) for audit, not
-broadcast. Before adding a new event to the Kafka publisher, confirm a
-sibling context genuinely needs to react to it — check
-`docs/docs/ddd/context-map.md` or the equivalent ubiquitous-language doc
-for who's actually downstream.
+Not every domain event this service raises belongs on the wire — in this
+repo every published type DOES (the catalogue of
+`docs/adr/0004-cloudevents-envelope-and-type-catalogue.md` is mirrored on
+both the integration and the analytics topic). Check who the catalogue
+says consumes each type before adding a new `type`:
+`internal/adapters/outbound/kafka/encoder.go` encodes each published
+event, and the outbox rows are appended in the SAME transaction as the
+aggregate save (`internal/adapters/outbound/postgres/outbox.go`, drained
+by `internal/adapters/outbound/kafka/relay_sink.go` via cmd/relay). Before
+adding a new event to the catalogue, confirm a sibling context genuinely
+needs to react to it — the catalogue in ADR 0004 records the consumers;
+don't guess.
 
 ### 2. Envelope: CloudEvents 1.0, structured mode — MANDATORY
 
@@ -52,9 +55,11 @@ shape, no dual-write, no `EVENT_ENVELOPE_MODE` toggle (see
 `type` follows the platform-wide reverse-DNS convention
 `com.warehouse.<subdomain>.<bounded-context>.<entity>.<EventName>`, all
 lowercase except the final PascalCase event name — e.g.
-`com.warehouse.wms.inventory-storage.reservation.ReservationRevoked`. Take
-the subdomain/context segment from the subdomain table on warehouse-docs'
-Event Standard page (`docs/strategic-design/event-standard-cloudevents.md`);
+`com.warehouse.wms.inventory-storage.reservation.ReservationRevoked`; this
+repo's prefix is `com.warehouse.wms.yard-management.<entity>.<EventName>`
+(e.g. `com.warehouse.wms.yard-management.trailer.TrailerDocked` — the
+subdomain/context segment is fixed in
+`docs/adr/0004-cloudevents-envelope-and-type-catalogue.md`);
 don't guess it. The same `type` is used on the analytics topic; only
 `dataschema` changes (`…:analytics:<EventName>:v1`).
 
@@ -120,10 +125,11 @@ hardcoded `localhost:9092` fails CI).
 ### 1. Never import the sibling's Go packages
 
 This service knows a sibling's topic name, its exact CloudEvents `type`
-strings and payload shape ONLY — never its Go types. See `internal/adapters/outbound/facilitycache/consumer.go`'s
-own doc comment: "This service has no business knowing anything else
-about that context beyond this topic name and the envelope/payload shapes
-below." Hand-mirror the payload struct locally; do not add a Go module
+strings and payload shape ONLY — never its Go types. See
+`internal/adapters/inbound/kafka/facility_consumer.go`:
+"The only facility-layout types the consumer acts on, byte-identical to
+the producer's AsyncAPI. Every other type on the topic is ignored."
+Hand-mirror the payload struct locally; do not add a Go module
 dependency on the sibling repo (an architecture fitness test in most
 repos in this fleet would catch that anyway for the stricter contexts —
 check this repo's own `internal/architecture/` for a
@@ -169,9 +175,8 @@ EXACTLY what you want: pick up where the single instance left off.
 
 **Pattern B — per-process-unique consumer group (a generated id).** Use
 when this consumer rebuilds a complete read model from a topic's FULL
-history on every start (an event-sourced local cache, not a work queue) —
-see `facilitycache/consumer.go`'s `consumerGroupPrefix` +
-`uniqueConsumerGroup()`. The group id MUST be unique per process instance
+history on every start (an event-sourced local cache, not a work queue).
+The group id MUST be unique per process instance
 (hostname+PID+timestamp), NEVER a fixed shared string. Consumer group
 offsets are shared infrastructure state: a brand-new process joining a
 group an EARLIER instance already consumed resumes from that instance's

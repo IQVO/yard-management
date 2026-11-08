@@ -11,10 +11,12 @@ paths:
      placeholder: keep it verbatim, only substitute the per-repo values. -->
 # Cross-service integration events (Kafka)
 
-FILL IN: state whether this service PUBLISHES, CONSUMES, or both, and
-to/from which topic(s). Fleet naming: `warehouse.<context>.events`
-(integration) and `warehouse.<context>.analytics` (consumed only by this
-service's own analytics projector).
+This service BOTH publishes and consumes. It publishes its own domain
+events to `warehouse.yard-management.events` and mirrors every one of
+them to `warehouse.yard-management.analytics` (consumed only by this
+service's own projector, ADR 0006). It consumes
+`warehouse.dock-scheduling.events`, `warehouse.facility.events` and
+`warehouse.inbound-receiving.events` (ADR 0003) into local copies.
 
 ## Events: CloudEvents 1.0 is MANDATORY
 
@@ -47,11 +49,11 @@ not a preference — there is nothing to "choose" here:
   `dataschema=urn:warehouse:<repo>:<events|analytics>:<EventName>:v<N>`.
   No custom extension attributes without an ADR.
 - `type` = `com.warehouse.<subdomain>.<bounded-context>.<entity>.<EventName>`
-  (subdomain `wms` or `wes`; FILL IN this repo's exact prefix, e.g.
-  `com.warehouse.wes.order-management`). The SAME `type` names the
-  occurrence on both the integration and the analytics topic; `dataschema`
-  names the payload shape. Breaking payload change => new `.v2` type + new
-  dataschema version, never mutate an existing one.
+  (this repo's exact prefix: `com.warehouse.wms.yard-management`, e.g.
+  `com.warehouse.wms.yard-management.trailer.TrailerDocked`). The SAME
+  `type` names the occurrence on both the integration and the analytics
+  topic; `dataschema` names the payload shape. Breaking payload change =>
+  new `.v2` type + new dataschema version, never mutate an existing one.
 - Consumers decode with `cloudevents.Decode` (validates), dispatch on the
   FULL `type` string (never a short name or suffix match), ignore unknown
   types, read `time`/`subject` from attributes and the payload via
@@ -62,40 +64,68 @@ not a preference — there is nothing to "choose" here:
   the `content-type` header); a legacy-flat-message-rejected test per
   consumer; Kafka integration tests via testcontainers only.
 
-Full standard, subdomain table and the fleet's cross-service type
-catalogue: warehouse-docs `docs/strategic-design/event-standard-cloudevents.md`.
-Record it in this repo as its own ADR "CloudEvents 1.0 as the mandatory
-event envelope" under `docs/docs/adr/`.
+This repo's own record of the standard is
+`docs/adr/0004-cloudevents-envelope-and-type-catalogue.md` (envelope,
+dataschema URNs and the full type catalogue); the consumed contracts and
+their local copies live in `docs/adr/0003-consumed-contracts-and-local-copies.md`.
 
 ### Published types
 
-FILL IN: one row per published event, exact strings.
+One row per published event, exact strings (ADR 0004 / `apis/asyncapi.yaml`).
 
 | `type` | topic(s) | `subject` | `dataschema` |
 | --- | --- | --- | --- |
-| `com.warehouse.<sub>.<ctx>.<entity>.<EventName>` | `warehouse.<ctx>.events` | aggregate id | `urn:warehouse:<repo>:events:<EventName>:v1` |
+| `com.warehouse.wms.yard-management.yardvisit.VisitCheckedIn` | `warehouse.yard-management.events` + `.analytics` | visit id | `urn:warehouse:yard-management:events:VisitCheckedIn:v1` |
+| `com.warehouse.wms.yard-management.yardvisit.VisitRejected` | `warehouse.yard-management.events` + `.analytics` | visit id | `urn:warehouse:yard-management:events:VisitRejected:v1` |
+| `com.warehouse.wms.yard-management.yardvisit.VisitCheckedOut` | `warehouse.yard-management.events` + `.analytics` | visit id | `urn:warehouse:yard-management:events:VisitCheckedOut:v1` |
+| `com.warehouse.wms.yard-management.trailer.TrailerParked` | `warehouse.yard-management.events` + `.analytics` | trailer id | `urn:warehouse:yard-management:events:TrailerParked:v1` |
+| `com.warehouse.wms.yard-management.trailer.TrailerDocked` | `warehouse.yard-management.events` + `.analytics` | trailer id | `urn:warehouse:yard-management:events:TrailerDocked:v1` |
+| `com.warehouse.wms.yard-management.trailer.TrailerUndocked` | `warehouse.yard-management.events` + `.analytics` | trailer id | `urn:warehouse:yard-management:events:TrailerUndocked:v1` |
+| `com.warehouse.wms.yard-management.trailer.DoorWorkStarted` | `warehouse.yard-management.events` + `.analytics` | trailer id | `urn:warehouse:yard-management:events:DoorWorkStarted:v1` |
+| `com.warehouse.wms.yard-management.trailer.DoorWorkCompleted` | `warehouse.yard-management.events` + `.analytics` | trailer id | `urn:warehouse:yard-management:events:DoorWorkCompleted:v1` |
+| `com.warehouse.wms.yard-management.trailer.TrailerDeparted` | `warehouse.yard-management.events` + `.analytics` | trailer id | `urn:warehouse:yard-management:events:TrailerDeparted:v1` |
+| `com.warehouse.wms.yard-management.trailer.SealExceptionRaised` | `warehouse.yard-management.events` + `.analytics` | trailer id | `urn:warehouse:yard-management:events:SealExceptionRaised:v1` |
+| `com.warehouse.wms.yard-management.trailer.TrailerDwellExceeded` | `warehouse.yard-management.events` + `.analytics` | trailer id | `urn:warehouse:yard-management:events:TrailerDwellExceeded:v1` |
+| `com.warehouse.wms.yard-management.trailer.TrailerHeld` | `warehouse.yard-management.events` + `.analytics` | trailer id | `urn:warehouse:yard-management:events:TrailerHeld:v1` |
+| `com.warehouse.wms.yard-management.trailer.TrailerHoldReleased` | `warehouse.yard-management.events` + `.analytics` | trailer id | `urn:warehouse:yard-management:events:TrailerHoldReleased:v1` |
+| `com.warehouse.wms.yard-management.yardmove.YardMoveRequested` | `warehouse.yard-management.events` + `.analytics` | move id | `urn:warehouse:yard-management:events:YardMoveRequested:v1` |
+| `com.warehouse.wms.yard-management.yardmove.YardMoveClaimed` | `warehouse.yard-management.events` + `.analytics` | move id | `urn:warehouse:yard-management:events:YardMoveClaimed:v1` |
+| `com.warehouse.wms.yard-management.yardmove.YardMoveCompleted` | `warehouse.yard-management.events` + `.analytics` | move id | `urn:warehouse:yard-management:events:YardMoveCompleted:v1` |
+| `com.warehouse.wms.yard-management.yardmove.YardMoveCancelled` | `warehouse.yard-management.events` + `.analytics` | move id | `urn:warehouse:yard-management:events:YardMoveCancelled:v1` |
+| `com.warehouse.wms.yard-management.yardmove.YardMoveLeaseExpired` | `warehouse.yard-management.events` + `.analytics` | move id | `urn:warehouse:yard-management:events:YardMoveLeaseExpired:v1` |
+| `com.warehouse.wms.yard-management.yardcheck.YardCheckClosed` | `warehouse.yard-management.events` + `.analytics` | yard check id | `urn:warehouse:yard-management:events:YardCheckClosed:v1` |
 
 ### Consumed types
 
-FILL IN: one row per consumed event — the EXACT `type` string from the
-producer's catalogue (byte-identical; see the cross-service catalogue on the
-Event Standard page).
+One row per consumed event — the EXACT `type` string from the producer's
+catalogue (byte-identical; see ADR 0003 and `docs/adr/0009-kafka-consumers.md`).
 
 | `type` | topic | producer |
 | --- | --- | --- |
+| `com.warehouse.wms.dock-scheduling.dockappointment.DockAppointmentBooked` | `warehouse.dock-scheduling.events` | dock-scheduling |
+| `com.warehouse.wms.dock-scheduling.dockappointment.DockAppointmentRescheduled` | `warehouse.dock-scheduling.events` | dock-scheduling |
+| `com.warehouse.wms.dock-scheduling.dockappointment.DockAppointmentCancelled` | `warehouse.dock-scheduling.events` | dock-scheduling |
+| `com.warehouse.wms.dock-scheduling.dockappointment.DockAppointmentNoShow` | `warehouse.dock-scheduling.events` | dock-scheduling |
+| `com.warehouse.wms.dock-scheduling.dockcalendar.DoorClosureScheduled` | `warehouse.dock-scheduling.events` | dock-scheduling |
+| `com.warehouse.wms.dock-scheduling.dockcalendar.DoorClosureLifted` | `warehouse.dock-scheduling.events` | dock-scheduling |
+| `com.warehouse.wms.facility-layout.locationslot.LocationSlotRegistered` | `warehouse.facility.events` | facility-layout |
+| `com.warehouse.wms.facility-layout.locationslot.LocationSlotDecommissioned` | `warehouse.facility.events` | facility-layout |
+| `com.warehouse.wms.facility-layout.zone.ZoneRegistered` | `warehouse.facility.events` | facility-layout |
+| `com.warehouse.wms.inbound-receiving.asn.ASNRegistered` | `warehouse.inbound-receiving.events` | inbound-receiving |
+| `com.warehouse.wms.inbound-receiving.asn.ASNCancelled` | `warehouse.inbound-receiving.events` | inbound-receiving |
+| `com.warehouse.wms.inbound-receiving.receipt.ReceiptOpened` | `warehouse.inbound-receiving.events` | inbound-receiving |
+| `com.warehouse.wms.inbound-receiving.receipt.ReceiptClosed` | `warehouse.inbound-receiving.events` | inbound-receiving |
 
 ## Consumer group id
 
-If this service consumes Kafka: state where the consumer group id comes
-from. It MUST be env-configurable, never a hardcoded string literal --
-`internal/architecture/fitness_test.go`'s
+This service consumes Kafka through three consumers (plus the analytics
+projector on its own topic): each group id comes from a MANDATORY env var,
+never a hardcoded string literal — `internal/architecture/fitness_test.go`'s
 TestKafkaConsumerGroupNeverHardcodedInline enforces this (a real incident:
 wes-work-planning's hardcoded group id let a locally-run e2e-tests process
 silently collide with the live in-cluster Deployment's consumer group on
-the shared fleet Kafka broker).
-
-If this consumer replays from FirstOffset on every start to build an
-in-memory read model (rather than resuming from a committed offset), the
-group id must additionally be UNIQUE PER PROCESS INSTANCE (hostname+PID+
-timestamp), not just configurable -- see HARNESS.md's Kafka section for
-why a shared group breaks that pattern specifically.
+the shared fleet Kafka broker). The variables are
+`DOCK_SCHEDULING_CONSUMER_GROUP`, `FACILITY_CONSUMER_GROUP` and
+`INBOUND_RECEIVING_CONSUMER_GROUP` (cmd/api; the boot error names a missing
+one) and `ANALYTICS_CONSUMER_GROUP` (the projector). Every group resumes
+from committed offsets; none replays from FirstOffset.
