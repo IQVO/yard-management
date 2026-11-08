@@ -1,0 +1,129 @@
+{{- if .Values.analytics.enabled }}
+{{- include "yard-management.requireAnalyticsConfig" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "yard-management.analyticsReportsFullname" . }}
+  labels:
+    {{- include "yard-management.labels" . | nindent 4 }}
+    app.kubernetes.io/component: analytics-reports
+spec:
+  replicas: {{ .Values.analytics.reports.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "yard-management.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: analytics-reports
+  template:
+    metadata:
+      labels:
+        {{- include "yard-management.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: analytics-reports
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "yard-management.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: reports
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: {{ include "yard-management.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/app/yard-reports"]
+          ports:
+            - name: http
+              containerPort: {{ .Values.analytics.reports.service.targetPort }}
+              protocol: TCP
+          # Env contract verified against cmd/yard-reports/main.go: ONE of
+          # ANALYTICS_READER_DATABASE_URL (the read-only role, preferred) or
+          # ANALYTICS_DATABASE_URL (fallback) is required -- both are
+          # rendered as optional secret keys and the binary names both in its
+          # boot error when neither exists. HTTP_ADDR, SHUTDOWN_DRAIN_DELAY
+          # and LOG_LEVEL. It writes nothing, never opens the OLTP database
+          # and never dials Kafka (no KAFKA_BROKERS here): GET
+          # /reports/yard-dwell, /reports/door-utilisation,
+          # /reports/hostler-productivity and /reports/freshness, /healthz for
+          # the probes. No auth (fleet rule): the in-cluster boundary is the
+          # access control.
+          env:
+            - name: ANALYTICS_READER_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "yard-management.analyticsSecretName" . }}
+                  key: {{ .Values.analytics.readerExistingSecretKey }}
+                  optional: true
+            - name: ANALYTICS_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "yard-management.analyticsSecretName" . }}
+                  key: {{ .Values.analytics.existingSecretKey }}
+                  optional: true
+            - name: HTTP_ADDR
+              value: {{ .Values.analytics.reports.httpAddr | quote }}
+            - name: LOG_LEVEL
+              value: {{ .Values.config.logLevel | quote }}
+            {{- with .Values.config.shutdownDrainDelay }}
+            - name: SHUTDOWN_DRAIN_DELAY
+              value: {{ . | quote }}
+            {{- end }}
+            {{- range .Values.analytics.reports.extraEnv }}
+            - {{ toYaml . | nindent 14 | trim }}
+            {{- end }}
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          # /readyz is 503 until the projector has created the schema.
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.analytics.reports.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "yard-management.analyticsReportsFullname" . }}
+  labels:
+    {{- include "yard-management.labels" . | nindent 4 }}
+    app.kubernetes.io/component: analytics-reports
+spec:
+  type: {{ .Values.analytics.reports.service.type }}
+  ports:
+    - port: {{ .Values.analytics.reports.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  # Pins component=analytics-reports like every other Service in this
+  # chart: name+instance alone would select every pod of the release
+  # (tests/test_service_selectors.py).
+  selector:
+    {{- include "yard-management.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: analytics-reports
+{{- end }}

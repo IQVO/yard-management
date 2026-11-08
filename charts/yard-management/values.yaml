@@ -1,0 +1,387 @@
+# Default values for yard-management.
+#
+# One image carries every binary (the Dockerfile loops over cmd/*): /app/api
+# (the api Deployment, the image ENTRYPOINT), /app/mcp, /app/relay,
+# /app/yard-projector and /app/yard-reports. The chart picks one per component
+# with `command: ["/app/<dirname>"]`.
+
+replicaCount: 1
+
+# The image is NEVER pulled from a registry in the local kind cluster: it is
+# built from the local checkout and side-loaded with `kind load docker-image`
+# (warehouse-infra overrides repository and tag with a content-derived
+# local-<hash> tag). `pullPolicy: IfNotPresent` is required there, or the
+# kubelet tries to pull from Docker Hub and ImagePullBackOffs.
+image:
+  repository: warehouse/yard-management
+  pullPolicy: IfNotPresent
+  tag: "local"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop: ["ALL"]
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: yard-management.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# Additive, disabled-by-default alternative to the ingress: block above.
+# Routes only to this chart's REST API Service -- the same Service ingress.yaml
+# targets. warehouse-infra turns it on and supplies the Kong Gateway parentRef
+# + path.
+gatewayApi:
+  enabled: false
+  parentRefs:
+    - name: ""
+      namespace: ""
+      sectionName: "http"
+  hosts:
+    - path: /
+      pathType: PathPrefix
+  stripPath: true
+
+# Kong plugins rendered by THIS chart (kong-plugins.yaml) and attached to
+# every HTTPRoute above via the konghq.com/plugins annotation. Fleet decision
+# 2026-10-13: Kong configuration belongs to the application charts, not
+# warehouse-infra Terraform. Defaults off; warehouse-infra's values switch
+# them on. NO auth plugin here, ever.
+kongPlugins:
+  cors:
+    enabled: false
+    origin: "http://localhost"
+  prometheus:
+    enabled: false
+  opentelemetry:
+    enabled: false
+    tracesEndpoint: "http://otel-collector.observability.svc.cluster.local:4318/v1/traces"
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# HorizontalPodAutoscaler (autoscaling/v2) for the api Deployment, disabled by
+# default so nothing changes replica behaviour silently. When enabled, the
+# Deployment's replicaCount is omitted so the HPA is the sole owner of
+# .spec.replicas. N>1 is safe for the api: the aggregate writes are
+# version-guarded, the occupancy invariants are partial unique indexes behind
+# per-location advisory locks (ADR 0005), and the consumers run under stable
+# consumer groups and claim the CloudEvents id in the same transaction as the
+# effect (ADR 0009); it has not been load-tested. mcp, relay, projector and
+# reports have no block here (their replica counts are fixed values).
+autoscaling:
+  api:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 70
+
+# Environment read by cmd/api (cmd/api/config.go). Every key maps 1:1 to one
+# env var and is mirrored into the chart ConfigMap that the api container
+# mounts with envFrom.
+config:
+  httpAddr: ":8080"                  # HTTP_ADDR
+  logLevel: "info"                   # LOG_LEVEL: debug | info | warn (or warning) | error
+  # SHUTDOWN_DRAIN_DELAY: wait after /readyz flips before closing the
+  # listener. Empty = not rendered; the binary defaults to 5s. Also rendered
+  # into mcp and reports.
+  shutdownDrainDelay: ""
+  # The three consumer groups of cmd/api (ADR 0009). REQUIRED, never defaulted
+  # by the binary (a process started by hand must not join a live group by
+  # accident) and STABLE (a rescheduled pod resumes from its committed
+  # offsets). Empty = the chart refuses to render.
+  dockSchedulingConsumerGroup: ""    # DOCK_SCHEDULING_CONSUMER_GROUP (warehouse.dock-scheduling.events)
+  facilityConsumerGroup: ""          # FACILITY_CONSUMER_GROUP (warehouse.facility.events)
+  inboundReceivingConsumerGroup: ""  # INBOUND_RECEIVING_CONSUMER_GROUP (warehouse.inbound-receiving.events)
+
+# The chart refuses to render unless database.url or database.existingSecret
+# is set (templates/_helpers.tpl: yard-management.requireDatabase). Postgres
+# is the only runtime: cmd/api, cmd/mcp and cmd/relay have no in-memory mode
+# and exit at boot without DATABASE_URL.
+database:
+  url: ""
+  existingSecret: ""
+  existingSecretKey: "DATABASE_URL"
+  # Key, in the same existingSecret, of a DIRECT (non-pooled, session-mode)
+  # Postgres connection string used ONLY for the golang-migrate startup step
+  # (cmd/api and cmd/mcp) -- never for the runtime pgxpool, which always uses
+  # existingSecretKey/DATABASE_URL. golang-migrate takes a session-scoped
+  # pg_advisory_lock that PgBouncer's transaction pooling cannot honour.
+  # `optional: true` on the rendered secretKeyRef so a secret without this key
+  # still starts the pod: the binary falls back to DATABASE_URL. Set to ""
+  # to not render MIGRATIONS_DATABASE_URL at all.
+  migrationsExistingSecretKey: "MIGRATIONS_DATABASE_URL"
+
+# Kafka is the only runtime: KAFKA_BROKERS is MANDATORY and always rendered
+# into api, mcp, relay and the projector. The chart refuses to render without
+# kafka.brokers (comma-separated; warehouse-infra supplies it through
+# _platform.yaml). `enabled` is kept ONLY so values written for the sibling
+# charts still render: it may be true, never false. Produced topics:
+# warehouse.yard-management.events and .analytics (+ .events.dlq); consumed:
+# warehouse.dock-scheduling.events, warehouse.facility.events and
+# warehouse.inbound-receiving.events (ADR 0003, ADR 0009).
+kafka:
+  brokers: ""
+
+# Extra env vars appended to the api container as a raw list.
+extraEnv: []
+
+# The Postgres dial (migrations + ping) at boot is wrapped in a bounded retry
+# (5 attempts, 1+2+4+8 = 15 s of backoff in total). periodSeconds *
+# failureThreshold gives a ~60s startup budget before the kubelet gives up.
+# Once startupProbe succeeds, liveness takes over; readiness uses the
+# separate /readyz endpoint (flipped to not-ready as the FIRST step of
+# graceful shutdown).
+startupProbe:
+  httpGet:
+    path: /healthz
+    port: http
+  periodSeconds: 2
+  failureThreshold: 30
+
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /readyz
+    port: http
+  initialDelaySeconds: 3
+  periodSeconds: 5
+
+# Room for the api's graceful shutdown: SHUTDOWN_DRAIN_DELAY (default 5s) +
+# HTTP drain + consumers drain, sequential. The chart refuses anything under
+# 20: a shorter grace period SIGKILLs the consumers mid-drain.
+terminationGracePeriodSeconds: 40
+
+# --- Outbox relay (cmd/relay, docs/adr/0005) ---
+# Drains the transactional outbox onto Kafka as CloudEvents. ON by default:
+# cmd/api and cmd/mcp only enqueue, so without a relay no event ever leaves
+# the service. Safe to run N>1 (FOR UPDATE SKIP LOCKED) but one is enough.
+# Reads DATABASE_URL, KAFKA_BROKERS, OUTBOX_MAX_ATTEMPTS, OUTBOX_POLL_INTERVAL
+# and RELAY_HEALTH_ADDR (/healthz for the probes). It does not run the
+# migrations: the api creates the schema, and the relay's poll fails (and is
+# retried) until it exists.
+relay:
+  enabled: true
+  replicaCount: 1
+  # RELAY_HEALTH_ADDR and its container port.
+  healthAddr: ":8081"
+  healthPort: 8081
+  # OUTBOX_MAX_ATTEMPTS: how many times one outbox row may fail before the
+  # relay excludes it from claims, so a poison row cannot block the relay
+  # forever. The excluded row stays in the outbox table (attempts, last_error)
+  # until an operator re-arms it with
+  # `UPDATE outbox SET attempts = 0, next_attempt_at = now() WHERE id = ...`.
+  # 0 = unlimited. The binary defaults to 20.
+  outboxMaxAttempts: 20
+  # OUTBOX_POLL_INTERVAL: Go duration ("500ms", "2s"). Empty = not rendered;
+  # the binary defaults to 1s.
+  outboxPollInterval: ""
+  terminationGracePeriodSeconds: 30
+  resources:
+    limits:
+      cpu: 500m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  extraEnv: []
+
+# --- MCP server (docs/adr/0007) ---
+# The Model Context Protocol server (cmd/mcp, Streamable HTTP, stateless).
+# DISABLED by default. Enabling it renders its own Deployment + Service
+# (component=mcp) over the same OLTP database, served at "/" and "/mcp" with
+# GET /healthz and /readyz probes, command /app/mcp. Its writes enqueue outbox
+# rows that the relay drains, so it needs KAFKA_BROKERS (boot + /readyz) but
+# starts no relay and no consumer. No auth / API key: MCP servers are
+# unauthenticated fleet-wide.
+mcp:
+  enabled: false
+  replicaCount: 1
+  httpAddr: ":8090"                  # MCP_ADDR
+  service:
+    type: ClusterIP
+    port: 8090
+    targetPort: 8090
+  # Kong exposure of the MCP server (mcp-route.yaml): host path
+  # /api/mcp/<context> rewritten to /mcp. Off by default; warehouse-infra
+  # turns it on with the real parentRefs and path.
+  route:
+    enabled: false
+    path: "/api/mcp/yard-management"
+    parentRefs:
+      - name: ""
+        namespace: ""
+        sectionName: "http"
+  extraEnv: []
+  resources:
+    limits:
+      cpu: 500m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+# --- Sweeps (CronJobs, docs/adr/0008) ---
+# Nothing in the service calls POST /dwell-sweeps or POST /move-lease-sweeps
+# on a timer: a Kubernetes CronJob is the external scheduler. Each Job reuses
+# the service image and POSTs an empty JSON object to the in-cluster api
+# Service with busybox wget (no extra binary). Both sweeps are naturally
+# idempotent (Idempotency-Key is optional on them), so a retry is safe. Fail
+# fast: each attempt is cut after requestTimeoutSeconds, up to maxAttempts
+# attempts with a doubling sleep from retryBackoffSeconds capped at
+# maxBackoffSeconds, and a give-up exits non-zero (the Job fails with logs).
+# The render fails when the worst-case retry budget does not fit inside
+# activeDeadlineSeconds.
+sweeps:
+  enabled: true
+  startingDeadlineSeconds: 60
+  activeDeadlineSeconds: 120
+  requestTimeoutSeconds: 15
+  maxAttempts: 4
+  retryBackoffSeconds: 1
+  maxBackoffSeconds: 8
+  # Istio sidecar quit endpoint, POSTed on EVERY exit path so the pod
+  # completes. Set "" outside a mesh.
+  sidecarQuitUrl: "http://127.0.0.1:15020/quitquitquit"
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  # POST /dwell-sweeps: raises TrailerDwellExceeded once per trailer and
+  # threshold crossing.
+  dwell:
+    enabled: true
+    schedule: "*/5 * * * *"
+  # POST /move-lease-sweeps: returns every CLAIMED hostler move whose lease
+  # ran out to REQUESTED (the default lease is 300 s).
+  moveLeases:
+    enabled: true
+    schedule: "* * * * *"
+  resources:
+    limits:
+      cpu: 50m
+      memory: 32Mi
+    requests:
+      cpu: 10m
+      memory: 16Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# --- Analytics read side (docs/adr/0006) ---
+# The yard data product: the projector (cmd/yard-projector, the ONLY writer of
+# the "analytics" schema, consuming warehouse.yard-management.analytics) and
+# the read-only reports binary (cmd/yard-reports: GET /reports/yard-dwell,
+# /reports/door-utilisation, /reports/hostler-productivity and
+# /reports/freshness). DISABLED by default: the default render is unchanged.
+#
+# Enabling it renders the projector Deployment (component analytics-projector,
+# /healthz + /readyz on :8091, no Service) and the reports Deployment +
+# Service <fullname>-reports:80 (component analytics-reports, :8092), plus a
+# Secret when analytics.url is set. The chart refuses to render analytics
+# without a DSN source (analytics.url or analytics.existingSecret): the
+# binaries exit at boot otherwise (crash-loop). The projector reads
+# kafka.brokers, which the chart always requires.
+#
+# The api also reads ANALYTICS_READER_DATABASE_URL (optional secret key) while
+# analytics is on, so GET /reports/* on the api answers from the analytical
+# schema too.
+#
+# Deliberately NOT HPA-scalable (no autoscaling blocks): replica counts are
+# fixed values.
+analytics:
+  enabled: false
+  # The analytical schema may live in a database SEPARATE from database.*
+  # (OLTP): the projector has no credentials on OLTP data and the reports pool
+  # is read-only. Direct DSN of the projector's role (no PgBouncer) -- the
+  # projector runs the embedded analytical migrations through it.
+  url: ""
+  existingSecret: ""
+  existingSecretKey: "ANALYTICS_DATABASE_URL"
+  # DSN of the read-only reports role (ANALYTICS_READER_DATABASE_URL). Empty =
+  # the key is not created in the chart Secret; the reports binary then falls
+  # back to ANALYTICS_DATABASE_URL and the api answers its report routes with
+  # no rows. The env is rendered with `optional: true`, so a secret without
+  # the key still starts the pod.
+  readerUrl: ""
+  readerExistingSecretKey: "ANALYTICS_READER_DATABASE_URL"
+  # The projector's STABLE consumer group (ANALYTICS_CONSUMER_GROUP): a
+  # rescheduled pod resumes from its committed offsets, and a brand-new group
+  # replays from the earliest retained offset (the backfill).
+  consumerGroup: "yard-management-analytics"
+  projector:
+    replicaCount: 1
+    # ADMIN_ADDR (/healthz and /readyz) and its container port.
+    adminAddr: ":8091"
+    adminPort: 8091
+    resources:
+      limits:
+        cpu: 500m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    extraEnv: []
+  reports:
+    replicaCount: 1
+    httpAddr: ":8092"                # HTTP_ADDR of cmd/yard-reports
+    service:
+      type: ClusterIP
+      port: 80
+      targetPort: 8092
+    # Kong exposure of the reports (reports-route.yaml): host path
+    # /api/yard-management/reports rewritten to /reports. Off by default.
+    route:
+      enabled: false
+      path: "/api/yard-management/reports"
+      parentRefs:
+        - name: ""
+          namespace: ""
+          sectionName: "http"
+    resources:
+      limits:
+        cpu: 500m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    extraEnv: []

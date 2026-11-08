@@ -1,0 +1,146 @@
+{{- include "yard-management.requireRealRuntime" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "yard-management.fullname" . }}
+  labels:
+    {{- include "yard-management.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  {{- if not .Values.autoscaling.api.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "yard-management.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: api
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "yard-management.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: api
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.terminationGracePeriodSeconds }}
+      terminationGracePeriodSeconds: {{ . }}
+      {{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "yard-management.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: {{ include "yard-management.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/app/api"]
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+          # Every config.* value also reaches cmd/api through the chart
+          # ConfigMap. The explicit `env` entries below win over envFrom for
+          # the same key and carry the same values; the checksum/config
+          # annotation above rolls the pods when the ConfigMap changes. Only
+          # this Deployment mounts it: mcp, relay, projector and reports read
+          # their own explicit env. tests/render_test.sh asserts the mount and
+          # that every variable the binaries read is rendered.
+          envFrom:
+            - configMapRef:
+                name: {{ include "yard-management.fullname" . }}
+          # Env contract verified against cmd/api/config.go and
+          # internal/adapters/outbound/postgres/migrate.go. Values that have a
+          # dedicated chart key are rendered here, never through extraEnv, so
+          # the same variable is never set twice.
+          env:
+            - name: HTTP_ADDR
+              value: {{ .Values.config.httpAddr | quote }}
+            - name: LOG_LEVEL
+              value: {{ .Values.config.logLevel | quote }}
+            {{- with .Values.config.shutdownDrainDelay }}
+            - name: SHUTDOWN_DRAIN_DELAY
+              value: {{ . | quote }}
+            {{- end }}
+            # ADR 0009: the three consumers always run. The group ids come
+            # from values, never a literal, and are mandatory (the chart
+            # refuses an empty one): a stable id is what makes a rescheduled
+            # pod resume from its committed offsets.
+            - name: DOCK_SCHEDULING_CONSUMER_GROUP
+              value: {{ .Values.config.dockSchedulingConsumerGroup | quote }}
+            - name: FACILITY_CONSUMER_GROUP
+              value: {{ .Values.config.facilityConsumerGroup | quote }}
+            - name: INBOUND_RECEIVING_CONSUMER_GROUP
+              value: {{ .Values.config.inboundReceivingConsumerGroup | quote }}
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "yard-management.databaseSecretName" . }}
+                  key: {{ .Values.database.existingSecretKey }}
+            {{- if .Values.database.migrationsExistingSecretKey }}
+            # See values.yaml's database.migrationsExistingSecretKey comment:
+            # a direct (non-pooled) connection used only for the
+            # golang-migrate step, never for the runtime pgxpool.
+            # `optional: true` so a secret without this key still starts the
+            # pod -- the binary falls back to DATABASE_URL.
+            - name: MIGRATIONS_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "yard-management.databaseSecretName" . }}
+                  key: {{ .Values.database.migrationsExistingSecretKey }}
+                  optional: true
+            {{- end }}
+            # Mandatory: the three consumers and /readyz dial Kafka; the chart
+            # refuses to render without the brokers.
+            - name: KAFKA_BROKERS
+              value: {{ .Values.kafka.brokers | quote }}
+            {{- if .Values.analytics.enabled }}
+            # Optional (ADR 0006): the read-only reports role. Set, GET
+            # /reports/* answers from the analytical schema; absent, the
+            # routes answer the contract shape with no rows.
+            - name: ANALYTICS_READER_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "yard-management.analyticsSecretName" . }}
+                  key: {{ .Values.analytics.readerExistingSecretKey }}
+                  optional: true
+            {{- end }}
+            {{- range .Values.extraEnv }}
+            - {{ toYaml . | nindent 14 | trim }}
+            {{- end }}
+          {{- with .Values.startupProbe }}
+          startupProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

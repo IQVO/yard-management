@@ -1,0 +1,12 @@
+apiVersion: v2
+name: yard-management
+description: Yard Management — the physical yard (gate visits, trailers, yard moves, yard checks); publishes events on warehouse.yard-management.events and warehouse.yard-management.analytics
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/IQVO/yard-management
+keywords:
+  - ddd
+  - hexagonal-architecture
+  - warehouse-management-system
+  - golang

@@ -1,0 +1,123 @@
+{{- /*
+Scheduler for the two REST-triggered sweeps (docs/adr/0008): nothing in this
+service calls POST /dwell-sweeps or POST /move-lease-sweeps on a timer, by
+design -- a Kubernetes CronJob is the external scheduler. ON by default
+(sweeps.enabled=true); set it false when an external caller drives the
+endpoints. No in-process ticker exists.
+
+The Job reuses the service's own image and POSTs an empty JSON object to the
+in-cluster api Service with the image's busybox wget (no extra binary, so the
+Dockerfile loop over cmd/* stays the only build step). Both handlers treat the
+body as optional ({siteId} limits the dwell sweep to one site) and the
+Idempotency-Key is OPTIONAL on them (the sweeps are naturally idempotent), so
+no key is sent and a retry is safe. Fail fast: each attempt is bounded by
+sweeps.requestTimeoutSeconds, a failed attempt (connect error, timeout or any
+non-2xx answer) is retried up to sweeps.maxAttempts with a doubling sleep from
+sweeps.retryBackoffSeconds capped at sweeps.maxBackoffSeconds, a give-up exits
+non-zero (the Job fails with logs), and the Istio sidecar quit
+(sweeps.sidecarQuitUrl) is POSTed on EVERY exit path. The render fails when the
+worst-case retry budget does not fit inside activeDeadlineSeconds, so a values
+change can not reintroduce a hang.
+*/ -}}
+{{- if .Values.sweeps.enabled }}
+{{- $root := . }}
+{{- $s := .Values.sweeps }}
+{{- $budget := add (mul (int $s.maxAttempts) (int $s.requestTimeoutSeconds)) (mul (sub (int $s.maxAttempts) 1) (int $s.maxBackoffSeconds)) }}
+{{- if ge (int $budget) (int $s.activeDeadlineSeconds) }}
+{{- fail (printf "sweeps: worst-case retry budget %ds (maxAttempts x requestTimeoutSeconds + (maxAttempts-1) x maxBackoffSeconds) must be below activeDeadlineSeconds %ds" (int $budget) (int $s.activeDeadlineSeconds)) }}
+{{- end }}
+{{- $jobs := dict "dwell" .Values.sweeps.dwell "move-leases" .Values.sweeps.moveLeases }}
+{{- $paths := dict "dwell" "dwell-sweeps" "move-leases" "move-lease-sweeps" }}
+{{- range $name, $job := $jobs }}
+{{- if $job.enabled }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ printf "%s-sweep-%s" (include "yard-management.fullname" $root) $name | trunc 52 | trimSuffix "-" }}
+  labels:
+    {{- include "yard-management.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: sweep-{{ $name }}
+spec:
+  schedule: {{ $job.schedule | quote }}
+  # Never overlap two passes of the same sweep: they are idempotent, but a
+  # second concurrent pass would only repeat the work.
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: {{ $s.startingDeadlineSeconds }}
+  successfulJobsHistoryLimit: {{ $s.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ $s.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: {{ $s.activeDeadlineSeconds }}
+      template:
+        metadata:
+          labels:
+            {{- include "yard-management.selectorLabels" $root | nindent 12 }}
+            app.kubernetes.io/component: sweep-{{ $name }}
+        spec:
+          restartPolicy: Never
+          {{- with $root.Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          serviceAccountName: {{ include "yard-management.serviceAccountName" $root }}
+          securityContext:
+            {{- toYaml $root.Values.podSecurityContext | nindent 12 }}
+          containers:
+            - name: sweep
+              securityContext:
+                {{- toYaml $root.Values.securityContext | nindent 16 }}
+              image: {{ include "yard-management.image" $root | quote }}
+              imagePullPolicy: {{ $root.Values.image.pullPolicy }}
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  quit() { if [ -n "$SIDECAR_QUIT_URL" ]; then wget -q -T 2 -O /dev/null --post-data '' "$SIDECAR_QUIT_URL" || true; fi; }
+                  trap quit EXIT
+                  i=1
+                  pause="$SWEEP_RETRY_BACKOFF"
+                  while [ "$i" -le "$SWEEP_MAX_ATTEMPTS" ]; do
+                    if wget -q -T "$SWEEP_REQUEST_TIMEOUT" -O - --header 'Content-Type: application/json' --post-data '{}' "$SWEEP_URL"; then
+                      echo
+                      exit 0
+                    fi
+                    echo "sweep attempt $i of $SWEEP_MAX_ATTEMPTS failed: POST $SWEEP_URL" >&2
+                    if [ "$i" -lt "$SWEEP_MAX_ATTEMPTS" ]; then
+                      sleep "$pause"
+                      pause=$((pause * 2))
+                      if [ "$pause" -gt "$SWEEP_MAX_BACKOFF" ]; then pause="$SWEEP_MAX_BACKOFF"; fi
+                    fi
+                    i=$((i + 1))
+                  done
+                  exit 1
+              env:
+                - name: SWEEP_URL
+                  value: {{ printf "http://%s:%v/%s" (include "yard-management.fullname" $root) $root.Values.service.port (index $paths $name) | quote }}
+                - name: SWEEP_REQUEST_TIMEOUT
+                  value: {{ $s.requestTimeoutSeconds | quote }}
+                - name: SWEEP_MAX_ATTEMPTS
+                  value: {{ $s.maxAttempts | quote }}
+                - name: SWEEP_RETRY_BACKOFF
+                  value: {{ $s.retryBackoffSeconds | quote }}
+                - name: SWEEP_MAX_BACKOFF
+                  value: {{ $s.maxBackoffSeconds | quote }}
+                - name: SIDECAR_QUIT_URL
+                  value: {{ $s.sidecarQuitUrl | default "" | quote }}
+              resources:
+                {{- toYaml $s.resources | nindent 16 }}
+          {{- with $root.Values.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $root.Values.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $root.Values.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

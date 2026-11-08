@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
 # --- build stage ---
-FROM golang:1.27-alpine@sha256:738d1cf061836894ff6bb8c33881080ac66de8cf0586615012a0c8f592649cfa AS build
+FROM golang:1.27-alpine@sha256:f2c872bcee949b7be9c490efd02b48a8a2fbf947cdf533f1c58525ec9d8170fd AS build
 WORKDIR /src
 
 # Cache go.mod/go.sum download separately from source so editing source
@@ -12,7 +12,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 COPY . .
 
-# Build EVERY cmd/* binary by looping over the cmd/ directories, so a new
+# Build EVERY cmd/* binary (api, mcp, relay, yard-projector, yard-reports) by looping over the cmd/ directories, so a new
 # composition root can never be merged with a Dockerfile that silently forgets
 # to build it (the first symptom would otherwise be a CrashLoopBackOff on
 # `exec: "/app/<binary>": no such file or directory`). Each binary lands in
@@ -41,6 +41,7 @@ WORKDIR /app
 COPY --from=build --chown=app:app /out/ ./
 USER 1000
 EXPOSE 8080
-# cmd/api is the service's main binary (HTTP on :8080). Additional cmd/*
-# binaries are run by the chart with `command: ["/app/<dirname>"]`.
+# cmd/api is the service's main binary (HTTP on :8080). The other binaries
+# (mcp, relay, yard-projector, yard-reports) are run by the chart with
+# `command: ["/app/<dirname>"]`.
 ENTRYPOINT ["./api"]
