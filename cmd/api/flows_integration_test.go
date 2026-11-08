@@ -97,6 +97,14 @@ func appointmentToDoorAndReceipts(t *testing.T, a *api, dsn string, pool *pgxpoo
 	// The live visit departs from the door: the dwell, the docking and the door
 	// work the reports are built from end here.
 	visitID := in["visit"].(map[string]any)["visitId"].(string)
+	// The door-utilisation report measures docked_at -> undocked_at, and both
+	// are stamped by RFC 3339 SECONDS (shared.Stamp): a checkout in the SAME
+	// wall-clock second as the docking folds the interval to exactly 0
+	// (utilisation 0) on a fast runner. Wait until the docking's second has
+	// fully passed so the door was measurably occupied.
+	if wait := time.Now().UTC().Truncate(time.Second).Add(2 * time.Second).Sub(time.Now()); wait > 0 {
+		time.Sleep(wait)
+	}
 	a.mustPost("/visits/"+visitID+"/check-outs", map[string]any{"trailersOut": []map[string]string{{"trailerId": trailerID}}}, http.StatusOK)
 	if tr := a.trailerView(trailerID); tr["state"] != "DEPARTED" {
 		t.Fatalf("the trailer left the site: %v", tr)
