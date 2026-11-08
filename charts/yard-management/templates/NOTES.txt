@@ -1,0 +1,49 @@
+{{ .Chart.Name }} has been deployed.
+
+Release:   {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+
+Service:   {{ include "yard-management.fullname" . }} ({{ .Values.service.type }}, port {{ .Values.service.port }})
+
+{{- if .Values.ingress.enabled }}
+{{- range .Values.ingress.hosts }}
+Ingress:   http://{{ .host }}{{ (index .paths 0).path }}
+{{- end }}
+{{- else if .Values.gatewayApi.enabled }}
+Gateway API HTTPRoute enabled — routed via the parentRefs/hosts configured
+in gatewayApi.*.
+{{- else }}
+To reach it locally:
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "yard-management.fullname" . }} 8080:{{ .Values.service.port }}
+  curl http://localhost:8080/healthz
+{{- end }}
+
+{{- if .Values.mcp.enabled }}
+
+MCP server (Streamable HTTP, stateless, no auth):
+  http://{{ include "yard-management.mcpFullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.mcp.service.port }}/mcp
+{{- end }}
+
+Events are relayed from the transactional outbox ({{ if .Values.relay.enabled }}relay component ON{{ else }}relay component OFF: nothing leaves the outbox{{ end }})
+onto warehouse.yard-management.events and warehouse.yard-management.analytics
+({{ .Values.kafka.brokers }}); Postgres and Kafka are the only runtime.
+
+The three consumers run in the api (stable groups):
+  dock-scheduling    group {{ .Values.config.dockSchedulingConsumerGroup }}, topic warehouse.dock-scheduling.events
+  facility-layout    group {{ .Values.config.facilityConsumerGroup }}, topic warehouse.facility.events
+  inbound-receiving  group {{ .Values.config.inboundReceivingConsumerGroup }}, topic warehouse.inbound-receiving.events
+{{- if .Values.sweeps.enabled }}
+
+Sweeps (CronJobs POSTing to the api Service):
+{{- if .Values.sweeps.dwell.enabled }}
+  POST /dwell-sweeps       {{ .Values.sweeps.dwell.schedule }}
+{{- end }}
+{{- if .Values.sweeps.moveLeases.enabled }}
+  POST /move-lease-sweeps  {{ .Values.sweeps.moveLeases.schedule }}
+{{- end }}
+{{- end }}
+{{- if .Values.analytics.enabled }}
+
+Analytics read side ON: projector (group {{ .Values.analytics.consumerGroup }}) and reports
+  http://{{ include "yard-management.analyticsReportsFullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.analytics.reports.service.port }}/reports/yard-dwell
+{{- end }}

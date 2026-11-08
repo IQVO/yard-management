@@ -1,0 +1,103 @@
+{{- if .Values.relay.enabled }}
+{{- include "yard-management.requireDatabase" . -}}
+{{- include "yard-management.requireKafka" . -}}
+{{- include "yard-management.requireNoInMemoryEnv" (dict "list" .Values.relay.extraEnv "where" "relay.extraEnv") -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "yard-management.relayFullname" . }}
+  labels:
+    {{- include "yard-management.labels" . | nindent 4 }}
+    app.kubernetes.io/component: relay
+spec:
+  replicas: {{ .Values.relay.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "yard-management.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: relay
+  template:
+    metadata:
+      labels:
+        {{- include "yard-management.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: relay
+    spec:
+      terminationGracePeriodSeconds: {{ .Values.relay.terminationGracePeriodSeconds }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "yard-management.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: relay
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: {{ include "yard-management.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/app/relay"]
+          ports:
+            - name: http
+              containerPort: {{ .Values.relay.healthPort }}
+              protocol: TCP
+          # Env contract verified against cmd/relay/main.go: DATABASE_URL and
+          # KAFKA_BROKERS (both required), OUTBOX_MAX_ATTEMPTS (0 =
+          # unlimited), OUTBOX_POLL_INTERVAL and RELAY_HEALTH_ADDR. The relay
+          # reads no MIGRATIONS_DATABASE_URL (it never migrates), no consumer
+          # group and no LOG_LEVEL (it logs JSON at info).
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "yard-management.databaseSecretName" . }}
+                  key: {{ .Values.database.existingSecretKey }}
+            - name: KAFKA_BROKERS
+              value: {{ .Values.kafka.brokers | quote }}
+            # ADR 0005: the relay excludes a row after this many failures
+            # (0 = unlimited).
+            - name: OUTBOX_MAX_ATTEMPTS
+              value: {{ .Values.relay.outboxMaxAttempts | quote }}
+            {{- with .Values.relay.outboxPollInterval }}
+            - name: OUTBOX_POLL_INTERVAL
+              value: {{ . | quote }}
+            {{- end }}
+            - name: RELAY_HEALTH_ADDR
+              value: {{ .Values.relay.healthAddr | quote }}
+            {{- range .Values.relay.extraEnv }}
+            - {{ toYaml . | nindent 14 | trim }}
+            {{- end }}
+          # /healthz is the only endpoint (a liveness target; the relay has
+          # no readiness gate and serves no traffic).
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.relay.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

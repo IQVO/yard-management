@@ -1,0 +1,67 @@
+# Used by `helm lint` / `ct lint`: every optional component enabled at once, and
+# every optional value set, so every env var a binary can read is rendered.
+database:
+  existingSecret: "yard-management-db"
+config:
+  httpAddr: ":8080"
+  logLevel: "info"
+  shutdownDrainDelay: "5s"
+  dockSchedulingConsumerGroup: "yard-management-dock-scheduling"
+  facilityConsumerGroup: "yard-management-facility"
+  inboundReceivingConsumerGroup: "yard-management-inbound-receiving"
+kafka:
+  brokers: "kafka.warehouse-systems.svc.cluster.local:9092"
+gatewayApi:
+  enabled: true
+  parentRefs:
+    - name: warehouse-gateway
+      namespace: kong
+      sectionName: http
+  hosts:
+    - path: /api/yard-management
+      pathType: PathPrefix
+kongPlugins:
+  cors:
+    enabled: true
+    origin: "http://localhost:5173"
+  prometheus:
+    enabled: true
+  opentelemetry:
+    enabled: true
+autoscaling:
+  api:
+    enabled: true
+relay:
+  enabled: true
+  outboxMaxAttempts: 20
+  outboxPollInterval: "500ms"
+  healthAddr: ":8081"
+mcp:
+  enabled: true
+  httpAddr: ":8090"
+  route:
+    enabled: true
+    parentRefs:
+      - name: warehouse-gateway
+        namespace: kong
+        sectionName: http
+sweeps:
+  enabled: true
+# The analytics read side (ADR 0006): projector + reports on, with the
+# analytical DSNs the guard requires (the projector's KAFKA_BROKERS comes from
+# kafka.brokers above).
+analytics:
+  enabled: true
+  url: "postgres://u@example.invalid:5432/analytics"
+  readerUrl: "postgres://r@example.invalid:5432/analytics"
+  consumerGroup: "yard-management-analytics"
+  projector:
+    adminAddr: ":8091"
+  reports:
+    httpAddr: ":8092"
+    route:
+      enabled: true
+      parentRefs:
+        - name: warehouse-gateway
+          namespace: kong
+          sectionName: http
