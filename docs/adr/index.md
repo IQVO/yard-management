@@ -21,3 +21,4 @@ the authority.
 | [0007](./0007-mcp-server.md) | MCP server | Accepted (2026-11-06) |
 | [0008](./0008-rest-adapter-and-api-process.md) | The REST adapter and the API process | Accepted (2026-11-06) |
 | [0009](./0009-kafka-consumers.md) | Kafka consumers | Accepted (2026-11-06); refines 0003 |
+| [0010](./0010-door-work-and-departure-on-the-integration-topic.md) | DoorWorkCompleted and TrailerDeparted on the integration topic | Accepted (2026-11-09); refines 0004 |

@@ -65,7 +65,7 @@ func topicsAndEncoder(t *testing.T) (events, analytics, dlq string, enc *outboun
 
 // TestRelay_RealPostgresAndKafka_PublishesTheExactEnvelopes publishes EVERY
 // golden event through the production publisher inside one real unit of work,
-// runs one relay pass and asserts the exact CloudEvents JSON: the seven
+// runs one relay pass and asserts the exact CloudEvents JSON: the nine
 // integration types on the events topic, every type on analytics.
 func TestRelay_RealPostgresAndKafka_PublishesTheExactEnvelopes(t *testing.T) {
 	ctx := itctx(t)

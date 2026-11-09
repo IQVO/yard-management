@@ -82,9 +82,9 @@ back (`context.WithoutCancel`).
   CloudEvents id is minted once at enqueue and persisted, so a relay retry republishes the same id and consumers dedupe on it. The
   payload is a self-describing `{type, data}` envelope in a `JSON` (not `JSONB`) column on purpose: the exact text is preserved, so
   every retry publishes byte-identical data. The relay never re-derives domain state.
-- **One row, up to two messages.** `kafka.Encoder` maps ONE outbox row to its wire form by the catalogue of ADR 0004: the seven
-  integration types go to `warehouse.yard-management.events` and, as a twin with the same id, type, subject and data, to
-  `warehouse.yard-management.analytics`; the twelve analytics-only types go only to the analytics topic. Key and subject are the
+- **One row, up to two messages.** `kafka.Encoder` maps ONE outbox row to its wire form by the catalogue of ADR 0004: the nine
+  integration types go (seven at acceptance, nine since ADR 0010) to `warehouse.yard-management.events` and, as a twin with the same id, type, subject and data, to
+  `warehouse.yard-management.analytics`; the ten analytics-only types go only to the analytics topic. Key and subject are the
   aggregate id (visit, trailer, move, yard check). `kafka.Topics()` (events, analytics, `<events>.dlq`, 8 partitions) is what the
   deployment pre-creates.
 - **Claiming.** `OutboxRelay` claims up to 100 due rows in id order under `FOR UPDATE SKIP LOCKED` (overlapping relays claim

@@ -12,11 +12,11 @@ import (
 // and routes every message by Message.Topic (the topic-not-set-twice rule), so
 // the DLQ write needs no writer of its own.
 const (
-	// TopicEvents carries the seven integration types of ADR 0004.
+	// TopicEvents carries the nine integration types of ADR 0004 (ADR 0010 added DoorWorkCompleted and TrailerDeparted).
 	TopicEvents = "warehouse.yard-management.events"
-	// TopicAnalytics carries EVERY published type: the seven integration
+	// TopicAnalytics carries EVERY published type: the nine integration
 	// types mirrored (same id, type, subject and byte-identical data, only
-	// the dataschema stream segment differs) plus the twelve analytics-only
+	// the dataschema stream segment differs) plus the ten analytics-only
 	// types, which go nowhere else.
 	TopicAnalytics = "warehouse.yard-management.analytics"
 	// TopicDLQ receives, verbatim, the outbox rows that can never be encoded.
@@ -42,7 +42,7 @@ var published = map[string]map[string]bool{
 	outbox.AggregVisit: {"VisitCheckedIn": true, "VisitRejected": true, "VisitCheckedOut": false},
 	outbox.AggregTrailer: {
 		"TrailerDocked": true, "TrailerUndocked": true, "SealExceptionRaised": true, "TrailerDwellExceeded": true,
-		"TrailerParked": false, "DoorWorkStarted": false, "DoorWorkCompleted": false, "TrailerDeparted": false,
+		"TrailerParked": false, "DoorWorkStarted": false, "DoorWorkCompleted": true, "TrailerDeparted": true,
 		"TrailerHeld": false, "TrailerHoldReleased": false,
 	},
 	outbox.AggregMove: {

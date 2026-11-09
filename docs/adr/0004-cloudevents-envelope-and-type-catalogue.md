@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (2026-11-05).
+Accepted (2026-11-05); stream split refined by ADR 0010 (DoorWorkCompleted and TrailerDeparted also on the integration topic).
 
 ## Context
 
@@ -26,9 +26,9 @@ Every Kafka message in the fleet is a CloudEvents 1.0 event in structured mode (
 
 ### Streams
 
-Seven types are integration events on `warehouse.yard-management.events` and are mirrored on
+Nine types are integration events on `warehouse.yard-management.events` (the original seven plus DoorWorkCompleted and TrailerDeparted, ADR 0010) and are mirrored on
 `warehouse.yard-management.analytics` (same `id`, same `type`, byte-identical `data`, analytics `dataschema`). The other
-twelve are analytics-only: they go ONLY to `warehouse.yard-management.analytics`. A row the encoder cannot encode is written
+ten are analytics-only: they go ONLY to `warehouse.yard-management.analytics`. A row the encoder cannot encode is written
 verbatim to `warehouse.yard-management.events.dlq`. Both topics have 8 partitions.
 
 ### Published
@@ -44,8 +44,8 @@ verbatim to `warehouse.yard-management.events.dlq`. Both topics have 8 partition
 | `com.warehouse.wms.yard-management.trailer.TrailerUndocked` | events + analytics | a trailer leaves a door (dock-scheduling) | `trailer_id` |
 | `com.warehouse.wms.yard-management.trailer.TrailerParked` | analytics | a trailer comes to rest on a spot | `trailer_id` |
 | `com.warehouse.wms.yard-management.trailer.DoorWorkStarted` | analytics | unloading or loading begins | `trailer_id` |
-| `com.warehouse.wms.yard-management.trailer.DoorWorkCompleted` | analytics | door work is done | `trailer_id` |
-| `com.warehouse.wms.yard-management.trailer.TrailerDeparted` | analytics | a trailer leaves the site | `trailer_id` |
+| `com.warehouse.wms.yard-management.trailer.DoorWorkCompleted` | events + analytics | door work is done (outbound-shipping, ADR 0010) | `trailer_id` |
+| `com.warehouse.wms.yard-management.trailer.TrailerDeparted` | events + analytics | a trailer leaves the site (outbound-shipping, ADR 0010) | `trailer_id` |
 | `com.warehouse.wms.yard-management.trailer.SealExceptionRaised` | events + analytics | gate seal differs from the expected one (exception-management) | `trailer_id` (visit id when no trailer) |
 | `com.warehouse.wms.yard-management.trailer.TrailerDwellExceeded` | events + analytics | dwell crossed the kind's threshold (exception-management) | `trailer_id` |
 | `com.warehouse.wms.yard-management.trailer.TrailerHeld` | analytics | a hold is placed | `trailer_id` |

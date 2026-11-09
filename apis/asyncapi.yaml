@@ -18,9 +18,9 @@ info:
 
     **Published.** Four aggregates (YardVisit, Trailer, YardMove, YardCheck) raise 19 event types through a transactional
     outbox: the aggregate row and its events are written in ONE database transaction and a relay drains them to Kafka (at-least-once;
-    the CloudEvents `id` is stored with the outbox row). Seven types are integration events on `warehouse.yard-management.events`
-    (VisitCheckedIn, VisitRejected, TrailerDocked, TrailerUndocked, SealExceptionRaised, TrailerDwellExceeded, YardCheckClosed)
-    and are mirrored on `warehouse.yard-management.analytics` under the same id; the other twelve are analytics-only and go
+    the CloudEvents `id` is stored with the outbox row). Nine types are integration events on `warehouse.yard-management.events`
+    (VisitCheckedIn, VisitRejected, TrailerDocked, TrailerUndocked, SealExceptionRaised, TrailerDwellExceeded, YardCheckClosed, DoorWorkCompleted, TrailerDeparted)
+    and are mirrored on `warehouse.yard-management.analytics` under the same id; the other ten are analytics-only and go
     ONLY to the analytics topic. The key of every message is its aggregate root id (`visit_id`, `trailer_id`, `move_id`, `yard_check_id`).
 
 
@@ -62,10 +62,14 @@ channels:
         $ref: '#/components/messages/TrailerDwellExceeded'
       YardCheckClosed:
         $ref: '#/components/messages/YardCheckClosed'
+      DoorWorkCompleted:
+        $ref: '#/components/messages/DoorWorkCompleted'
+      TrailerDeparted:
+        $ref: '#/components/messages/TrailerDeparted'
   yardManagementAnalytics:
     address: warehouse.yard-management.analytics
-    description: 'This service''s analytics stream, written by the SAME outbox pass: the seven integration types again (same
-      id, byte-identical payload, analytics dataschema) plus the twelve analytics-only types. Consumed ONLY by this service''s
+    description: 'This service''s analytics stream, written by the SAME outbox pass: the nine integration types again (same
+      id, byte-identical payload, analytics dataschema) plus the ten analytics-only types. Consumed ONLY by this service''s
       own projector.'
     messages:
       VisitCheckedInAnalytics:
@@ -150,7 +154,7 @@ operations:
     channel:
       $ref: '#/channels/yardManagementEvents'
     summary: Publish the integration events of the yard.
-    description: 'Publishes the seven integration event types. Consumers: dock-scheduling (VisitCheckedIn, TrailerDocked,
+    description: 'Publishes the nine integration event types. Consumers: outbound-shipping (TrailerDocked, DoorWorkCompleted, TrailerDeparted), dock-scheduling (VisitCheckedIn, TrailerDocked,
       TrailerUndocked), inbound-receiving (TrailerDocked), dock-scheduling (VisitRejected), exception-management (VisitRejected,
       SealExceptionRaised, TrailerDwellExceeded, YardCheckClosed).'
     messages:
@@ -161,6 +165,8 @@ operations:
     - $ref: '#/channels/yardManagementEvents/messages/SealExceptionRaised'
     - $ref: '#/channels/yardManagementEvents/messages/TrailerDwellExceeded'
     - $ref: '#/channels/yardManagementEvents/messages/YardCheckClosed'
+    - $ref: '#/channels/yardManagementEvents/messages/DoorWorkCompleted'
+    - $ref: '#/channels/yardManagementEvents/messages/TrailerDeparted'
   publishYardManagementAnalytics:
     action: send
     channel:
@@ -666,13 +672,51 @@ components:
             version: 4
       tags:
       - name: trailer
+    DoorWorkCompleted:
+      name: DoorWorkCompleted
+      title: DoorWorkCompleted
+      summary: Door work finished.
+      description: '`type` = `com.warehouse.wms.yard-management.trailer.DoorWorkCompleted`; subject and key = `trailer_id`;
+        dataschema `urn:warehouse:yard-management:events:DoorWorkCompleted:v1`. Consumed by outbound-shipping (ship-confirm follows the physical departure).'
+      contentType: application/cloudevents+json
+      payload:
+        allOf:
+        - $ref: '#/components/schemas/CloudEventEnvelope'
+        - type: object
+          properties:
+            type:
+              const: com.warehouse.wms.yard-management.trailer.DoorWorkCompleted
+            dataschema:
+              const: urn:warehouse:yard-management:events:DoorWorkCompleted:v1
+            data:
+              $ref: '#/components/schemas/DoorWorkCompletedData'
+      examples:
+      - name: DoorWorkCompleted
+        payload:
+          specversion: '1.0'
+          id: 7f3c9a52-1b8d-4e6f-9a07-000000000008
+          source: /warehouse/yard-management
+          type: com.warehouse.wms.yard-management.trailer.DoorWorkCompleted
+          subject: trl-8f7e6d5c-4b3a-4291-8071-6f5e4d3c2b1a
+          time: '2026-11-05T15:25:00Z'
+          datacontenttype: application/json
+          dataschema: urn:warehouse:yard-management:events:DoorWorkCompleted:v1
+          data:
+            trailer_id: trl-8f7e6d5c-4b3a-4291-8071-6f5e4d3c2b1a
+            site_id: WH1
+            door_code: WH1-DOCK-D01
+            appointment_id: null
+            completed_at: '2026-11-05T15:25:00Z'
+            load_state: EMPTY
+            version: 5
+      tags:
+      - name: trailer
     DoorWorkCompletedAnalytics:
       name: DoorWorkCompleted
       title: DoorWorkCompleted
-      summary: Door work finished. Analytics only.
+      summary: Door work finished.
       description: '`type` = `com.warehouse.wms.yard-management.trailer.DoorWorkCompleted`; subject and key = `trailer_id`;
-        dataschema `urn:warehouse:yard-management:analytics:DoorWorkCompleted:v1`. Analytics only: never on the integration
-        topic.'
+        dataschema `urn:warehouse:yard-management:analytics:DoorWorkCompleted:v1`. Byte-identical payload to the integration topic.'
       contentType: application/cloudevents+json
       payload:
         allOf:
@@ -706,13 +750,52 @@ components:
             version: 5
       tags:
       - name: trailer
+    TrailerDeparted:
+      name: TrailerDeparted
+      title: TrailerDeparted
+      summary: A trailer left the site (the end of its dwell).
+      description: '`type` = `com.warehouse.wms.yard-management.trailer.TrailerDeparted`; subject and key = `trailer_id`;
+        dataschema `urn:warehouse:yard-management:events:TrailerDeparted:v1`. Consumed by outbound-shipping (ship-confirm follows the physical departure).'
+      contentType: application/cloudevents+json
+      payload:
+        allOf:
+        - $ref: '#/components/schemas/CloudEventEnvelope'
+        - type: object
+          properties:
+            type:
+              const: com.warehouse.wms.yard-management.trailer.TrailerDeparted
+            dataschema:
+              const: urn:warehouse:yard-management:events:TrailerDeparted:v1
+            data:
+              $ref: '#/components/schemas/TrailerDepartedData'
+      examples:
+      - name: TrailerDeparted
+        payload:
+          specversion: '1.0'
+          id: 7f3c9a52-1b8d-4e6f-9a07-000000000009
+          source: /warehouse/yard-management
+          type: com.warehouse.wms.yard-management.trailer.TrailerDeparted
+          subject: trl-8f7e6d5c-4b3a-4291-8071-6f5e4d3c2b1a
+          time: '2026-11-05T15:40:00Z'
+          datacontenttype: application/json
+          dataschema: urn:warehouse:yard-management:events:TrailerDeparted:v1
+          data:
+            trailer_id: trl-8f7e6d5c-4b3a-4291-8071-6f5e4d3c2b1a
+            site_id: WH1
+            visit_id: visit-5b1f0c3e-7a24-4d1e-9c55-0e7d3f2a9b10
+            departed_at: '2026-11-05T15:40:00Z'
+            dwell_minutes: 98
+            load_state: EMPTY
+            seal_number: null
+            version: 8
+      tags:
+      - name: trailer
     TrailerDepartedAnalytics:
       name: TrailerDeparted
       title: TrailerDeparted
-      summary: A trailer left the site (the end of its dwell). Analytics only.
+      summary: A trailer left the site (the end of its dwell).
       description: '`type` = `com.warehouse.wms.yard-management.trailer.TrailerDeparted`; subject and key = `trailer_id`;
-        dataschema `urn:warehouse:yard-management:analytics:TrailerDeparted:v1`. Analytics only: never on the integration
-        topic.'
+        dataschema `urn:warehouse:yard-management:analytics:TrailerDeparted:v1`. Byte-identical payload to the integration topic.'
       contentType: application/cloudevents+json
       payload:
         allOf:
