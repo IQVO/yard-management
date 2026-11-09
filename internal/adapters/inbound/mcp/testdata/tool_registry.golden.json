@@ -1266,11 +1266,29 @@
               "avgDwellMinutes": {
                 "type": "number"
               },
+              "avgProcessingMinutes": {
+                "type": [
+                  "null",
+                  "number"
+                ]
+              },
               "kind": {
                 "type": "string"
               },
               "maxDwellMinutes": {
                 "type": "integer"
+              },
+              "p50DwellMinutes": {
+                "type": [
+                  "null",
+                  "number"
+                ]
+              },
+              "p90DwellMinutes": {
+                "type": [
+                  "null",
+                  "number"
+                ]
               },
               "trailers": {
                 "type": "integer"
@@ -1281,7 +1299,10 @@
               "trailers",
               "avgDwellMinutes",
               "maxDwellMinutes",
-              "avgDriverWaitMinutes"
+              "avgDriverWaitMinutes",
+              "p50DwellMinutes",
+              "p90DwellMinutes",
+              "avgProcessingMinutes"
             ],
             "type": "object"
           },

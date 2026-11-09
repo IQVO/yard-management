@@ -1294,6 +1294,88 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '500':
           $ref: '#/components/responses/InternalError'
+  /reports/turn-time:
+    get:
+      operationId: getTurnTimeReport
+      summary: Gate-to-gate turn time report
+      description: 'Minutes from VisitCheckedIn.arrived_at to VisitCheckedOut.departed_at (the event''s on_site_minutes) per visit purpose, over the visits that checked OUT in the window, with the average, the median (p50), the 90th percentile (p90) and the maximum. Percentiles are reported because an average hides the long tail. A visit whose check-in the projection never saw has no purpose and is left out. Until the analytics read side is wired the report has no rows. `from` and `to` are required RFC 3339 instants (to after from, at most 92 days). Definitions: ADR 0011.'
+      tags:
+      - Reports
+      parameters:
+      - $ref: '#/components/parameters/ReportFrom'
+      - $ref: '#/components/parameters/ReportTo'
+      - name: siteId
+        in: query
+        required: false
+        description: Only this site.
+        schema:
+          type: string
+      responses:
+        '200':
+          description: The report.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TurnTimeReport'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /reports/detention-exposure:
+    get:
+      operationId: getDetentionExposureReport
+      summary: Detention exposure report
+      description: 'Among the trailers that DEPARTED in the window, those whose dwell exceeded `thresholdMinutes` (default 120, the two hour norm), per trailer kind. This is exposure, a proxy: no standard definition of detention exists and charging is out of scope. A dwell equal to the threshold does not exceed it. Until the analytics read side is wired the report has no rows. `from` and `to` are required RFC 3339 instants (to after from, at most 92 days). Definitions: ADR 0011.'
+      tags:
+      - Reports
+      parameters:
+      - $ref: '#/components/parameters/ReportFrom'
+      - $ref: '#/components/parameters/ReportTo'
+      - name: siteId
+        in: query
+        required: false
+        description: Only this site.
+        schema:
+          type: string
+      - $ref: '#/components/parameters/DetentionThresholdMinutes'
+      responses:
+        '200':
+          description: The report.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetentionExposureReport'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /reports/exceptions:
+    get:
+      operationId: getExceptionsReport
+      summary: Exception rates report
+      description: 'Per site, for the window: visits checked in and rejected (rejectionRate = rejected / (checkedIn + rejected)), seal exceptions (sealExceptionRate = per check-in; it counts the exceptions raised at the gate of rejected visits too, so it is not capped at 1), trailer holds placed by reason, yard checks closed and the discrepancies they found. Rates are null when their denominator is zero. Until the analytics read side is wired the report has no rows. `from` and `to` are required RFC 3339 instants (to after from, at most 92 days). Definitions: ADR 0011.'
+      tags:
+      - Reports
+      parameters:
+      - $ref: '#/components/parameters/ReportFrom'
+      - $ref: '#/components/parameters/ReportTo'
+      - name: siteId
+        in: query
+        required: false
+        description: Only this site.
+        schema:
+          type: string
+      responses:
+        '200':
+          description: The report.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExceptionsReport'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /reports/freshness:
     get:
       operationId: getReportsFreshness
@@ -1385,6 +1467,16 @@ components:
       schema:
         type: string
         format: date-time
+    DetentionThresholdMinutes:
+      name: thresholdMinutes
+      in: query
+      required: false
+      description: A departed trailer whose dwell exceeds this many minutes counts as detention exposure. Defaults to 120 (the two hour norm). Anything else than an integer from 1 to 10080 is a 400 `invalid-threshold-minutes`.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 10080
+        default: 120
   headers:
     IdempotencyReplayed:
       description: Present, with the value `true`, only when the answer is a replay of the stored answer of an earlier request with the same Idempotency-Key.
@@ -2378,12 +2470,28 @@ components:
               avgDriverWaitMinutes:
                 type: number
                 nullable: true
+                description: The wait. Mean of arrival to the first DoorWorkStarted; null when no trailer had door work.
+              p50DwellMinutes:
+                type: number
+                nullable: true
+                description: Median dwell, the typical trailer (additive, ADR 0011).
+              p90DwellMinutes:
+                type: number
+                nullable: true
+                description: 90th percentile of the dwell, the long tail an average hides (additive, ADR 0011).
+              avgProcessingMinutes:
+                type: number
+                nullable: true
+                description: The processing. Mean of DoorWorkStarted to DoorWorkCompleted over the completed door work sessions of these trailers; null when none completed (additive, ADR 0011).
             required:
             - kind
             - trailers
             - avgDwellMinutes
             - maxDwellMinutes
             - avgDriverWaitMinutes
+            - p50DwellMinutes
+            - p90DwellMinutes
+            - avgProcessingMinutes
       required:
       - from
       - to
@@ -2462,6 +2570,181 @@ components:
             - moves
             - avgMoveSeconds
             - movesPerHour
+      required:
+      - from
+      - to
+      - siteId
+      - rows
+    TurnTimeReport:
+      type: object
+      properties:
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+        siteId:
+          type: string
+          nullable: true
+        rows:
+          type: array
+          items:
+            type: object
+            properties:
+              purpose:
+                type: string
+                enum:
+                - DROP
+                - LIVE_UNLOAD
+                - LIVE_LOAD
+                - PICKUP
+                - BOBTAIL
+              visits:
+                type: integer
+                description: Visits of this purpose that checked out in the window.
+              avgMinutes:
+                type: number
+              p50Minutes:
+                type: number
+                description: Median gate-to-gate minutes.
+              p90Minutes:
+                type: number
+                description: 90th percentile of the gate-to-gate minutes.
+              maxMinutes:
+                type: integer
+            required:
+            - purpose
+            - visits
+            - avgMinutes
+            - p50Minutes
+            - p90Minutes
+            - maxMinutes
+      required:
+      - from
+      - to
+      - siteId
+      - rows
+    DetentionExposureReport:
+      type: object
+      properties:
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+        siteId:
+          type: string
+          nullable: true
+        thresholdMinutes:
+          type: integer
+          description: The threshold the report was computed with (the request's, or 120).
+        rows:
+          type: array
+          items:
+            type: object
+            properties:
+              kind:
+                type: string
+                enum:
+                - DRY_VAN
+                - REEFER
+                - FLATBED
+                - CONTAINER
+              trailers:
+                type: integer
+                description: Trailers of this kind that departed in the window.
+              exceeding:
+                type: integer
+                description: Of those, the ones whose dwell exceeded thresholdMinutes.
+              share:
+                type: number
+                nullable: true
+                description: exceeding / trailers, 0..1; null when there were no trailers.
+              excessMinutes:
+                type: integer
+                description: Sum of (dwell - thresholdMinutes) over the exceeding trailers. Exposure, not a billed amount.
+            required:
+            - kind
+            - trailers
+            - exceeding
+            - share
+            - excessMinutes
+      required:
+      - from
+      - to
+      - siteId
+      - thresholdMinutes
+      - rows
+    ExceptionsReport:
+      type: object
+      properties:
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+        siteId:
+          type: string
+          nullable: true
+        rows:
+          type: array
+          items:
+            type: object
+            properties:
+              siteId:
+                type: string
+              visitsCheckedIn:
+                type: integer
+              visitsRejected:
+                type: integer
+              rejectionRate:
+                type: number
+                nullable: true
+                description: visitsRejected / (visitsCheckedIn + visitsRejected), 0..1; null when both are zero.
+              sealExceptions:
+                type: integer
+              sealExceptionRate:
+                type: number
+                nullable: true
+                description: sealExceptions per check-in; null when no visit checked in. Not capped at 1.
+              holdsByReason:
+                type: object
+                description: Holds placed in the window; every reason is listed, zero included.
+                properties:
+                  DAMAGED:
+                    type: integer
+                  SEAL_BROKEN:
+                    type: integer
+                  NOT_FOUND:
+                    type: integer
+                  QUALITY:
+                    type: integer
+                  SECURITY:
+                    type: integer
+                required:
+                - DAMAGED
+                - SEAL_BROKEN
+                - NOT_FOUND
+                - QUALITY
+                - SECURITY
+              yardChecksClosed:
+                type: integer
+              discrepancies:
+                type: integer
+                description: Total discrepancies (the length of YardCheckClosed.discrepancies) over the yard checks closed.
+            required:
+            - siteId
+            - visitsCheckedIn
+            - visitsRejected
+            - rejectionRate
+            - sealExceptions
+            - sealExceptionRate
+            - holdsByReason
+            - yardChecksClosed
+            - discrepancies
       required:
       - from
       - to
