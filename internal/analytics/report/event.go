@@ -1,6 +1,6 @@
 // Package report is the PURE core of the analytics read side (ADR 0006): the
 // kinds of events the projector folds, their validation, the Projection port
-// the Kafka consumer calls, and the arithmetic of the three reports. It imports
+// the Kafka consumer calls, and the arithmetic of the reports. It imports
 // nothing from this module, so the consumer (inbound) and the Postgres store
 // (outbound) share it without depending on each other.
 package report
@@ -17,7 +17,9 @@ import (
 // type on the analytics topic is acknowledged and ignored.
 type Kind string
 
-// The seven kinds the three reports are built from.
+// The twelve kinds the reports are built from: the first seven are the dwell,
+// door and hostler reports (ADR 0006), the last five are the KPI standard
+// (ADR 0011).
 const (
 	KindVisitCheckedIn    Kind = "VisitCheckedIn"
 	KindTrailerDocked     Kind = "TrailerDocked"
@@ -26,6 +28,12 @@ const (
 	KindDoorWorkCompleted Kind = "DoorWorkCompleted"
 	KindTrailerDeparted   Kind = "TrailerDeparted"
 	KindYardMoveCompleted Kind = "YardMoveCompleted"
+
+	KindVisitCheckedOut     Kind = "VisitCheckedOut"
+	KindVisitRejected       Kind = "VisitRejected"
+	KindSealExceptionRaised Kind = "SealExceptionRaised"
+	KindTrailerHeld         Kind = "TrailerHeld"
+	KindYardCheckClosed     Kind = "YardCheckClosed"
 )
 
 // Performer value of a yard move done by a yard truck driver.
@@ -56,9 +64,24 @@ type Event struct {
 	VisitID   string
 	DoorCode  string
 
-	// VisitCheckedIn.
+	// VisitCheckedIn. Purpose is DROP, LIVE_UNLOAD, LIVE_LOAD, PICKUP or
+	// BOBTAIL; it is blank only for a payload that predates the field.
 	Arrivals  []Arrival
 	ArrivedAt time.Time
+	Purpose   string
+
+	// VisitCheckedOut: DepartedAt (below) and the minutes the visit was on
+	// site. VisitRejected: RejectedAt and Reason. SealExceptionRaised:
+	// RaisedAt. TrailerHeld: the hold Reason and the trailer Version.
+	// YardCheckClosed: YardCheckID, ClosedAt and the number of discrepancies.
+	OnSiteMinutes int64
+	RejectedAt    time.Time
+	RaisedAt      time.Time
+	ClosedAt      time.Time
+	Reason        string
+	Version       int64
+	YardCheckID   string
+	Discrepancies int64
 
 	// TrailerDocked / TrailerUndocked / DoorWorkStarted / DoorWorkCompleted /
 	// TrailerDeparted instants.
@@ -79,13 +102,23 @@ type Projection interface {
 }
 
 // Subject is the CloudEvents subject (and Kafka key) the event must carry: the
-// visit id, the trailer id or the move id.
+// visit id, the trailer id, the move id or the yard check id. A seal exception
+// raised when the visit was rejected at the gate has no trailer: its subject is
+// the visit id (ADR 0004), which the payload does not repeat, so the consumer
+// copies it into VisitID.
 func (e Event) Subject() string {
 	switch e.Kind {
-	case KindVisitCheckedIn:
+	case KindVisitCheckedIn, KindVisitCheckedOut, KindVisitRejected:
 		return e.VisitID
 	case KindYardMoveCompleted:
 		return e.MoveID
+	case KindYardCheckClosed:
+		return e.YardCheckID
+	case KindSealExceptionRaised:
+		if e.TrailerID != "" {
+			return e.TrailerID
+		}
+		return e.VisitID
 	default:
 		return e.TrailerID
 	}
@@ -128,7 +161,7 @@ func (e Event) Validate() error {
 		}
 		return require(reject, "move_id", e.MoveID, "trailer_id", e.TrailerID, "completed_at", instant(e.CompletedAt))
 	}
-	return reject("unknown kind")
+	return e.validateKPI(reject)
 }
 
 func (e Event) validateArrival(reject func(string, ...any) error) error {
@@ -137,6 +170,9 @@ func (e Event) validateArrival(reject func(string, ...any) error) error {
 	}
 	if e.ArrivedAt.IsZero() {
 		return reject("no arrived_at")
+	}
+	if e.Purpose != "" && !validPurposes[e.Purpose] {
+		return reject("purpose %q is not a visit purpose", e.Purpose)
 	}
 	for i, a := range e.Arrivals {
 		if strings.TrimSpace(a.TrailerID) == "" {

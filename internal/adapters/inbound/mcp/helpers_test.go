@@ -51,6 +51,18 @@ func (f *fakeReports) HostlerProductivity(context.Context, views.ReportWindow) (
 	return nil, nil
 }
 
+func (f *fakeReports) TurnTime(context.Context, views.ReportWindow) ([]views.TurnTimeRow, error) {
+	return nil, nil
+}
+
+func (f *fakeReports) DetentionExposure(context.Context, views.ReportWindow, int) ([]views.DetentionRow, error) {
+	return nil, nil
+}
+
+func (f *fakeReports) Exceptions(context.Context, views.ReportWindow) ([]views.ExceptionRow, error) {
+	return nil, nil
+}
+
 func (f *fakeReports) LastEventAt(context.Context) (time.Time, bool, error) {
 	return f.last, f.hasLast, f.err
 }

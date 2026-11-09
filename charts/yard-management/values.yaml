@@ -311,7 +311,8 @@ affinity: {}
 # The yard data product: the projector (cmd/yard-projector, the ONLY writer of
 # the "analytics" schema, consuming warehouse.yard-management.analytics) and
 # the read-only reports binary (cmd/yard-reports: GET /reports/yard-dwell,
-# /reports/door-utilisation, /reports/hostler-productivity and
+# /reports/door-utilisation, /reports/hostler-productivity,
+# /reports/turn-time, /reports/detention-exposure, /reports/exceptions and
 # /reports/freshness). DISABLED by default: the default render is unchanged.
 #
 # Enabling it renders the projector Deployment (component analytics-projector,

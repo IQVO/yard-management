@@ -15,7 +15,7 @@ import (
 
 const yardSource = "/warehouse/yard-management"
 
-// The seven analytics payloads the projection reads, as the outbound encoder
+// The seven original analytics payloads the projection reads, as the outbound encoder
 // writes them (internal/adapters/outbound/kafka goldens).
 const (
 	aVisitData = `{"visit_id":"visit-1","site_id":"WH1","carrier":"Acme Freight","carrier_scac":"ACME","purpose":"LIVE_UNLOAD","appointment_id":"appt-1",` +
@@ -90,7 +90,7 @@ func TestAnalyticsConsumerRefusesABlankGroupNamingTheVariable(t *testing.T) {
 	}
 }
 
-func TestAnalyticsConsumerProjectsTheSevenKindsFromTheEncodersPayloads(t *testing.T) {
+func TestAnalyticsConsumerProjectsTheOriginalSevenKindsFromTheEncodersPayloads(t *testing.T) {
 	k := newFakeKafka(
 		yardEvent(t, "e1", "yardvisit", "VisitCheckedIn", "visit-1", aVisitData),
 		yardEvent(t, "e2", "trailer", "TrailerDocked", "trl-1", aDockedData),

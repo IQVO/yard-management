@@ -155,6 +155,21 @@ func reportsFromTheProjection(t *testing.T, a *api, dsn string, pool *pgxpool.Po
 		t.Fatalf("hostler row %v: h1 completed one move (the visiting driver's moves do not count)", h)
 	}
 
+	// The KPI standard reports (ADR 0011) read the same stream: the checked-out
+	// visit has a gate-to-gate turn time, the departed trailer counts for the
+	// detention exposure, and the check-ins show in the exceptions.
+	turn := rows("turn-time", 1)[0].(map[string]any)
+	if turn["purpose"] == nil || turn["visits"] != float64(1) || turn["p50Minutes"] == nil || turn["p90Minutes"] == nil {
+		t.Fatalf("turn time row %v: one checked-out visit", turn)
+	}
+	exposure := rows("detention-exposure", 1)[0].(map[string]any)
+	if exposure["kind"] != "DRY_VAN" || exposure["trailers"] != float64(1) || exposure["exceeding"] != float64(0) || exposure["share"] != float64(0) {
+		t.Fatalf("detention exposure row %v: one DRY_VAN, far under two hours", exposure)
+	}
+	if exceptions := rows("exceptions", 1)[0].(map[string]any); exceptions["siteId"] != "WH1" || exceptions["visitsCheckedIn"].(float64) < 1 {
+		t.Fatalf("exceptions row %v: WH1 checked visits in", exceptions)
+	}
+
 	f := a.call(http.MethodGet, "/reports/freshness", nil, "").JSON()
 	if f["lastEventAt"] == nil {
 		t.Fatalf("freshness %v: the projector has folded events", f)

@@ -127,12 +127,13 @@ func TestMigrationsAreIdempotentAndLiveInTheirOwnSchemaBesideTheOLTPOnes(t *test
 	pool := pgtest.Open(t, dsn)
 	var inAnalytics, inPublic int
 	pgtest.Scan(t, pool, `SELECT count(*) FROM information_schema.tables WHERE table_schema = 'analytics'
-		AND table_name IN ('processed_events','trailer_facts','door_dockings','door_work','hostler_moves','schema_migrations')`, nil, &inAnalytics)
+		AND table_name IN ('processed_events','trailer_facts','door_dockings','door_work','hostler_moves','schema_migrations',
+		'visit_facts','gate_exceptions','trailer_holds','yard_check_results')`, nil, &inAnalytics)
 	pgtest.Scan(t, pool, `SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public'
-		AND table_name IN ('processed_events','trailer_facts','door_dockings','door_work','hostler_moves')`, nil, &inPublic)
+		AND table_name IN ('processed_events','trailer_facts','door_dockings','door_work','hostler_moves','visit_facts','gate_exceptions','trailer_holds','yard_check_results')`, nil, &inPublic)
 	// The OLTP processed_events (the inbox) is public; the analytical one is not.
-	if inAnalytics != 6 || inPublic != 1 {
-		t.Fatalf("analytics schema has %d of 6 tables, public has %d of the shared names (want only the OLTP inbox)", inAnalytics, inPublic)
+	if inAnalytics != 10 || inPublic != 1 {
+		t.Fatalf("analytics schema has %d of 10 tables, public has %d of the shared names (want only the OLTP inbox)", inAnalytics, inPublic)
 	}
 }
 
@@ -158,6 +159,13 @@ func TestTheReportsRoleReadsButNeverWrites(t *testing.T) {
 	t.Cleanup(pool.Close)
 	var n int
 	pgtest.Scan(t, pool, `SELECT count(*) FROM analytics.trailer_facts`, nil, &n)
+	// The tables of 0002 are granted too (the grant block is repeated there).
+	for _, table := range []string{"visit_facts", "gate_exceptions", "trailer_holds", "yard_check_results"} {
+		pgtest.Scan(t, pool, `SELECT count(*) FROM analytics.`+table, nil, &n)
+	}
+	if err := pgtest.Exec(pool, `INSERT INTO analytics.visit_facts (visit_id) VALUES ('v')`); err == nil {
+		t.Fatal("the reports role must not write the KPI facts either")
+	}
 	if err := pgtest.Exec(pool, `INSERT INTO analytics.hostler_moves VALUES ('m','WH1','t','h',now(),1)`); err == nil {
 		t.Fatal("the reports role must not write")
 	}
