@@ -1,6 +1,7 @@
 // Command yard-reports is the READ side of the yard-management analytics
-// (ADR 0006): GET /reports/yard-dwell, /reports/door-utilisation,
-// /reports/hostler-productivity and /reports/freshness over the "analytics"
+// (ADR 0006, ADR 0011): GET /reports/yard-dwell, /reports/door-utilisation,
+// /reports/hostler-productivity, /reports/turn-time, /reports/detention-exposure,
+// /reports/exceptions and /reports/freshness over the "analytics"
 // schema, through a read-only pool. It never writes and never opens the OLTP
 // tables; the writer is cmd/yard-projector, which also owns the migrations: this
 // process is not ready until the projector has created the schema.

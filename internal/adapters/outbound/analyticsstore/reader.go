@@ -13,7 +13,7 @@ import (
 	"github.com/claudioed/yard-management/internal/application/views"
 )
 
-// Reader is the Postgres ports.ReportReader: the three reports and the
+// Reader is the Postgres ports.ReportReader: the reports and the
 // freshness over the analytical model, through a READ-ONLY pool. SQL only sums
 // and averages; the ratios live in internal/analytics/report.
 type Reader struct {
@@ -28,15 +28,30 @@ var _ ports.ReportReader = (*Reader)(nil)
 // YardDwell is the dwell of the trailers that DEPARTED inside the window, per
 // trailer kind (the kind comes from VisitCheckedIn; a trailer whose arrival the
 // projection never saw is left out). The driver wait is the mean of arrival to
-// the first DoorWorkStarted over the trailers that had door work.
+// the first DoorWorkStarted over the trailers that had door work; the
+// processing is the mean of DoorWorkStarted to DoorWorkCompleted over the
+// completed door work sessions of these trailers. The median and the 90th
+// percentile are computed by Postgres (percentile_cont, ADR 0011).
 func (r *Reader) YardDwell(ctx context.Context, w views.ReportWindow) ([]views.DwellRow, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT kind, count(*)::int, COALESCE(avg(dwell_minutes), 0)::float8, COALESCE(max(dwell_minutes), 0)::bigint,
-		       (avg(EXTRACT(EPOCH FROM (first_door_work_started_at - arrived_at)) / 60.0)
-		            FILTER (WHERE first_door_work_started_at >= arrived_at))::float8
-		FROM analytics.trailer_facts
-		WHERE departed_at >= $1 AND departed_at < $2 AND kind IS NOT NULL AND ($3 = '' OR site_id = $3)
-		GROUP BY kind ORDER BY kind`, w.From, w.To, w.SiteID)
+		WITH t AS (
+			SELECT trailer_id, kind, dwell_minutes, arrived_at, first_door_work_started_at
+			FROM analytics.trailer_facts
+			WHERE departed_at >= $1 AND departed_at < $2 AND kind IS NOT NULL AND ($3 = '' OR site_id = $3)
+		), proc AS (
+			SELECT t.kind, avg(EXTRACT(EPOCH FROM (k.completed_at - k.started_at)) / 60.0)::float8 AS avg_minutes
+			FROM t JOIN analytics.door_work k ON k.trailer_id = t.trailer_id
+			WHERE k.completed_at >= k.started_at
+			GROUP BY t.kind
+		)
+		SELECT t.kind, count(*)::int, COALESCE(avg(t.dwell_minutes), 0)::float8, COALESCE(max(t.dwell_minutes), 0)::bigint,
+		       (avg(EXTRACT(EPOCH FROM (t.first_door_work_started_at - t.arrived_at)) / 60.0)
+		            FILTER (WHERE t.first_door_work_started_at >= t.arrived_at))::float8,
+		       (percentile_cont(0.5) WITHIN GROUP (ORDER BY t.dwell_minutes))::float8,
+		       (percentile_cont(0.9) WITHIN GROUP (ORDER BY t.dwell_minutes))::float8,
+		       max(proc.avg_minutes)
+		FROM t LEFT JOIN proc ON proc.kind = t.kind
+		GROUP BY t.kind ORDER BY t.kind`, w.From, w.To, w.SiteID)
 	if err != nil {
 		return nil, fmt.Errorf("yard dwell report: %w", err)
 	}
@@ -44,7 +59,8 @@ func (r *Reader) YardDwell(ctx context.Context, w views.ReportWindow) ([]views.D
 	out := []views.DwellRow{}
 	for rows.Next() {
 		var row views.DwellRow
-		if err := rows.Scan(&row.Kind, &row.Trailers, &row.AvgDwellMinutes, &row.MaxDwellMinutes, &row.AvgDriverWaitMinutes); err != nil {
+		if err := rows.Scan(&row.Kind, &row.Trailers, &row.AvgDwellMinutes, &row.MaxDwellMinutes, &row.AvgDriverWaitMinutes,
+			&row.P50DwellMinutes, &row.P90DwellMinutes, &row.AvgProcessingMinutes); err != nil {
 			return nil, fmt.Errorf("scan yard dwell row: %w", err)
 		}
 		out = append(out, row)
