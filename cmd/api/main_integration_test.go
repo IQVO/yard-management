@@ -3,6 +3,7 @@
 package main
 
 import (
+	"io"
 	"net/http"
 	"sort"
 	"strings"
@@ -160,28 +161,58 @@ func concurrentKey(t *testing.T, a *api, dsn string, pool *pgxpool.Pool) {
 	}
 }
 
+// readinessWhenKafkaStops: once the broker is gone the process must stop
+// taking traffic. Two outcomes qualify, because both are the design and which
+// one a run sees depends on how fast the dead broker's port refuses: /readyz
+// answers 503 dependency-unavailable naming kafka, or the supervisor finds a
+// consumer dead (ADR 0009) and shuts the process down, so nothing answers any
+// more. Waiting only for the first made the test flaky on CI.
 func readinessWhenKafkaStops(t *testing.T, a *api, dsn string, pool *pgxpool.Pool) {
 	t.Helper()
 	if r := a.call(http.MethodGet, "/readyz", nil, ""); r.Code != http.StatusOK {
 		t.Fatalf("ready before: %d %s", r.Code, r.Body)
 	}
 	kafkatest.Stop(t)
-	deadline := time.Now().Add(60 * time.Second)
+	deadline := time.Now().Add(90 * time.Second)
+	client := &http.Client{Timeout: 5 * time.Second}
 	for {
-		r := a.call(http.MethodGet, "/readyz", nil, "")
-		if r.Code == http.StatusServiceUnavailable {
-			if r.Slug() != "dependency-unavailable" || !strings.Contains(string(r.Body), "kafka") || strings.Contains(string(r.Body), "postgres") {
-				t.Fatalf("503 body %s", r.Body)
+		resp, err := client.Get(a.base + "/readyz")
+		if err == nil {
+			body, _ := io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
+			if resp.StatusCode == http.StatusServiceUnavailable {
+				if !strings.Contains(string(body), "dependency-unavailable") || !strings.Contains(string(body), "kafka") || strings.Contains(string(body), "postgres") {
+					t.Fatalf("503 body %s", body)
+				}
+				break
 			}
-			break
+		} else if a.supervisorStopped(t) {
+			t.Log("a consumer died with the broker and the supervisor stopped the process: out of service as designed")
+			return
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("/readyz stayed %d after Kafka stopped", r.Code)
+			t.Fatal("/readyz never reported the stopped Kafka and the process kept running")
 		}
 		time.Sleep(500 * time.Millisecond)
 	}
 	if r := a.call(http.MethodGet, "/healthz", nil, ""); r.Code != http.StatusOK {
 		t.Fatalf("liveness does not depend on Kafka: %d", r.Code)
+	}
+}
+
+// supervisorStopped reports whether run() already returned because a consumer
+// died. It puts the outcome back so gracefulStop still sees a clean exit.
+func (a *api) supervisorStopped(t *testing.T) bool {
+	t.Helper()
+	select {
+	case err := <-a.done:
+		if err != nil && !strings.Contains(err.Error(), "consumer died") {
+			t.Fatalf("run stopped with %v, want a consumer-died shutdown", err)
+		}
+		a.done <- nil
+		return true
+	default:
+		return false
 	}
 }
 
