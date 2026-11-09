@@ -1,5 +1,5 @@
 // Command relay is the outbox relay worker: it drains the transactional outbox
-// of yard-management onto Kafka as CloudEvents (the seven integration types on
+// of yard-management onto Kafka as CloudEvents (the nine integration types on
 // warehouse.yard-management.events, every type on .analytics, unencodable rows
 // on .events.dlq) and stops gracefully on SIGINT/SIGTERM: the pass in flight
 // ends, what it already relayed is committed, then the sink and the pool are

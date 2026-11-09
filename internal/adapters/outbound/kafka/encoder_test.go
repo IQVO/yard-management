@@ -121,7 +121,7 @@ func goldenCases() []goldenCase {
 			data: `{"trailer_id":"trl-1","site_id":"WH1","door_code":"WH1-D1","appointment_id":"appt-1","started_at":"2026-11-05T14:25:00Z","version":4}`,
 		},
 		{
-			name: "DoorWorkCompleted", subject: "trl-1",
+			name: "DoorWorkCompleted", integration: true, subject: "trl-1",
 			event: trailer.DoorWorkCompleted{
 				Header: hdr("trailer", "DoorWorkCompleted", "trl-1", at(15, 0)), TrailerID: "trl-1", SiteID: "WH1", DoorCode: "WH1-D1",
 				AppointmentID: shared.Str("appt-1"), CompletedAt: stamp(15, 0), LoadState: shared.LoadEmpty, Version: 5,
@@ -129,7 +129,7 @@ func goldenCases() []goldenCase {
 			data: `{"trailer_id":"trl-1","site_id":"WH1","door_code":"WH1-D1","appointment_id":"appt-1","completed_at":"2026-11-05T15:00:00Z","load_state":"EMPTY","version":5}`,
 		},
 		{
-			name: "TrailerDeparted", subject: "trl-1",
+			name: "TrailerDeparted", integration: true, subject: "trl-1",
 			event: trailer.TrailerDeparted{
 				Header: hdr("trailer", "TrailerDeparted", "trl-1", at(15, 35)), TrailerID: "trl-1", SiteID: "WH1", VisitID: shared.Str("visit-1"),
 				DepartedAt: stamp(15, 35), DwellMinutes: 95, LoadState: shared.LoadEmpty, SealNumber: shared.Str("SL-1"), Version: 7,
@@ -386,8 +386,8 @@ func TestGoldenCasesCoverTheWholeCatalogue(t *testing.T) {
 		}
 	}
 	total, integration := outboundkafka.PublishedCount()
-	if total != 19 || integration != 7 {
-		t.Fatalf("the catalogue holds %d types (%d integration), ADR 0004 says 19 (7)", total, integration)
+	if total != 19 || integration != 9 {
+		t.Fatalf("the catalogue holds %d types (%d integration), ADR 0004 + 0010 say 19 (9)", total, integration)
 	}
 	if len(covered) != total {
 		t.Errorf("golden cases cover %d of %d published types", len(covered), total)
@@ -395,6 +395,7 @@ func TestGoldenCasesCoverTheWholeCatalogue(t *testing.T) {
 	wantIntegration := []string{
 		"yardvisit.VisitCheckedIn", "yardvisit.VisitRejected", "trailer.TrailerDocked", "trailer.TrailerUndocked",
 		"trailer.SealExceptionRaised", "trailer.TrailerDwellExceeded", "yardcheck.YardCheckClosed",
+		"trailer.DoorWorkCompleted", "trailer.TrailerDeparted",
 	}
 	for _, name := range wantIntegration {
 		parts := strings.SplitN(name, ".", 2)
