@@ -75,7 +75,7 @@ func dropVisitFlow(t *testing.T, a *api, dsn string, pool *pgxpool.Pool) {
 		t.Errorf("%d trailers, want 1", n)
 	}
 
-	events := kafkatest.ReadN(t, outboundkafka.TopicEvents, 3, 90*time.Second)
+	events := kafkatest.ReadN(t, outboundkafka.TopicEvents, 4, 90*time.Second)
 	wantEvent(t, events[0], "VisitCheckedIn", "yardvisit", visitID, map[string]any{
 		"visit_id": visitID, "site_id": "WH1", "carrier": "Acme Freight", "carrier_scac": "ACME", "purpose": "DROP", "appointment_id": nil,
 		"trailers":   []any{map[string]any{"trailer_id": trailerID, "unit_number": "TR-1", "carrier_scac": "ACME", "kind": "DRY_VAN", "load_state": "LOADED"}},
@@ -85,7 +85,12 @@ func dropVisitFlow(t *testing.T, a *api, dsn string, pool *pgxpool.Pool) {
 		"trailer_id": trailerID, "site_id": "WH1", "door_code": "WH1-D02", "appointment_id": nil, "asn_numbers": []any{},
 		"visit_id": visitID, "docked_at": "<time>", "version": "<version>",
 	})
-	wantEvent(t, events[2], "VisitRejected", "yardvisit", rejected["visitId"].(string), map[string]any{
+	// ADR 0010: door-work completion is an integration event (outbound-shipping consumes it).
+	wantEvent(t, events[2], "DoorWorkCompleted", "trailer", trailerID, map[string]any{
+		"trailer_id": trailerID, "site_id": "WH1", "door_code": "WH1-D02", "appointment_id": nil,
+		"completed_at": "<time>", "load_state": "EMPTY", "version": "<version>",
+	})
+	wantEvent(t, events[3], "VisitRejected", "yardvisit", rejected["visitId"].(string), map[string]any{
 		"visit_id": rejected["visitId"], "site_id": "WH1", "carrier_scac": nil, "appointment_id": nil, "reason": "SITE_REQUEST", "rejected_at": "<time>",
 	})
 	waitOutboxDrained(t, pool)
