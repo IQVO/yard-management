@@ -1,0 +1,70 @@
+---
+id: reject-at-gate
+title: "Turn a visit away at the gate (RejectAtGate)"
+description: "Records a REJECTED visit and raises VisitRejected (consumed by dock-scheduling and exception-management). Nothing is persisted for the trailers."
+sidebar_label: "Turn a visit away at the gate (RejectAtGate)"
+hide_title: true
+hide_table_of_contents: true
+api: eJztWm1v4zYS/isD4j7YONlx3G27694d4Ca+1t3ESR2nRW+bi2lpbLOhSC1JOTEC//fDkJKs2E66e9gD9oDNl8giOZzXhzNDPTKdoeFOaDVMWI8Z/ANj13c/cIcsYgna2IiMhlmPjTHWJrHAYTz4aXAyGZzCSljhgKsEDBcWLfxCL8aeCibQiLWyeYoJzNaQ6PiuZeMlJrkUauFX4UOMnnwr5YovMEXlmm0YabekKcJChsYKS8Tm2oBbIjjDhURj2yxiji8s671jflvLbiKWccNTdGjo/SNTPEXWY8ME00w7VPG69RbXLGKCJFoiT9CwiBl8nwuDCes5k+Ou4CdcSjStBSrSFSaQK/E+R7jDNTQ4XF8PT4lPkHohYi7B5rNUuAiOW8fd15AZoRyfSYT+1clwCPGSGx4Th01wS+4g5XdIWjXojMAEiBm0DiyfYxvGBWugFeAKzRouL64mXnuX1xNovOp0YCpq8t3hulXKM/1uf0yoFZcimcL9EhWkXM61STFptqEPBjPJ13Av3NLr2vLUixlBim6pkwgy7pZ+85lO1sRybpT1c7URC6G4BIM208piIDOt637s6WPSA9Lz9Lsnm4T5HBIxn6NB5Z5uqk3YU1h41XlzSObcYjIltyAvSznrPTK3zsj+1hmhFixiqVBnqBZuyXrHEUv5Q/Wr+3qzuQmegNZ9r5M1rd91jFgrh8rREM8yKWIfO0d/WHKUx/2N9YxCgUUsMxRpTqD184RDCriPYPCbV5uIxdwYgebjJOt0tiuvYh4fWp1x59CQs//7Xb/1r5vHbvRq8xe2iZgjZ9XmUhIkfMy+X3U3ESlJC+Uorp+Rd0dCg7zQ5e5MVHlKsd6/vLwYjibng9Hkdjz4+Xo4HpyyiF2P3o4ufh3d1oZZxK4G/bPb8+HVeX9y8iOL2GTcH54Nxrf9s/Ggf/rb7cXo9mo4GdDM4WTg6Q2uJuxms6mDwrvSYFsL7CimYvwmYk44iR4vyfYFInqvYptNIBwCxLtCt3NM/54izmSJYEoU9SBLbh3gyq86FFT7ZC4NWlQu2gb0isscYeqjLwKt5DrAAI1xZe/RUHzxEgj0PESo04RAxQQ9B64AuZECTYVWTzFjB3BfDsrSssRVUP2ZDoF1QCQPBYEtr5gIpkf+wR49+v/DZPMiCHgTfKI4LjY8sEn0bIy/FMZ/Hqgql5IOkwBIfxqfm4glRqzQjHH+QeSy3GTaHoz00kyn44tLFrGz4S+D2+vR2UX/tPxVPF8OT95e05TvL76f9Idn7OZDkGCPFeuegZySkZMfBydvB6e3wxGLqh8X1xT3ZYbitw6RJLQafxbgEpGkN4dN6TObYZ1Fbgz3CYvD1B7y5u26i9x93EJytRUmfXdIJZQWcMd6LOEOW06k6L0JM27cR6w5IOeKcrondhDK4cKjaiqUSMkWx7sQXMZa9AFgXHpx6URPdPtUYXUtbFmrwbgH8AK5X3U6+5B0XqZQ8NPVxcgnKREhZK7ulL5XMBcokwg4jK7PYLZ2SM+psJZSXG2gSMh2MTOiMa6q4TIJep9TEljluQR1z6BZZvRMYvrXj0W1MPqCdXMjfGoQNHQI+xx3uT1o4IqIUO6rbnApx4U8SEco67iKD22y4x1+tGSpYqAiXiN1s1fX/PMEvn3d+RYKfVGlkhNOASWUvu4IibfSqtV9eKgS3DbbesllWEtM4wNPMxlUWaXXZULpD+CaOEvnMts7OkJjtLHtNTdJrRZq33ODS51bbNm1pUBuJ7g6qqi2itO3RU5X42brkuXxXEwoDfOq09kqntUn0fmvtIPgdN6jQ+UlLFTFYl2fPXZUxpO3Si0vf4vrcWWjTyT7c6VOTfqdQIKQN5FgtcmHNWFRUZ6zG4tQVYrPiF3Cw5vncrmg4FiruRSxs7V0iQCqzGhIBdDgCnQc5xkVg5nkMXo40RmVa3oVfgkpccElVcPKCtqqSeDgiyB7QIIvMPE5w4Qs8t2LwuyfLFpKwq3SoWq8kGOW48ClQZ6sYamlb/EUvv0kUN7UAqVaSLCwpf3BqEA6+x9igif/PCLcc1tJ7K2313ooIvZZ+Sla7wpKNQpKu+W2KPpTvOh29/GiXxRpPpo9NzGCySXCnJYn0CgTi8oGlChs0+uoShmK/CiCXOFDJrlQmECC1gnlF0YB5f1z8wtCfM4IUdi8Xhh/ktAp6LZKX6pxcr3jZvVY6HafwQJKHbgCHjuxQrBSu6qJIHwi/mJAfH0ov74m5w2tEIqA3GDoG4b9QZFOQSK/s0DeYRSX9oszf87OXJrp0x0ABcGWX1UH/mIALBpyk3K8NMXXT7I/X7RVzubn+sPNmJcOt8J3Q7Oa9VimPfJTvUYzfd3aqnoQpP7ATLihyI0spO4d+eNaLrV1vded1529GxiKfgkJrlDqjNTBNtELFDqdI56Jox0VPkP1TqgEYplbh5TtG50vlvBWk1PdRIyCZbxtjQ+CMeut7G1AVN2tvVehqbV9/bR3tX2/0yvaDpTd4cN9Gh8ac+2dqbD/b5RQn1eyQ/9yWKvye+y43Wl3CqzgsceK4spoR2uQcrrGEYrsFtV0Tr66EG6Zz9qxTo+GP/9ysafxTcSkiFGFvlqxwfXobHgyGF0Fxvdrhl/Pr1qOOqz6XoWuq4+3cDOWLdeW7prkmu6FyAagc2dFgh4a5zo3cM+ltNDon46h0+kcR1A8dZu90Dq1lZ1pzYLqkAYpzHc8mtGT27ZqG7r7uV+iQUAeLwnyG5Mwp1hBJYoFckG/jub73Yjt0Iu0/sor7HWuV9iMQuETLzG+s+H9CT03/WoimqFp+e39RMqGinmXWop43WzD0BEv/qDRuYl9SZXco5QRJLqI44yreO1pejLO5PEd4VuS03El3BrmPHa2/bv6XfVL0SvJqTHuAB947LzaMRRnPf/oCdpMu8j/pC19A4d+VJUbXbHRHJ+wBbaKfNtBqq3zs4tt23DuFckNQpZLGS5RK7U2YslF2lL44MrkVSK3pMtwIGa5XWLShv42lmyhilhqmxu0UXW0BzP1r0ZQHJoWYp0izI1Oye2Ua80x8dMlxDoTuHWsr5rfhe5A/3JY7B17z+Ngxcxf9XqiD64Ng5WnHWSaSUEsArdwInWeFINawbRC+T3898zYqed32uaKy7UTsZ1WrsxDScw92HJJYTHTD9CwiDDlmbBH3K5VzDPRXvNUTpve2lfCFbrmSWLQ2qBusvuJToLXk+6CosiGlsbdEoUhpxFSuHVL8rXOXaVVv7KxkHrmAzXcGjfbMPBHm9/t2VO26BBM6VSEv8N/dSr+zcp88Y9pCEt6hhmSOULtMuOzVsxt1XtINEFcceoRRkFjOjDmbKc0nVIcTPfqymmzDRMPCz4JBJ67JSpXJF1AF1QGGnOJ6CDBWBD+QrfT/abVedM6Pm62CQTp5Ey5qoHkJDcKePmdwT1fU6hs0Wpc+16huXuwPW4zwM/y24WQ71BgHPnajDTgz5XHIncoet713OEmYgQBNPb4OOMWr43cbOi1bwuz3rubiK24EaHh/o6uP4reFSUbibA0kLDenEu7+6FDXWGNsnHXhC+fP/yfff5w0LPucH3wQ5gi/2Y+lQyTToIXtCaheihn7F2Ublf0Y4qFF+fe1DJkMiGL2Kzoiac6oTWG31OKx++Jm4jpLLg8fYVB7x6Z5GqR8wXNDTTp7z9tS8mR
+sidebar_class_name: "post api-method"
+info_path: docs/api-reference/rest/yard-management-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Turn a visit away at the gate (RejectAtGate)"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/visit-rejections"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Records a REJECTED visit and raises VisitRejected (consumed by dock-scheduling and exception-management). Nothing is persisted for the trailers.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./reject-at-gate.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./reject-at-gate.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./reject-at-gate.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

@@ -1,0 +1,1 @@
+{"title":"Body","body":{"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"locationCode":{"type":"string","minLength":1},"unitNumber":{"type":"string","description":"Absent when the location was found empty."}},"required":["locationCode"],"title":"ObservationRequest"}}}}}

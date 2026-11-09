@@ -1,0 +1,70 @@
+---
+id: claim-next-move
+title: "Claim the next move (ClaimNextMove)"
+description: "Pull dispatch: the system, never the caller, picks the REQUESTED HOSTLER move of the site with the lowest priority band, then the earliest dueBy, then the oldest request, and leases it to the hostler for the site's `leaseSeconds`. The trailer leaves its place (StartMoving). A hostler holds at most one CLAIMED move (409 `hostler-busy`). 404 `no-claimable-move` when nothing waits."
+sidebar_label: "Claim the next move (ClaimNextMove)"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: docs/api-reference/rest/yard-management-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Claim the next move (ClaimNextMove)"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/moves/claims"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Pull dispatch: the system, never the caller, picks the REQUESTED HOSTLER move of the site with the lowest priority band, then the earliest dueBy, then the oldest request, and leases it to the hostler for the site's `leaseSeconds`. The trailer leaves its place (StartMoving). A hostler holds at most one CLAIMED move (409 `hostler-busy`). 404 `no-claimable-move` when nothing waits.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./claim-next-move.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./claim-next-move.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./claim-next-move.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

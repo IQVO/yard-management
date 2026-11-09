@@ -1,0 +1,70 @@
+---
+id: get-yard-dwell-report
+title: "Yard dwell report"
+description: "Read-only analytics over the analytical database (ADR 0006). The API answers the contract shape from the analytics read-side port; until the analytics read side is wired the report has no rows. `from` and `to` are required RFC 3339 instants (to after from, at most 92 days)."
+sidebar_label: "Yard dwell report"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "get api-method"
+info_path: docs/api-reference/rest/yard-management-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Yard dwell report"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/reports/yard-dwell"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Read-only analytics over the analytical database (ADR 0006). The API answers the contract shape from the analytics read-side port; until the analytics read side is wired the report has no rows. `from` and `to` are required RFC 3339 instants (to after from, at most 92 days).
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./get-yard-dwell-report.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./get-yard-dwell-report.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./get-yard-dwell-report.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

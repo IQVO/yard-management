@@ -1,0 +1,70 @@
+---
+id: sweep-move-leases
+title: "Run the lease-expiry sweep (ExpireLease)"
+description: "Returns every CLAIMED HOSTLER move whose lease ran out to REQUESTED and the trailer to where it was (ReturnToOrigin). Naturally idempotent; run by a CronJob."
+sidebar_label: "Run the lease-expiry sweep (ExpireLease)"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: docs/api-reference/rest/yard-management-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Run the lease-expiry sweep (ExpireLease)"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/move-lease-sweeps"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Returns every CLAIMED HOSTLER move whose lease ran out to REQUESTED and the trailer to where it was (ReturnToOrigin). Naturally idempotent; run by a CronJob.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./sweep-move-leases.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./sweep-move-leases.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./sweep-move-leases.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

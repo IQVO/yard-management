@@ -1,0 +1,70 @@
+---
+id: request-move
+title: "Request a move (RequestMove)"
+description: "A supervisor asks for a HOSTLER move of a trailer to a spot or door. The destination is validated now (known active slot of the site, closure, door flow, hold) and RESERVED: no two open moves share a destination (409 `destination-reserved`), the destination must be free (409 `location-occupied`), and a trailer has at most one open move (409 `trailer-has-open-move`)."
+sidebar_label: "Request a move (RequestMove)"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: docs/api-reference/rest/yard-management-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Request a move (RequestMove)"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/moves"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+A supervisor asks for a HOSTLER move of a trailer to a spot or door. The destination is validated now (known active slot of the site, closure, door flow, hold) and RESERVED: no two open moves share a destination (409 `destination-reserved`), the destination must be free (409 `location-occupied`), and a trailer has at most one open move (409 `trailer-has-open-move`).
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./request-move.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./request-move.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./request-move.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

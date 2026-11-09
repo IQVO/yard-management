@@ -1,0 +1,70 @@
+---
+id: get-door-utilisation-report
+title: "Door utilisation report"
+description: "Read-only analytics over the analytical database (ADR 0006). The API answers the contract shape from the analytics read-side port; until the analytics read side is wired the report has no rows. `from` and `to` are required RFC 3339 instants (to after from, at most 92 days)."
+sidebar_label: "Door utilisation report"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "get api-method"
+info_path: docs/api-reference/rest/yard-management-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Door utilisation report"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/reports/door-utilisation"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Read-only analytics over the analytical database (ADR 0006). The API answers the contract shape from the analytics read-side port; until the analytics read side is wired the report has no rows. `from` and `to` are required RFC 3339 instants (to after from, at most 92 days).
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./get-door-utilisation-report.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./get-door-utilisation-report.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./get-door-utilisation-report.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

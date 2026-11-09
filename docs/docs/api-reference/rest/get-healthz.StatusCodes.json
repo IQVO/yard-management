@@ -1,0 +1,1 @@
+{"responses":{"200":{"description":"Alive.","content":{"application/json":{"schema":{"type":"object","properties":{"status":{"type":"string","description":"`ok` (healthz), `ready` or `not_ready` (readyz)."}},"required":["status"],"title":"Status"},"example":{"status":"ok"}}}}}}
