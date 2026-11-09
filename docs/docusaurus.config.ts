@@ -6,7 +6,7 @@ import type * as OpenApiPlugin from 'docusaurus-plugin-openapi-docs';
 const config: Config = {
   title: 'Yard Management',
   tagline:
-    'Yard Management: a Supporting bounded context of the WMS domain (warehouse-systems).',
+    'Everything physically on site outside the four walls: gate visits, trailers, hostler moves, door work and dwell.',
   favicon: 'img/favicon.svg',
 
   future: {

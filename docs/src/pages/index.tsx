@@ -35,7 +35,7 @@ function HomepageHeader() {
           {siteConfig.title}
         </Heading>
         <p className={styles.heroSubtitle}>{siteConfig.tagline}</p>
-        <p className={styles.heroLead}>TODO-LEAD</p>
+        <p className={styles.heroLead}>The present of the yard: who passed the gate, which trailer is on which spot or door, the moves hostlers pull under a lease, door work, seals, holds, dwell and yard checks. It publishes the facts of the yard as CloudEvents and serves yard KPIs; built on develop, not deployed.</p>
         <div className={styles.buttons}>
           <Link className="button button--primary button--lg" to="/docs/overview/introduction">
             Read the docs
