@@ -15,9 +15,11 @@ the dock doors. It is a **Supporting** subdomain (see
 [Subdomain classification](/docs/ddd/subdomain-classification)) in the **WMS**
 area; CloudEvents type segment `wms`.
 
-Status: **built on develop, not deployed**. The repository has the code, the Helm
-chart and the CI, but `warehouse-infra` `terraform/apps.yaml` on `origin/develop`
-has no entry for it, so no cluster runs it yet.
+Status: **built on develop, registered in warehouse-infra develop, not applied to
+the cluster**. The repository has the code, the Helm chart and the CI, and
+`warehouse-infra` `origin/develop` registers it (a `terraform/apps.yaml` entry, helm
+values, dashboard and alert rules, the image pinned at v0.1.1), but no pod of it
+runs yet; see [Registration in warehouse-infra](/docs/operations/runbook#registration-in-warehouse-infra).
 
 ## What it owns
 

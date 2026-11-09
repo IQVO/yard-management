@@ -14,9 +14,11 @@ packaging was missing or wrong when that moment came. Work through this list on 
 branch, **before** the first `develop` → `main` PR. Delete a row only when the service
 really does not have that part, and say so in the PR.
 
-Status: **built on develop, not deployed**: `warehouse-infra` `terraform/apps.yaml` on
-`origin/develop` has no entry for this service. The checklist below is the template's; the
-section after it records what `origin/develop` of this repository shows for each row.
+Status: **built on develop, registered in warehouse-infra develop, not applied to the
+cluster**: `warehouse-infra` `terraform/apps.yaml` on `origin/develop` has the entry (PR 193,
+commit `b4b827e`) and the images are pinned (commit `c42c475`), but no pod runs. The checklist
+below is the template's; the section after it records what `origin/develop` of this repository
+shows for each row, and the last section records the platform registration.
 
 `new-service.sh` generated `Dockerfile` and `.dockerignore` (verbatim from
 the fleet reference). The chart is NOT generated: it is shaped by what the service runs
@@ -66,3 +68,20 @@ Read from the repository; nothing here was run (no Docker, `helm` or `make vuln`
 
 Sweeps are part of the packaging too: the chart's two CronJobs (`sweeps-cronjob.yaml`) are the
 only scheduler of `POST /dwell-sweeps` and `POST /move-lease-sweeps` ([Runbook](/docs/operations/runbook#sweeps)).
+
+## Platform registration in warehouse-infra
+
+The packaging rows above say nothing of the platform side, which lives in `warehouse-infra`.
+State on its `origin/develop`:
+
+| Item | State | Evidence |
+|---|---|---|
+| `terraform/apps.yaml` entry (`kind: service`, `database: true`, `analytics: true`, no web part) | Done | `warehouse-infra` PR 193, commit `b4b827e`, entry `yard-management`. |
+| `helm-values/yard-management.yaml` (stable `yard-management-*` consumer groups, `existingSecret` wiring, reports and MCP routes, relay, sweeps, Kong plugins) | Done | PR 193, commit `b4b827e`. |
+| Dashboard and alert rules | Done | PR 193, commit `b4b827e`: `terraform/dashboards/contexts/yard-management.json` and six rules in `terraform/alerting/warehouse-alert-rules.json` (see [Observability](/docs/operations/observability#dashboards-and-alerts)). |
+| Chart lint and selector check in `warehouse-infra` CI | Done | PR 193, commit `b4b827e` (`.github/workflows/ci.yml`, `scripts/check-chart-selectors.py`). |
+| Image pinned | Done | Commit `c42c475` pins `yard-management` at `b106934-arm64`, this repository's `v0.1.1` commit on `main`. |
+| Yard-domain Kafka topics pre-created before the first sync | Documented, not done | `docs/kafka-topics-yard-dock.md` in `warehouse-infra` (PR 193) gives the command; no pod has been synced, and whether the topics exist on the broker was not checked. |
+| Applied to the k3s cluster | Not done | `kubectl get pods -n warehouse-systems` lists no `yard-management` pod (checked 2026-11-09). |
+
+The service is **built on develop, registered in warehouse-infra develop, not applied to the cluster.** The ADR bodies in `docs/adr/` are not edited by this update.

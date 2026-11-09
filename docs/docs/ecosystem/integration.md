@@ -50,6 +50,31 @@ with the same CloudEvents `id`, so every consumer must dedupe on it. Per-aggrega
 order holds per key and partition; a row that hit the attempt cap is excluded and
 later rows overtake it ([Troubleshooting](/docs/operations/troubleshooting#events-are-not-leaving-outbox)).
 
+## Edge status
+
+An edge is **live** only when both ends run in the cluster. `yard-management` is registered
+in `warehouse-infra` develop but not applied (`kubectl get pods -n warehouse-systems` lists no
+`yard-management` pod, checked 2026-11-09), so **no edge below is live**. The consumer groups
+are configured in the `warehouse-infra` helm values (`helm-values/yard-management.yaml` and the
+neighbour's own file); "wired in infra" means the group is configured there. The neighbour
+column reflects the pods listed by the same command.
+
+| Edge | Direction | Consumer group in `warehouse-infra` | Neighbour in the cluster | Status |
+| --- | --- | --- | --- | --- |
+| `dock-scheduling` | in: `warehouse.dock-scheduling.events` | `yard-management-dock-scheduling` | no pod (registered, not applied) | wired in infra, not applied |
+| `dock-scheduling` | out: `warehouse.yard-management.events` | `dock-scheduling-yard` | no pod (registered, not applied) | wired in infra, not applied |
+| `facility-layout` | in: `warehouse.facility.events` | `yard-management-facility` | pod running | not live: this service is not applied; wired in infra |
+| `inbound-receiving` | in: `warehouse.inbound-receiving.events` | `yard-management-inbound-receiving` | pod running | not live: this service is not applied; wired in infra |
+| `exception-management` | out: `warehouse.yard-management.events` | none: `helm-values/exception-management.yaml` has no yard-management group | pod running | not live, and not wired in infra |
+| `outbound-shipping` | out: `warehouse.yard-management.events` | none: no `warehouse-infra` entry or helm values found for it | no pod | not live, not registered in infra |
+| own projector | in: `warehouse.yard-management.analytics` | `yard-management-analytics` | same service (not applied) | wired in infra, not applied |
+
+The event types a neighbour reads come from the neighbours' own code, as the tables above
+say; the "Consumer group" and "Neighbour in the cluster" columns come from `warehouse-infra`
+`origin/develop` and the cluster listing, not from their code. Each edge becomes live when
+this service and the neighbour both run, and the yard-domain topics have been pre-created
+first (see the [Runbook](/docs/operations/runbook#registration-in-warehouse-infra)).
+
 ## Edges that do not exist
 
 - **`inbound-receiving` does not consume the yard's events.** `apis/asyncapi.yaml`
@@ -62,4 +87,4 @@ later rows overtake it ([Troubleshooting](/docs/operations/troubleshooting#event
   `network-fulfillment`.
 - **No A2A endpoint** and **no authentication** anywhere.
 - **No consumer of the analytics topic** other than this service's own projector.
-- **Not deployed.** None of the edges above is live: the service is registered nowhere in `warehouse-infra`.
+- **Not applied to the cluster.** None of the edges above is live; see [Edge status](#edge-status).

@@ -6,7 +6,7 @@ Yard Management (WMS-tier Supporting bounded context of the yard domain): Owns e
 
 This project is a domain-driven design study. It is not associated with, endorsed by or affiliated with any company, and it uses no company's code, data, logos or trademarks. All names, figures and examples are illustrative or synthetic.
 
-Status: built on develop, not deployed. The design lives in the yard instance of
+Status: built on develop, registered in warehouse-infra develop (`terraform/apps.yaml` entry, helm values, dashboard and alert rules, image pinned at v0.1.1), not applied to the k3s cluster (no pod runs yet). The design lives in the yard instance of
 [warehouse-docs](https://iqvo.github.io/warehouse-docs/yard/contexts/yard-management/); `yard/model/model.yaml` there is the single source of truth.
 
 Runtime: Go, hexagonal, real PostgreSQL and Kafka only (`DATABASE_URL`, `KAFKA_BROKERS` are mandatory), CloudEvents 1.0 on every message
@@ -42,7 +42,7 @@ The documentation site of this service is published at <https://iqvo.github.io/y
 (built from `docs/` by `.github/workflows/docs.yml`; the decisions are in `docs/adr/`). The yard
 domain's design model stays in
 [warehouse-docs](https://iqvo.github.io/warehouse-docs/yard/contexts/yard-management/). Status: built on
-develop, not deployed.
+develop, registered in warehouse-infra develop, not applied to the cluster.
 
 | Section | Pages |
 | --- | --- |

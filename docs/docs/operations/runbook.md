@@ -8,15 +8,37 @@ description: "Deploying and operating yard-management: Helm chart, probes, migra
 
 # Runbook
 
-Status: **built on develop, not deployed**. `yard-management` has no entry in
-`warehouse-infra` `terraform/apps.yaml` on `origin/develop`, so no cluster runs
-it yet. Everything below describes what the chart and the binaries do; the
-packaging checklist for the first release is
-[Before the first release](/docs/operations/before-first-release).
+Status: **built on develop, registered in warehouse-infra develop, not applied to
+the cluster**. `warehouse-infra` `origin/develop` has a `yard-management` entry in
+`terraform/apps.yaml`, `helm-values/yard-management.yaml` and a pinned image, but
+`kubectl get pods -n warehouse-systems` lists no `yard-management` pod (checked
+2026-11-09), so no cluster runs it yet. Everything below describes what the chart
+and the binaries do once the application is applied; the packaging checklist for
+the first release is [Before the first release](/docs/operations/before-first-release).
 
 The platform runs on one k3s cluster with **one** Kafka broker; kind and the
 docker-compose Kafka are retired. All variables are in
 [Configuration](/docs/operations/configuration).
+
+## Registration in warehouse-infra
+
+Registered by `warehouse-infra` PR 193 (commit `b4b827e`, "register dock-scheduling and
+yard-management on k3s"); the image was pinned by commit `c42c475`. Read from
+`origin/develop`:
+
+| Item | State in `warehouse-infra` develop |
+| --- | --- |
+| `terraform/apps.yaml` | Entry `yard-management`: `kind: service`, `repo_owner: IQVO`, `database: true`, `analytics: true` (the default key pair `ANALYTICS_DATABASE_URL` and `ANALYTICS_READER_DATABASE_URL`, the second one read by the reports and the api), no web part. |
+| Image | `terraform/targets/k3s.images.yaml` pins `yard-management` at tag `b106934-arm64`, the commit of this repository's `v0.1.1` tag (also on `origin/main`). |
+| Helm values | `helm-values/yard-management.yaml` sets three stable consumer groups: `yard-management-dock-scheduling`, `yard-management-facility`, `yard-management-inbound-receiving`; the projector group `yard-management-analytics`; `existingSecret` wiring for `yard-management-db` and `yard-management-analytics-db`; the relay Deployment on (`relay.enabled: true`); MCP on; analytics on; sweeps on (`/dwell-sweeps` every 5 minutes and `/move-lease-sweeps` every minute, by CronJob); Kong plugins `cors`, `opentelemetry` and `prometheus` on; no A2A block. |
+| Kong routes | `/api/yard-management` (prefix stripped), `/api/mcp/yard-management` (to `/mcp`), `/api/yard-management/reports` (to `/reports`). |
+| Observability | One dashboard and six alert rules: see [Observability](/docs/operations/observability#dashboards-and-alerts). |
+| CI | `warehouse-infra` lints the chart and runs its selector check for this service. |
+| Kafka topics | `docs/kafka-topics-yard-dock.md` in `warehouse-infra` says the yard-domain topics must be pre-created, idempotently, **before the first sync** (`scripts/tf.sh app yard-management apply`): a kafka-go group consumer started before its topic exists is never handed the partition. Topics: `warehouse.yard-management.events`, `warehouse.yard-management.analytics`, `warehouse.dock-scheduling.events`, `warehouse.dock-scheduling.analytics`, `warehouse.facility.events`, `warehouse.inbound-receiving.events`, `warehouse.process-path-management.events`. |
+| Cluster | Not applied: no `yard-management` pod exists. Until it is, no integration edge of this service is live (see [Integration](/docs/ecosystem/integration#edge-status)). |
+
+The ADR bodies in `docs/adr/` are not edited by this status update: any sentence in
+them about the platform state says what it said when it was written.
 
 ## Components
 
@@ -188,6 +210,7 @@ curl -X POST http://<api-host>/dwell-sweeps -H 'Content-Type: application/json' 
 
 ## What is not here
 
-No dashboards, alerts or scrape config for this service exist in
-`warehouse-infra` (it is not registered there) and the binaries expose no
-metrics; see [Observability](/docs/operations/observability).
+`warehouse-infra` carries a dashboard and alert rules for this service (registered,
+not applied: see [Observability](/docs/operations/observability#dashboards-and-alerts)),
+but the binaries expose no metrics of their own, so the dashboard and rules read
+Kong, kube-state-metrics and logs only.
