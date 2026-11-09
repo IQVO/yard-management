@@ -1,0 +1,70 @@
+---
+id: get-hostler-productivity-report
+title: "Hostler productivity report"
+description: "Read-only analytics over the analytical database (ADR 0006). The API answers the contract shape from the analytics read-side port; until the analytics read side is wired the report has no rows. `from` and `to` are required RFC 3339 instants (to after from, at most 92 days)."
+sidebar_label: "Hostler productivity report"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "get api-method"
+info_path: docs/api-reference/rest/yard-management-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Hostler productivity report"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/reports/hostler-productivity"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Read-only analytics over the analytical database (ADR 0006). The API answers the contract shape from the analytics read-side port; until the analytics read side is wired the report has no rows. `from` and `to` are required RFC 3339 instants (to after from, at most 92 days).
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./get-hostler-productivity-report.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./get-hostler-productivity-report.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./get-hostler-productivity-report.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

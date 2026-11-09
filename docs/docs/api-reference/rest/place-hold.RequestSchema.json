@@ -1,0 +1,1 @@
+{"title":"Body","body":{"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"reason":{"type":"string","enum":["DAMAGED","SEAL_BROKEN","NOT_FOUND","QUALITY","SECURITY"]}},"required":["reason"],"title":"HoldRequest"}}}}}

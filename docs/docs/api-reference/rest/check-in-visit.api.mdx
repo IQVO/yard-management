@@ -1,0 +1,70 @@
+---
+id: check-in-visit
+title: "Check a visit in at the gate (CheckInVisit)"
+description: "Records a tractor and driver passing the gate and the trailers they bring. DirectOnCheckIn creates, per trailer, a move created already CLAIMED by the VISITING_DRIVER (no lease): to the appointment door when it is free, open and flow-compatible, otherwise to the first free spot of the site's parking zones, and a walk-in or an arrival earlier than the appointment tolerance goes to a holding spot (TO_HOLDING). SealCheckAtGate compares each recorded seal with the appointment's expected seal; a mismatch raises SealExceptionRaised and, under the REJECT policy, records a REJECTED visit instead (reason SEAL_MISMATCH). A refused check-in persists nothing: 409 `appointment-required`, `visit-already-open`, `trailer-already-on-site`, `door-closed`, `door-flow-mismatch`, `no-free-spot`; 422 `invalid-carrier`, `unknown-appointment` (also when the visit names an appointment but does not carry exactly one trailer), `validation`. The gate clerk may then record the refusal with `POST /visit-rejections`."
+sidebar_label: "Check a visit in at the gate (CheckInVisit)"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: docs/api-reference/rest/yard-management-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Check a visit in at the gate (CheckInVisit)"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/visits"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Records a tractor and driver passing the gate and the trailers they bring. DirectOnCheckIn creates, per trailer, a move created already CLAIMED by the VISITING_DRIVER (no lease): to the appointment door when it is free, open and flow-compatible, otherwise to the first free spot of the site's parking zones, and a walk-in or an arrival earlier than the appointment tolerance goes to a holding spot (TO_HOLDING). SealCheckAtGate compares each recorded seal with the appointment's expected seal; a mismatch raises SealExceptionRaised and, under the REJECT policy, records a REJECTED visit instead (reason SEAL_MISMATCH). A refused check-in persists nothing: 409 `appointment-required`, `visit-already-open`, `trailer-already-on-site`, `door-closed`, `door-flow-mismatch`, `no-free-spot`; 422 `invalid-carrier`, `unknown-appointment` (also when the visit names an appointment but does not carry exactly one trailer), `validation`. The gate clerk may then record the refusal with `POST /visit-rejections`.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./check-in-visit.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./check-in-visit.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./check-in-visit.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

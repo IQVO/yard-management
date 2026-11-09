@@ -1,0 +1,70 @@
+---
+id: get-exceptions-report
+title: "Exception rates report"
+description: "Per site, for the window: visits checked in and rejected (rejectionRate = rejected / (checkedIn + rejected)), seal exceptions (sealExceptionRate = per check-in; it counts the exceptions raised at the gate of rejected visits too, so it is not capped at 1), trailer holds placed by reason, yard checks closed and the discrepancies they found. Rates are null when their denominator is zero. Until the analytics read side is wired the report has no rows. `from` and `to` are required RFC 3339 instants (to after from, at most 92 days). Definitions: ADR 0011."
+sidebar_label: "Exception rates report"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "get api-method"
+info_path: docs/api-reference/rest/yard-management-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Exception rates report"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/reports/exceptions"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Per site, for the window: visits checked in and rejected (rejectionRate = rejected / (checkedIn + rejected)), seal exceptions (sealExceptionRate = per check-in; it counts the exceptions raised at the gate of rejected visits too, so it is not capped at 1), trailer holds placed by reason, yard checks closed and the discrepancies they found. Rates are null when their denominator is zero. Until the analytics read side is wired the report has no rows. `from` and `to` are required RFC 3339 instants (to after from, at most 92 days). Definitions: ADR 0011.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./get-exceptions-report.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./get-exceptions-report.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./get-exceptions-report.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

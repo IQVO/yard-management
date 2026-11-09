@@ -1,0 +1,60 @@
+---
+id: get-readyz
+title: "Readiness probe"
+description: "200 `ready` only when the process is not draining and Postgres and Kafka answer; otherwise 503 `dependency-unavailable`."
+sidebar_label: "Readiness probe"
+hide_title: true
+hide_table_of_contents: true
+api: eJzFVm1v2zYQ/isHfrIxWVYTdO3UbUCQZlvQ1zXthiENpjN5trhQpEpSdtTA/304SrG9pBuwfdkXWySP9/Lcc3e8Fa4lj1E7e65EKVYU3xGq/rPIhKIgvW75TJTiqCig8nxWgbOmh01NFmJN0HonKQTQAayLoDxqq+0K0Cp460JceQpp8QKX1whow4b8M3CxJr/RgeBxcQyVopasIiv7WWdxjdrgwlCVi0xEXAVRXoqfCE2sxVUmPIXW2UBBlLfsGf/91d0UBV+WzkaykSWwbY2WKdj5H4HFbkWQNTXIX7FvSZTCLf4gGUUmWs/QRD0YCRFjFw7kQvTarh7AVLnrCiZ18vTzNNtD5qGyLv4+Lifp//M0F9sth/Op054UBzkauspE1NGwpYthZ5sJusGm5b29PyIpEtst63lcHD9E4gR8Z6NuCPYQw2SXGOeHvEw5fwfI88G97N5l9h9gbb1bGGq++rfwDqcPwV0632AUpei8ZgRGTO4LbrOHCdI20or8oRJt4/ERCyuKqM0X9WgbIlr5JSP3MpVO71zaObBTfqDq6j5L3v1wCk+eFk9gxAuUk11DNkIXSMHSeaA1+R6ss7Ojmxu4I3wu9rx4O9w9IEYKX7lNgn6NpjuMoo6xDeV8Tt47H/IevZo1aHFFbDjfoKfadYFmoQ+RmpArWs+/XJUHTnyRXX9l0h6b8nFxvAdftCMHS5DOWpIMDnhaMgaH8JViHj1qQz4koieuNxRrN7YsphPGmgX9XfcK5Nd8oby8FZ03IwDlfG6cRFO7EMunxdPiQQG/5GNQtCbjWkZGbLN/0FAUc2z1/B6af6P1WlsF0nQhEheXd92qhheOuXXF8S5dytcI7W/oFbza6YSTt+ciExzUoPNRXuTFWIooUylabPjmPW+gQW0jast4ZAexMB1WOtbdIpeumZ///MubB5FsM2G0JBvowMCH1y/PT89eX5w9H6rpMNT3NcGvry5mUZMHt7H8uxzoHGueC23dBy3RmB6chaAjgeti0IpSw1m6zsMGjQkwOXn+DoqieJTB+HU0LWGtg45hhx/fWWEkmDBgv/DhNEu7d6TZmeEhtKnJExDKmmk6eT/IjDcat6YAnNp0j+WTNXZbec3YQ4PXo61Xbk3TDBgxkDXJ6zDsn/L3NN1OHZT8LJlPgr4zNMq9dUbLfprDeWRfWDa4zktiwNSGjMlAOefBSdm1yJXFOpOa6Dt5ze1DdTLqtY49LFHGkH+0H+3JXei7yHUAjEA3KGOCnaA1KKlMn0lhaF3M0pJNZtz+eeFasgmWHE6SDB/g4FbtjEp6Gxdikh7N5vAqAYmeoO2MIQWLfg/rRBrUzczSTYSNjjUgGMLAWFrmCbRdqEnlcNK2TtvIPAwjFNK40HkKGXAVMuWGNJ1cvIZxJgWQriFYetcw7WycLUklcQPStZr2xDqePoNY68C1NdqWiXkIQS8Mpz0pvYk5nK2T7iGmhdHsImCAU+M6NR46C9WukT5oscmZUCV/qxwtmj5qGaodlZEBtAFTJ0TDZbFwNzAJRFBhq8McQ28ltjrvsTHVNGX7QscRa1TKUwgD3Jz3U6cG1jN2A1Ccw8DnsSbtmTTa6NjPDPauiztU083JyrhFKtTO6k8dTXM4S9MjWfvbIRaGrFY8eOA7+E+D59tgutX31VCW/A0L4nTw8poWuJhJDKlQeEc5bnGQLAD3KJhUZ96/HIN5w/WjSVVcB9VdiDN3tz3N4X1qC+kJC9jFmmwc3zRgsCcPk6UhiqBIau6/cFQcfT0rvpk9esSPuCwNswbtQZPkJ6i2/HZigOj+TLjdv6H+18f18Dpgjs9bg9pyMGlE3I5D9VKMQ/UqE1zDvHN7u8BAH7zZbnn7U0e+F+XlVSbW6HWa+uXl1TYTNaEin6bwNfX8YJCSWh6Q4/vk4aucZ+Fuuv949l5st38C4c9uWw==
+sidebar_class_name: "get api-method"
+info_path: docs/api-reference/rest/yard-management-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Readiness probe"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/readyz"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+200 `ready` only when the process is not draining and Postgres and Kafka answer; otherwise 503 `dependency-unavailable`.
+
+<ParamsDetails>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./get-readyz.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./get-readyz.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

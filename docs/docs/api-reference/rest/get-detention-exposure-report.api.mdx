@@ -1,0 +1,70 @@
+---
+id: get-detention-exposure-report
+title: "Detention exposure report"
+description: "Among the trailers that DEPARTED in the window, those whose dwell exceeded `thresholdMinutes` (default 120, the two hour norm), per trailer kind. This is exposure, a proxy: no standard definition of detention exists and charging is out of scope. A dwell equal to the threshold does not exceed it. Until the analytics read side is wired the report has no rows. `from` and `to` are required RFC 3339 instants (to after from, at most 92 days). Definitions: ADR 0011."
+sidebar_label: "Detention exposure report"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "get api-method"
+info_path: docs/api-reference/rest/yard-management-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Detention exposure report"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/reports/detention-exposure"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Among the trailers that DEPARTED in the window, those whose dwell exceeded `thresholdMinutes` (default 120, the two hour norm), per trailer kind. This is exposure, a proxy: no standard definition of detention exists and charging is out of scope. A dwell equal to the threshold does not exceed it. Until the analytics read side is wired the report has no rows. `from` and `to` are required RFC 3339 instants (to after from, at most 92 days). Definitions: ADR 0011.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./get-detention-exposure-report.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./get-detention-exposure-report.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./get-detention-exposure-report.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

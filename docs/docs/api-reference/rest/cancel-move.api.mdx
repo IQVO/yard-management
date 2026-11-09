@@ -1,0 +1,70 @@
+---
+id: cancel-move
+title: "Cancel a move (CancelMove)"
+description: "Cancels a REQUESTED or CLAIMED move. Cancelling a CLAIMED HOSTLER move returns the trailer to where it was (ReturnToOrigin); a VISITING_DRIVER move cannot be cancelled once the trailer is at the gate (409 `illegal-transition`)."
+sidebar_label: "Cancel a move (CancelMove)"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: docs/api-reference/rest/yard-management-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Cancel a move (CancelMove)"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/moves/{moveId}/cancellations"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Cancels a REQUESTED or CLAIMED move. Cancelling a CLAIMED HOSTLER move returns the trailer to where it was (ReturnToOrigin); a VISITING_DRIVER move cannot be cancelled once the trailer is at the gate (409 `illegal-transition`).
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./cancel-move.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./cancel-move.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./cancel-move.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

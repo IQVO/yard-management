@@ -1,0 +1,1 @@
+{"title":"Body","body":{"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"siteId":{"type":"string","minLength":1},"hostlerRef":{"type":"string","minLength":1,"maxLength":64,"description":"Opaque hostler reference."}},"required":["siteId","hostlerRef"],"title":"ClaimMoveRequest"}}}}}

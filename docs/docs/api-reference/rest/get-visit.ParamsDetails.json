@@ -1,0 +1,1 @@
+{"parameters":[{"name":"visitId","in":"path","required":true,"description":"The visit id.","schema":{"type":"string","minLength":1,"maxLength":128}}]}
