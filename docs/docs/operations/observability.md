@@ -38,7 +38,7 @@ in the log lines. Fields are those of the individual calls:
 | `analytics consumer running` | info | `topic`, `group_id`, `brokers` | projector |
 | `readiness: dependency is not ready` | warn | `dependency` (`postgres`, `kafka`, `analytics`), `error` | all with `/readyz` |
 | `request failed` (any unexpected 5xx) | error | `error`, `method`, `path` | api, reports |
-| `mcp tool failed with an unexpected error` | error | tool, `error` | mcp |
+| `mcp tool failed with an unexpected error` | error | `error` | mcp |
 | `boot step failed; retrying` | warn | `step`, `attempt`, `error` | api, mcp |
 | `outbox relay: send failed, stopping this pass at the failed row` | warn | `outbox_id`, `topic`, `event_type`, `key`, `attempts`, `error` | relay |
 | `outbox relay: row reached the attempt cap and is excluded from future claims…` | error | `outbox_id`, `topic`, `event_type`, `key`, `attempts`, `max_attempts`, `error` | relay |
