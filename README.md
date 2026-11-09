@@ -12,6 +12,30 @@ Status: built on develop, not deployed. The design lives in the yard instance of
 Runtime: Go, hexagonal, real PostgreSQL and Kafka only (`DATABASE_URL`, `KAFKA_BROKERS` are mandatory), CloudEvents 1.0 on every message
 (`com.warehouse.wms.yard-management.<entity>.<Event>`), transactional outbox.
 
+## Binaries
+
+One image carries five binaries (`Dockerfile` builds every `cmd/*`; the image entrypoint is `./api`).
+
+| Binary | Role | Port |
+| --- | --- | --- |
+| `cmd/api` | REST API and the three Kafka consumers (dock-scheduling, facility-layout, inbound-receiving) | `:8080` |
+| `cmd/mcp` | MCP server, Streamable HTTP, eight read and six write tools | `:8090` |
+| `cmd/relay` | transactional outbox to Kafka (CloudEvents) | `:8081` (`/healthz`) |
+| `cmd/yard-projector` | writer of the `analytics` schema | `:8091` |
+| `cmd/yard-reports` | read-only `/reports/*` | `:8092` |
+
+## Develop
+
+```text
+make check       # fmt-check vet build lint test: the fast gate
+make check-all   # check + coverage (90 %) + arch-test + bdd: run before pushing
+make integration # needs Docker (testcontainers boots Postgres and Kafka)
+```
+
+The service has no in-memory mode: running a binary needs `DATABASE_URL` and `KAFKA_BROKERS` (plus the
+per-binary variables listed in the Configuration page). The platform has one Kafka broker; kind and the
+docker-compose Kafka are retired.
+
 ## Documentation
 
 The documentation site of this service is published at <https://iqvo.github.io/yard-management/>
