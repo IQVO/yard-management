@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (2026-11-06). Additive: the OLTP API, the integration topic `warehouse.yard-management.events` and its payloads are
+Accepted (2026-11-06); refined by 0011 (the projector folds twelve kinds, not seven; new reports). Additive: the OLTP API, the integration topic `warehouse.yard-management.events` and its payloads are
 unchanged. Fills the "analytics topic" of ADR 0004. Code: `internal/analytics/report`, `internal/adapters/inbound/kafka/analytics_consumer.go`,
 `internal/adapters/outbound/analyticsstore`, `analytics/`, `cmd/yard-projector`, `cmd/yard-reports`, `internal/adapters/inbound/http/reports.go`.
 
