@@ -74,7 +74,7 @@ dependency answers `503 dependency-unavailable` naming it.
 
 ### Reports
 
-`GET /reports/yard-dwell`, `/door-utilisation`, `/hostler-productivity` and `/freshness` read `ports.ReportReader`. Until
+`GET /reports/yard-dwell`, `/door-utilisation`, `/hostler-productivity`, `/turn-time`, `/detention-exposure`, `/exceptions` (the last three: ADR 0011) and `/freshness` read `ports.ReportReader`. Until
 the analytics read side (ADR 0006) is wired the API answers the contract shape with no rows; `from` and `to` are required
 RFC 3339 instants, `to` after `from`, at most 92 days (`400 invalid-report-range`).
 

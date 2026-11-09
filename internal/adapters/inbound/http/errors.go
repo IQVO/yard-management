@@ -48,6 +48,7 @@ var (
 	errUnknownQueryParameter = errors.New("unknown query parameter")
 	errInvalidIfMatch        = errors.New("If-Match is not an entity tag of a policy version")
 	errInvalidReportRange    = errors.New("from and to must be RFC 3339 instants, to after from and at most 92 days later")
+	errInvalidThreshold      = errors.New("thresholdMinutes must be an integer from 1 to 10080")
 	errInvalidState          = errors.New("state is not one of the values of this operation")
 )
 
@@ -71,6 +72,7 @@ var problemCatalogue = []struct {
 	{errUnknownQueryParameter, badRequest("unknown-query-parameter", "Unknown query parameter")},
 	{errInvalidIfMatch, badRequest("invalid-if-match", "If-Match is invalid")},
 	{errInvalidReportRange, badRequest("invalid-report-range", "Report range is invalid")},
+	{errInvalidThreshold, badRequest("invalid-threshold-minutes", "Threshold is invalid")},
 	{errInvalidState, badRequest("invalid-state", "State is invalid")},
 	{page.ErrInvalidLimit, badRequest("invalid-limit", "Limit is invalid")},
 	{page.ErrInvalidCursor, badRequest("invalid-cursor", "Cursor is invalid")},

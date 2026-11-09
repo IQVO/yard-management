@@ -2,6 +2,7 @@ package kafka
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -20,10 +21,11 @@ const AnalyticsTopic = "warehouse.yard-management.analytics"
 // projector's consumer group; boot fails naming it when blank.
 const EnvAnalyticsGroup = "ANALYTICS_CONSUMER_GROUP"
 
-// analyticsKinds maps the FULL CloudEvents type of the seven published events
-// the reports are built from to their report.Kind (ADR 0006), byte-identical to
-// the catalogue of ADR 0004 / apis/asyncapi.yaml. Every other type on the topic
-// (parked, held, move requested/claimed/cancelled, ...) is ignored.
+// analyticsKinds maps the FULL CloudEvents type of the twelve published events
+// the reports are built from to their report.Kind (ADR 0006: the first seven;
+// ADR 0011, the KPI standard: the last five), byte-identical to the catalogue of
+// ADR 0004 / apis/asyncapi.yaml. Every other type on the topic (parked, hold
+// released, move requested/claimed/cancelled, ...) is ignored.
 var analyticsKinds = map[string]report.Kind{
 	analyticsType("yardvisit", report.KindVisitCheckedIn):   report.KindVisitCheckedIn,
 	analyticsType("trailer", report.KindTrailerDocked):      report.KindTrailerDocked,
@@ -32,6 +34,12 @@ var analyticsKinds = map[string]report.Kind{
 	analyticsType("trailer", report.KindDoorWorkCompleted):  report.KindDoorWorkCompleted,
 	analyticsType("trailer", report.KindTrailerDeparted):    report.KindTrailerDeparted,
 	analyticsType("yardmove", report.KindYardMoveCompleted): report.KindYardMoveCompleted,
+
+	analyticsType("yardvisit", report.KindVisitCheckedOut):   report.KindVisitCheckedOut,
+	analyticsType("yardvisit", report.KindVisitRejected):     report.KindVisitRejected,
+	analyticsType("trailer", report.KindSealExceptionRaised): report.KindSealExceptionRaised,
+	analyticsType("trailer", report.KindTrailerHeld):         report.KindTrailerHeld,
+	analyticsType("yardcheck", report.KindYardCheckClosed):   report.KindYardCheckClosed,
 }
 
 // analyticsType is com.warehouse.wms.yard-management.<entity>.<EventName>. The
@@ -61,6 +69,18 @@ type analyticsData struct {
 	Performer       string             `json:"performer"`
 	HostlerRef      *string            `json:"hostler_ref"`
 	DurationSeconds int64              `json:"duration_seconds"`
+
+	// The KPI standard kinds (ADR 0011). discrepancies is a LIST in the
+	// contract (the audit's findings); only its length is projected.
+	Purpose       string            `json:"purpose"`
+	OnSiteMinutes int64             `json:"on_site_minutes"`
+	Reason        string            `json:"reason"`
+	Version       int64             `json:"version"`
+	YardCheckID   string            `json:"yard_check_id"`
+	RejectedAt    string            `json:"rejected_at"`
+	RaisedAt      string            `json:"raised_at"`
+	ClosedAt      string            `json:"closed_at"`
+	Discrepancies []json.RawMessage `json:"discrepancies"`
 }
 
 type analyticsTrailer struct {
@@ -124,6 +144,12 @@ func toReportEvent(kind report.Kind, evt ce.Event) (report.Event, error) {
 		Kind: kind, EventID: evt.ID(), At: evt.Time().UTC(), SiteID: d.SiteID,
 		TrailerID: d.TrailerID, VisitID: d.VisitID, DoorCode: d.DoorCode,
 		DwellMinutes: d.DwellMinutes, MoveID: d.MoveID, Performer: d.Performer, DurationSeconds: d.DurationSeconds,
+		Purpose: d.Purpose, OnSiteMinutes: d.OnSiteMinutes, Reason: d.Reason, Version: d.Version,
+		YardCheckID: d.YardCheckID, Discrepancies: int64(len(d.Discrepancies)),
+	}
+	if kind == report.KindSealExceptionRaised && e.TrailerID == "" {
+		// Rejected at the gate: no trailer was persisted, the subject is the visit.
+		e.VisitID = evt.Subject()
 	}
 	if d.HostlerRef != nil {
 		e.HostlerRef = *d.HostlerRef
@@ -131,22 +157,8 @@ func toReportEvent(kind report.Kind, evt ce.Event) (report.Event, error) {
 	for _, t := range d.Trailers {
 		e.Arrivals = append(e.Arrivals, report.Arrival{TrailerID: t.TrailerID, UnitNumber: t.UnitNumber, Kind: t.Kind})
 	}
-	for _, f := range []struct {
-		field string
-		raw   string
-		dst   *time.Time
-	}{
-		{"arrived_at", d.ArrivedAt, &e.ArrivedAt}, {"docked_at", d.DockedAt, &e.DockedAt}, {"undocked_at", d.UndockedAt, &e.UndockedAt},
-		{"started_at", d.StartedAt, &e.StartedAt}, {"completed_at", d.CompletedAt, &e.CompletedAt}, {"departed_at", d.DepartedAt, &e.DepartedAt},
-	} {
-		if f.raw == "" {
-			continue
-		}
-		at, err := time.Parse(time.RFC3339, f.raw)
-		if err != nil {
-			return report.Event{}, fmt.Errorf("%s %s: %s %q is not an RFC 3339 timestamp", kind, evt.ID(), f.field, f.raw)
-		}
-		*f.dst = at.UTC()
+	if err := parseInstants(&e, d); err != nil {
+		return report.Event{}, fmt.Errorf("%s %s: %w", kind, evt.ID(), err)
 	}
 	if want := e.Subject(); want != evt.Subject() {
 		return report.Event{}, fmt.Errorf("%s %s: payload identifies %q but the subject is %q", kind, evt.ID(), want, evt.Subject())
@@ -155,4 +167,28 @@ func toReportEvent(kind report.Kind, evt ce.Event) (report.Event, error) {
 		return report.Event{}, err
 	}
 	return e, nil
+}
+
+// parseInstants reads the RFC 3339 timestamps of the payload into e; a blank
+// one stays the zero time (validation decides whether the kind needs it).
+func parseInstants(e *report.Event, d analyticsData) error {
+	for _, f := range []struct {
+		field string
+		raw   string
+		dst   *time.Time
+	}{
+		{"arrived_at", d.ArrivedAt, &e.ArrivedAt}, {"docked_at", d.DockedAt, &e.DockedAt}, {"undocked_at", d.UndockedAt, &e.UndockedAt},
+		{"started_at", d.StartedAt, &e.StartedAt}, {"completed_at", d.CompletedAt, &e.CompletedAt}, {"departed_at", d.DepartedAt, &e.DepartedAt},
+		{"rejected_at", d.RejectedAt, &e.RejectedAt}, {"raised_at", d.RaisedAt, &e.RaisedAt}, {"closed_at", d.ClosedAt, &e.ClosedAt},
+	} {
+		if f.raw == "" {
+			continue
+		}
+		at, err := time.Parse(time.RFC3339, f.raw)
+		if err != nil {
+			return fmt.Errorf("%s %q is not an RFC 3339 timestamp", f.field, f.raw)
+		}
+		*f.dst = at.UTC()
+	}
+	return nil
 }

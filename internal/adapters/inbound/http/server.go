@@ -114,6 +114,9 @@ func (s *Server) mountReports(r chi.Router) {
 	r.Get("/reports/yard-dwell", s.handleYardDwell)
 	r.Get("/reports/door-utilisation", s.handleDoorUtilisation)
 	r.Get("/reports/hostler-productivity", s.handleHostlerProductivity)
+	r.Get("/reports/turn-time", s.handleTurnTime)
+	r.Get("/reports/detention-exposure", s.handleDetentionExposure)
+	r.Get("/reports/exceptions", s.handleExceptions)
 	r.Get("/reports/freshness", s.handleFreshness)
 }
 

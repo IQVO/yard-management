@@ -71,7 +71,12 @@ func classify(e report.Event, err error) error {
 func fold(ctx context.Context, tx pgx.Tx, e report.Event) error {
 	switch e.Kind {
 	case report.KindVisitCheckedIn:
+		if err := foldVisitArrival(ctx, tx, e); err != nil {
+			return err
+		}
 		return foldArrival(ctx, tx, e)
+	case report.KindVisitCheckedOut, report.KindVisitRejected, report.KindSealExceptionRaised, report.KindTrailerHeld, report.KindYardCheckClosed:
+		return foldKPI(ctx, tx, e)
 	case report.KindTrailerDocked:
 		_, err := tx.Exec(ctx, `
 			INSERT INTO analytics.door_dockings (trailer_id, docked_at, site_id, door_code) VALUES ($1, $2, $3, $4)
