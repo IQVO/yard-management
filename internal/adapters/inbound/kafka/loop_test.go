@@ -349,6 +349,9 @@ func TestReaderConfigNeverCommitsOnATimerAndTheFactoryDoesNotDial(t *testing.T) 
 	if cfg.GroupID != "g" || cfg.Topic != "t" || cfg.CommitInterval != 0 {
 		t.Fatalf("config %+v: CommitInterval must stay unset so commits are synchronous and explicit", cfg)
 	}
+	if cfg.MaxWait != 0 {
+		t.Fatalf("MaxWait = %v: leave it unset (kafka-go default 10s); a short value makes a slow broker fail every fetch with i/o timeout", cfg.MaxWait)
+	}
 	f := NewFactory([]string{"127.0.0.1:1"}, nil) // nothing listens there: constructing must not dial
 	r := f.NewReader("warehouse.facility.events", "g")
 	dlq := f.NewDeadLetter("warehouse.facility.events")

@@ -84,11 +84,15 @@ func NewFactory(brokers []string, logger *slog.Logger) Factory {
 // starts at the first offset, so a fresh deployment replays the topic and the
 // local copies converge.
 //
+// MaxWait is deliberately left UNSET (kafka-go default 10s, the fleet norm): the first byte of a fetch
+// response must arrive within MaxWait or the read fails with "i/o timeout", so 500ms flooded the logs
+// with reader errors (hundreds a minute) as soon as the shared broker was a little slow.
+//
 // kafkago.NewReader does not dial the broker: the connection is opened by the
 // first FetchMessage inside the consumer's own goroutine, so a missing topic or
 // an unreachable broker never blocks process startup.
 func readerConfig(brokers []string, topic, groupID string) kafkago.ReaderConfig {
-	return kafkago.ReaderConfig{Brokers: brokers, Topic: topic, GroupID: groupID, MaxWait: 500 * time.Millisecond, StartOffset: kafkago.FirstOffset}
+	return kafkago.ReaderConfig{Brokers: brokers, Topic: topic, GroupID: groupID, StartOffset: kafkago.FirstOffset}
 }
 
 func defaultLogger(logger *slog.Logger) *slog.Logger {
