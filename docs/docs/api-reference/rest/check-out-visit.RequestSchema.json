@@ -1,0 +1,1 @@
+{"title":"Body","body":{"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"trailersOut":{"type":"array","items":{"type":"object","properties":{"trailerId":{"type":"string"}},"required":["trailerId"]},"description":"Trailers leaving with the tractor. Empty for a drop or a bobtail."}},"required":["trailersOut"],"title":"CheckOutRequest"}}}}}

@@ -1,0 +1,70 @@
+---
+id: get-turn-time-report
+title: "Gate-to-gate turn time report"
+description: "Minutes from VisitCheckedIn.arrived_at to VisitCheckedOut.departed_at (the event's on_site_minutes) per visit purpose, over the visits that checked OUT in the window, with the average, the median (p50), the 90th percentile (p90) and the maximum. Percentiles are reported because an average hides the long tail. A visit whose check-in the projection never saw has no purpose and is left out. Until the analytics read side is wired the report has no rows. `from` and `to` are required RFC 3339 instants (to after from, at most 92 days). Definitions: ADR 0011."
+sidebar_label: "Gate-to-gate turn time report"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "get api-method"
+info_path: docs/api-reference/rest/yard-management-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Gate-to-gate turn time report"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/reports/turn-time"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Minutes from VisitCheckedIn.arrived_at to VisitCheckedOut.departed_at (the event's on_site_minutes) per visit purpose, over the visits that checked OUT in the window, with the average, the median (p50), the 90th percentile (p90) and the maximum. Percentiles are reported because an average hides the long tail. A visit whose check-in the projection never saw has no purpose and is left out. Until the analytics read side is wired the report has no rows. `from` and `to` are required RFC 3339 instants (to after from, at most 92 days). Definitions: ADR 0011.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./get-turn-time-report.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./get-turn-time-report.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./get-turn-time-report.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

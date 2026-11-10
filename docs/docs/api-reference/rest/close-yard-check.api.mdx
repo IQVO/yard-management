@@ -1,0 +1,70 @@
+---
+id: close-yard-check
+title: "Close a yard check (CloseYardCheck)"
+description: "Reconciles the observations with the model and raises YardCheckClosed with the discrepancies. A location not observed is MISSING when the model records a trailer there. Closing only reports; the supervisor corrects with moves."
+sidebar_label: "Close a yard check (CloseYardCheck)"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: docs/api-reference/rest/yard-management-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Close a yard check (CloseYardCheck)"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/yard-checks/{yardCheckId}/closures"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Reconciles the observations with the model and raises YardCheckClosed with the discrepancies. A location not observed is MISSING when the model records a trailer there. Closing only reports; the supervisor corrects with moves.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./close-yard-check.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./close-yard-check.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./close-yard-check.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

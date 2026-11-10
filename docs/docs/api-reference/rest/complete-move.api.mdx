@@ -1,0 +1,70 @@
+---
+id: complete-move
+title: "Complete a move (CompleteMove)"
+description: "The trailer arrives at `actualLocation` (default: the destination); a location other than the destination needs a `deviationNote` (422 `unexplained-destination`). Only the lease holder completes a HOSTLER move (409 `not-lease-holder`); a gate clerk or dock operator completes a VISITING_DRIVER move without `hostlerRef`. The trailer and the move change in one transaction; an occupied destination is refused (409 `location-occupied`) and the move stays CLAIMED."
+sidebar_label: "Complete a move (CompleteMove)"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: docs/api-reference/rest/yard-management-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Complete a move (CompleteMove)"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/moves/{moveId}/completions"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+The trailer arrives at `actualLocation` (default: the destination); a location other than the destination needs a `deviationNote` (422 `unexplained-destination`). Only the lease holder completes a HOSTLER move (409 `not-lease-holder`); a gate clerk or dock operator completes a VISITING_DRIVER move without `hostlerRef`. The trailer and the move change in one transaction; an occupied destination is refused (409 `location-occupied`) and the move stays CLAIMED.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./complete-move.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./complete-move.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./complete-move.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

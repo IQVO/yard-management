@@ -1,0 +1,70 @@
+---
+id: sweep-dwell
+title: "Run the dwell sweep (DwellSweep)"
+description: "Raises TrailerDwellExceeded once per trailer and threshold crossing (the trailer remembers the highest threshold alerted). Naturally idempotent; run by a CronJob."
+sidebar_label: "Run the dwell sweep (DwellSweep)"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: docs/api-reference/rest/yard-management-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Run the dwell sweep (DwellSweep)"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/dwell-sweeps"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Raises TrailerDwellExceeded once per trailer and threshold crossing (the trailer remembers the highest threshold alerted). Naturally idempotent; run by a CronJob.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./sweep-dwell.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./sweep-dwell.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./sweep-dwell.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

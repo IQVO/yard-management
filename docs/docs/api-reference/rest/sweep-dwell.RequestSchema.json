@@ -1,0 +1,1 @@
+{"title":"Body","body":{"required":false,"content":{"application/json":{"schema":{"type":"object","properties":{"siteId":{"type":"string","description":"Limit the sweep to one site; absent sweeps every site."}},"title":"DwellSweepRequest"}}}}}

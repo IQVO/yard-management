@@ -1,0 +1,1 @@
+{"title":"Body","body":{"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"state":{"type":"string","enum":["INTACT","BROKEN"]},"sealNumber":{"type":"string","maxLength":64,"description":"Required for INTACT; BROKEN keeps the recorded number."}},"required":["state"],"title":"SealRequest"}}}}}
