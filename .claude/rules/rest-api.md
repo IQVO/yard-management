@@ -5,22 +5,33 @@ paths:
   - "apis/openapi/**"
 ---
 
-<!-- TEMPLATE (warehouse-harness-template v2): fill in for THIS repo. -->
 # REST API (inbound adapter)
 
-List every route -> use case mapping, kept in sync with `apis/openapi.yaml`
-(the `docs-api-drift` CI job fails if generated docs disagree with this
-file's own spec, but this file itself is documentation for an agent, not
-generated -- keep it manually accurate).
+`internal/adapters/inbound/http` serves every route of `apis/openapi.yaml` on a chi router (`NewRouter` in
+`server.go`). Each handler decodes, calls ONE method of `usecases.Yard` and maps the result to a DTO; it never
+touches a domain aggregate. Keep this list in sync with the spec by hand (it is not generated).
 
-- `<METHOD> <path>`    -> `<UseCaseName>`
-- ...
+- `POST /visits` -> `CheckInVisit`; `POST /visit-rejections` -> `RejectAtGate`;
+  `POST /visits/{visitId}/check-outs` -> `CheckOutVisit`; `GET /visits`, `GET /visits/{visitId}` -> `ListVisits`, `GetVisit`
+- `GET /trailers`, `GET /trailers/{trailerId}` -> `ListTrailers`, `GetTrailer`
+- `POST /trailers/{trailerId}/door-work-starts` -> `StartDoorWork`; `.../door-work-completions` -> `CompleteDoorWork`
+- `POST /trailers/{trailerId}/holds` -> `PlaceHold`; `.../hold-releases` -> `ReleaseHold`; `.../seals` -> `RecordSeal`
+- `POST /moves` -> `RequestMove`; `GET /moves` -> `ListMoves`; `POST /moves/claims` -> `ClaimNextMove`;
+  `POST /moves/{moveId}/completions` -> `CompleteMove`; `POST /moves/{moveId}/cancellations` -> `CancelMove`
+- `POST /yard-checks` -> `OpenYardCheck`; `.../observations` -> `RecordObservation`; `.../closures` -> `CloseYardCheck`
+- `GET /sites/{siteId}/yard-board` -> `GetYardBoard`; `GET`/`PUT /sites/{siteId}/yard-policy` -> `GetYardPolicy`, `DeclareYardPolicy`
+- `POST /dwell-sweeps` -> `SweepDwell`; `POST /move-lease-sweeps` -> `SweepMoveLeases`
+- `GET /reports/*` (yard-dwell, door-utilisation, hostler-productivity, turn-time, detention-exposure, exceptions,
+  freshness): read the analytical database (ADR 0006, ADR 0011). Served by `cmd/yard-reports`
+  (`NewReportsRouter`) and by `cmd/api` when `ANALYTICS_READER_DATABASE_URL` is set.
 
 ## Conventions
 
-- Error shape: <RFC 7807 problem+json? custom envelope? state it>.
-- Auth: <this fleet's fleet-wide REST+MCP auth was deliberately reverted
-  2026-09-11 and is unauthenticated pending a fresh decision -- state
-  whichever is true for this repo, and keep
-  `internal/architecture/fitness_test.go`'s TestNoAuthMiddlewareReintroduced
-  in sync if that ever changes>.
+- Errors are RFC 7807 `application/problem+json`; the slug is the kebab-case domain error name (ADR 0002).
+- Every POST and PUT except the sweeps requires `Idempotency-Key`; the sweeps take it optionally (they are
+  naturally idempotent). A single-aggregate `GET` returns a weak `ETag` of its `version`;
+  `PUT /sites/{siteId}/yard-policy` honours `If-Match`.
+- A NUL character in the path is a 404 `resource-not-found`; in the query or body a 400 `malformed-request`,
+  answered before the idempotency middleware records the key (`internal/adapters/inbound/http/nul.go`).
+- No authentication (fleet rule); `TestNoAuthMiddlewareReintroduced` in `internal/architecture/fitness_test.go`
+  fails CI if auth middleware comes back.
