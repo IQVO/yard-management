@@ -142,7 +142,7 @@ func orMapped(err error) error {
 	return mapError(err)
 }
 
-// registerReadTools adds the eight read tools (L1).
+// registerReadTools adds the eight read tools (L1); the inspection tools are in tools_inspections.go.
 func (d Deps) registerReadTools(server *mcp.Server) {
 	// The shared hint value; the annotations literals themselves stay inline.
 	closedWorld := false
@@ -204,7 +204,7 @@ func (d Deps) registerReadTools(server *mcp.Server) {
 	addRead(server, &mcp.Tool{
 		Name: "get_yard_policy",
 		Description: "Read the yard policy of a site: whether an appointment is required, the holding spots and parking zones, the dwell " +
-			"thresholds per trailer kind, the lease seconds, the seal mismatch action (FLAG or REJECT), the minimum ISO 17712 seal class (I, S or H; null = none) and the free time. A site that " +
+			"thresholds per trailer kind, the lease seconds, the seal mismatch action (FLAG or REJECT), the minimum ISO 17712 seal class (I, S or H; null = none), the free time and the requiredInspections (the inspections a trailer needs before it docks, loads or leaves; empty = none). A site that " +
 			"never declared one answers the defaults (declared false). Read-only.",
 		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true, OpenWorldHint: &closedWorld},
 		Meta:        authorityMeta(authorityL1),

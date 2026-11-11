@@ -25,11 +25,15 @@ var wantTools = map[string]string{
 	"list_visits": "L1", "get_visit": "L1", "get_yard_policy": "L1", "get_yard_dwell_report": "L1",
 	"request_move": "L3", "cancel_move": "L3", "place_hold": "L3", "release_hold": "L3",
 	"record_seal": "L3", "open_yard_check": "L3", "secure_trailer": "L3", "release_securing": "L3",
+	"get_inspection": "L1", "list_trailer_inspections": "L1",
+	"open_inspection": "L3", "record_inspection_item": "L3", "complete_inspection": "L3",
 }
 
 // maxTools is the tool budget. Raising it is a deliberate, reviewed act (an
-// ADR 0007 amendment): TestToolSurface still pins the exact curated set.
-const maxTools = 16
+// ADR 0007 amendment): TestToolSurface still pins the exact curated set. ADR 0013
+// raised it from fourteen to sixteen, ADR 0015 from sixteen to twenty-one (the
+// five compliance inspection tools).
+const maxTools = 21
 
 // floorClientPhrases are the actions of the gate clerk, the hostler and the
 // dock operator. They are floor-client actions on REST and must never be tools
@@ -39,9 +43,18 @@ var floorClientPhrases = []string{
 	"check_in", "check_out", "claim", "complete", "start", "reject", "declare", "sweep", "observe", "close", "depart", "door_work",
 }
 
+// floorClientExceptions are curated tool names that carry a floor-client word
+// without being the floor-client action: completing an inspection is the
+// inspector's record of a checklist (ADR 0015), not completing a move or door
+// work. An exception is reviewed like the budget: it names the ADR that grants it.
+var floorClientExceptions = map[string]string{"complete_inspection": "docs/adr/0015"}
+
 func floorVerbViolations(names []string) []string {
 	var out []string
 	for _, name := range names {
+		if _, excepted := floorClientExceptions[name]; excepted {
+			continue
+		}
 		for _, phrase := range floorClientPhrases {
 			if strings.Contains("_"+name+"_", "_"+phrase+"_") {
 				out = append(out, name+": contains the floor-client action "+phrase+" (docs/adr/0007: those actions stay on REST)")

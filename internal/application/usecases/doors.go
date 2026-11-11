@@ -121,13 +121,19 @@ func (y *Yard) newMove(ctx context.Context, tr *trailer.Trailer, to shared.Locat
 // StartDoorWork begins door work on a DOCKED trailer. When the site's policy
 // requireSecuringBeforeDoorWork is on, an unsecured trailer is refused
 // (ErrTrailerNotSecured, ADR 0013); with it off the behaviour is unchanged.
+// Loading a trailer for which the policy requires a PRE_LOAD inspection is
+// refused until it has passed one (ErrInspectionRequired, ErrInspectionFailed,
+// ADR 0015).
 func (y *Yard) StartDoorWork(ctx context.Context, trailerID string) (views.Trailer, error) {
 	return y.mutateTrailerWith(ctx, trailerID, func(ctx context.Context, tr *trailer.Trailer) error {
 		pol, err := y.policyOf(ctx, tr.SiteID())
 		if err != nil {
 			return err
 		}
-		return tr.StartDoorWorkWith(trailer.DoorWorkRule{RequireSecured: pol.RequireSecuringBeforeDoorWork()}, y.now())
+		if err := tr.StartDoorWorkWith(trailer.DoorWorkRule{RequireSecured: pol.RequireSecuringBeforeDoorWork()}, y.now()); err != nil {
+			return err
+		}
+		return y.judgeInspections(ctx, tr, pol, shared.GatePreLoad) // after the other refusals; loading only (ADR 0015)
 	})
 }
 

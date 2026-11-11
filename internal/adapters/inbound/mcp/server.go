@@ -3,11 +3,13 @@
 // same application-layer use cases the REST adapter uses. It is built on the
 // official MCP Go SDK and served over Streamable HTTP only, stateless.
 //
-// Per docs/adr/0007-mcp-server.md the surface is eight L1 read tools
+// Per docs/adr/0007-mcp-server.md the surface is ten L1 read tools
 // (get_yard_board, list_trailers, get_trailer, list_moves, list_visits,
-// get_visit, get_yard_policy, get_yard_dwell_report) and eight L3 write tools
+// get_visit, get_yard_policy, get_yard_dwell_report, get_inspection,
+// list_trailer_inspections) and eleven L3 write tools
 // (request_move, cancel_move, place_hold, release_hold, record_seal,
-// secure_trailer, release_securing, open_yard_check) that carry an idempotencyKey like the REST Idempotency-Key
+// secure_trailer, release_securing, open_yard_check, open_inspection,
+// record_inspection_item, complete_inspection) that carry an idempotencyKey like the REST Idempotency-Key
 // and stamp `initiated_by` into the events they raise. The actions of the
 // gate clerk, the hostler and the dock operator (check-in, check-out, claim,
 // complete, door work) are floor-client actions on REST and are NOT tools.

@@ -57,6 +57,16 @@ func NewRouter(s *Server) http.Handler {
 	keyed.Post("/trailers/{trailerId}/securings", s.handleSecureTrailer)
 	keyed.Post("/trailers/{trailerId}/securing-releases", s.handleReleaseTrailerSecuring)
 	keyed.Post("/trailers/{trailerId}/classifications", s.handleClassifyTrailer)
+	keyed.Post("/trailers/{trailerId}/inspections", s.handleOpenInspection)
+	r.Get("/trailers/{trailerId}/inspections", s.handleListTrailerInspections)
+
+	r.Get("/inspections/{inspectionId}", s.handleGetInspection)
+	keyed.Put("/inspections/{inspectionId}/items/{itemCode}", s.handleRecordInspectionItem)
+	keyed.Post("/inspections/{inspectionId}/completions", s.handleCompleteInspection)
+	r.Get("/inspection-templates", s.handleListTemplates)
+	r.Get("/inspection-templates/{templateId}", s.handleGetTemplate)
+	r.Get("/inspection-templates/{templateId}/versions/{version}", s.handleGetTemplate)
+	keyed.Put("/inspection-templates/{templateId}/versions/{version}", s.handlePublishTemplate)
 
 	keyed.Post("/moves", s.handleRequestMove)
 	r.Get("/moves", s.handleListMoves)

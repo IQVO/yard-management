@@ -104,6 +104,7 @@ func yardDeps(pool *pgxpool.Pool, uow *postgres.UnitOfWork, locks *postgres.Lock
 	return usecases.Deps{
 		UoW: uow, Visits: postgres.NewVisits(pool), Trailers: postgres.NewTrailers(pool), Moves: postgres.NewMoves(pool),
 		Checks: postgres.NewChecks(pool), Policies: postgres.NewPolicies(pool),
+		Inspections: postgres.NewInspections(pool), Templates: postgres.NewTemplates(pool),
 		Locations: locations, Appointments: appointments, Closures: closures, Asns: asns, Receipts: receipts,
 		Locks: locks, Processed: postgres.NewProcessedEvents(pool),
 		ApptFeed: appointments, LocationFeed: locations, ClosureFeed: closures, AsnFeed: asns, ReceiptFeed: receipts,

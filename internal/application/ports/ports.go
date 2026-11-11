@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/claudioed/yard-management/internal/application/views"
+	"github.com/claudioed/yard-management/internal/domain/inspection"
 	"github.com/claudioed/yard-management/internal/domain/shared"
 	"github.com/claudioed/yard-management/internal/domain/trailer"
 	"github.com/claudioed/yard-management/internal/domain/yardcheck"
@@ -89,6 +90,35 @@ type MoveRepo interface {
 type CheckRepo interface {
 	Save(ctx context.Context, c *yardcheck.Check) error
 	FindByID(ctx context.Context, id string) (*yardcheck.Check, error)
+}
+
+// InspectionRepo persists Inspection aggregates (ADR 0015). Save maps the
+// partial unique index of one OPEN inspection per trailer, template and gate to
+// inspection.ErrInspectionAlreadyOpen.
+type InspectionRepo interface {
+	Save(ctx context.Context, i *inspection.Inspection) error
+	FindByID(ctx context.Context, id string) (*inspection.Inspection, error)
+	// FindOpen returns the OPEN inspection of the trailer for the template and gate, or ErrNotFound.
+	FindOpen(ctx context.Context, trailerID, templateID string, gate shared.Gate) (*inspection.Inspection, error)
+	// ListByTrailer returns at most limit inspections of the trailer, newest first by (opened at, id),
+	// strictly after the keyset position.
+	ListByTrailer(ctx context.Context, trailerID string, after *views.Key, limit int) ([]*inspection.Inspection, error)
+	// Completed returns the trailer's PASSED and FAILED inspections in the order they completed, which is
+	// what inspection.Judge reads.
+	Completed(ctx context.Context, trailerID string) ([]inspection.Record, error)
+}
+
+// TemplateRepo persists the CUSTOM InspectionTemplates (the built-in ones live in
+// code, inspection.BuiltIns). A template version is immutable: Save inserts and a
+// taken (id, version) is ErrConcurrentModification.
+type TemplateRepo interface {
+	Save(ctx context.Context, t *inspection.Template) error
+	// Find returns one version of a template, or ErrNotFound.
+	Find(ctx context.Context, id string, version int) (*inspection.Template, error)
+	// Latest returns the highest version of a template, or ErrNotFound.
+	Latest(ctx context.Context, id string) (*inspection.Template, error)
+	// ListLatest returns the latest version of at most limit templates, by id, strictly after afterID.
+	ListLatest(ctx context.Context, afterID string, limit int) ([]*inspection.Template, error)
 }
 
 // PolicyRepo persists the YardPolicy of a site (one row per site).

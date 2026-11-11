@@ -29,6 +29,8 @@ type Store struct {
 	Moves        ports.MoveRepo
 	Checks       ports.CheckRepo
 	Policies     ports.PolicyRepo
+	Inspections  ports.InspectionRepo
+	Templates    ports.TemplateRepo
 	Locations    ports.Locations
 	LocationFeed ports.LocationFeed
 	Appointments ports.Appointments
@@ -77,6 +79,7 @@ func Run(t *testing.T, newStore NewStore) {
 	t.Helper()
 	suites := map[string]func(*testing.T, NewStore){
 		"VisitRepo": VisitRepo, "TrailerRepo": TrailerRepo, "MoveRepo": MoveRepo, "CheckRepo": CheckRepo, "PolicyRepo": PolicyRepo,
+		"InspectionRepo": InspectionRepo, "InspectionQueries": InspectionQueries, "TemplateRepo": TemplateRepo,
 		"Locations": Locations, "Appointments": Appointments, "Closures": Closures, "Asns": Asns, "Receipts": Receipts,
 		"ProcessedEvents": ProcessedEvents, "IdempotencyStore": IdempotencyStore, "UnitOfWork": UnitOfWork,
 	}

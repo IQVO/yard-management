@@ -92,6 +92,6 @@ func policyView(p *yardpolicy.Policy) views.YardPolicy {
 	return views.YardPolicy{
 		SiteID: s.SiteID, RequireAppointment: s.RequireAppointment, HoldingSpotCodes: strs(s.HoldingSpotCodes), ParkingZoneIDs: strs(s.ParkingZoneIDs),
 		DwellThresholdMinutes: dwell, LeaseSeconds: s.LeaseSeconds, SealMismatchAction: string(s.SealMismatchAction), FreeTimeMinutes: free,
-		MinimumSealClass: ptr(string(s.MinimumSealClass)), RequireSecuringBeforeDoorWork: s.RequireSecuring, AllowHazmatOnUnclassifiedSpots: s.AllowHazmatOnUnclassified, Version: s.Version, Declared: s.Declared,
+		MinimumSealClass: ptr(string(s.MinimumSealClass)), RequireSecuringBeforeDoorWork: s.RequireSecuring, AllowHazmatOnUnclassifiedSpots: s.AllowHazmatOnUnclassified, RequiredInspections: rulesView(s.RequiredInspections), Version: s.Version, Declared: s.Declared,
 	}
 }

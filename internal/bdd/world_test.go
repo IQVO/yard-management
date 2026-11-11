@@ -43,22 +43,23 @@ func (r reply) slug() string {
 // world is the state of one scenario: a fresh in-memory yard behind the real
 // REST router, the aliases the steps give to ids, and the last response.
 type world struct {
-	env      *yardtest.Env
-	handler  http.Handler
-	keys     int
-	last     reply
-	visits   map[string]string // alias -> visit id
-	trailers map[string]string // unit number -> trailer id
-	racing   []reply           // the answers of a concurrent step
-	site     string            // the site the last Given declared
-	mu       sync.Mutex
+	env         *yardtest.Env
+	handler     http.Handler
+	keys        int
+	last        reply
+	visits      map[string]string // alias -> visit id
+	trailers    map[string]string // unit number -> trailer id
+	inspections map[string]string // alias -> inspection id
+	racing      []reply           // the answers of a concurrent step
+	site        string            // the site the last Given declared
+	mu          sync.Mutex
 }
 
 // reset gives the world a fresh yard (one per scenario).
 func (w *world) reset() {
 	fresh := newWorld()
 	w.env, w.handler, w.keys, w.last = fresh.env, fresh.handler, 0, reply{}
-	w.visits, w.trailers, w.racing, w.site = fresh.visits, fresh.trailers, nil, ""
+	w.visits, w.trailers, w.inspections, w.racing, w.site = fresh.visits, fresh.trailers, fresh.inspections, nil, ""
 }
 
 func newWorld() *world {
@@ -68,7 +69,7 @@ func newWorld() *world {
 		Yard: env.Yard, Idempotency: inboundhttp.NewIdempotency(deps), SweepIdempotency: inboundhttp.NewOptionalIdempotency(deps),
 		Readiness: inboundhttp.NewReadiness(0, 0),
 	}
-	return &world{env: env, handler: inboundhttp.NewRouter(server), visits: map[string]string{}, trailers: map[string]string{}}
+	return &world{env: env, handler: inboundhttp.NewRouter(server), visits: map[string]string{}, trailers: map[string]string{}, inspections: map[string]string{}}
 }
 
 func (w *world) freshKey() string {

@@ -65,7 +65,7 @@ func (d Deps) openYardCheck(ctx context.Context, in openYardCheckInput) (views.Y
 	return d.Yard.OpenYardCheck(ctx, in.SiteID)
 }
 
-// registerWriteTools adds the eight write tools (L3).
+// registerWriteTools adds the eight write tools (L3); the inspection tools are in tools_inspections.go.
 func (d Deps) registerWriteTools(server *mcp.Server) {
 	// The shared hint values; the annotations literals themselves stay inline.
 	closedWorld, notDestructive, destructive := false, false, true
@@ -76,7 +76,7 @@ func (d Deps) registerWriteTools(server *mcp.Server) {
 			"slot, door open and flow-compatible, trailer not on hold; a trailer with a hazmat class or a temperature-control need only to a spot its kind allows) and RESERVED by the open move; a hostler then claims it from the " +
 			"floor client. Changes state (L3): call it only for a move a human approved, and pass proposalId, approvedBy and agentId so " +
 			"the move is attributable. idempotencyKey is required. Fails with trailer-not-found, trailer-has-open-move, " +
-			"location-occupied, destination-reserved, door-closed, door-flow-mismatch, trailer-on-hold, trailer-still-secured, placement-rule-violated, unknown-location or validation.",
+			"location-occupied, destination-reserved, door-closed, door-flow-mismatch, trailer-on-hold, trailer-still-secured, placement-rule-violated, inspection-required or inspection-failed (a door move of a trailer without the passed PRE_DOCK inspection the site policy requires), unknown-location or validation.",
 		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &notDestructive, IdempotentHint: true, OpenWorldHint: &closedWorld},
 		Meta:        authorityMeta(authorityL3),
 	}, d.requestMove)

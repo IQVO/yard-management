@@ -11,6 +11,7 @@ import (
 	"github.com/claudioed/yard-management/internal/adapters/kafka/cloudevents"
 	outboundkafka "github.com/claudioed/yard-management/internal/adapters/outbound/kafka"
 	"github.com/claudioed/yard-management/internal/application/outbox"
+	"github.com/claudioed/yard-management/internal/domain/inspection"
 	"github.com/claudioed/yard-management/internal/domain/shared"
 	"github.com/claudioed/yard-management/internal/domain/trailer"
 	"github.com/claudioed/yard-management/internal/domain/yardcheck"
@@ -264,6 +265,39 @@ func goldenCases() []goldenCase {
 				`{"kind":"UNEXPECTED","location_code":"WH1-P2","trailer_id":null,"unit_number":"ROGUE"}]}`,
 		},
 		{
+			name: "InspectionCompleted", integration: true, subject: "insp-1",
+			event: inspection.InspectionCompleted{
+				Header: hdr("inspection", "InspectionCompleted", "insp-1", at(18, 0)), InspectionID: "insp-1", SiteID: "WH1", TrailerID: "trl-1",
+				VisitID: shared.Str("visit-1"), TemplateID: "tractor-trailer-17-point", TemplateVersion: 1, Gate: "PRE_DOCK", Outcome: "FAILED",
+				ConditionGrade: shared.Str("DAMAGED"), CompletedAt: stamp(18, 0), FailedItemCodes: []string{"fifth-wheel", "pest-free"},
+			},
+			data: `{"inspection_id":"insp-1","site_id":"WH1","trailer_id":"trl-1","visit_id":"visit-1","template_id":"tractor-trailer-17-point","template_version":1,` +
+				`"gate":"PRE_DOCK","outcome":"FAILED","condition_grade":"DAMAGED","completed_at":"2026-11-05T18:00:00Z","failed_item_codes":["fifth-wheel","pest-free"]}`,
+		},
+		{
+			name: "InspectionCompletedPassedBare", integration: true, subject: "insp-2",
+			event: inspection.InspectionCompleted{
+				Header: hdr("inspection", "InspectionCompleted", "insp-2", at(18, 5)), InspectionID: "insp-2", SiteID: "WH1", TrailerID: "trl-2",
+				TemplateID: "yard-entry", TemplateVersion: 3, Gate: "ON_DEMAND", Outcome: "PASSED", CompletedAt: stamp(18, 5), FailedItemCodes: []string{},
+			},
+			data: `{"inspection_id":"insp-2","site_id":"WH1","trailer_id":"trl-2","visit_id":null,"template_id":"yard-entry","template_version":3,` +
+				`"gate":"ON_DEMAND","outcome":"PASSED","condition_grade":null,"completed_at":"2026-11-05T18:05:00Z","failed_item_codes":[]}`,
+		},
+		{
+			name: "InspectionFailed", integration: true, subject: "insp-1",
+			event: inspection.InspectionFailed{
+				Header: hdr("inspection", "InspectionFailed", "insp-1", at(18, 0)), InspectionID: "insp-1", SiteID: "WH1", TrailerID: "trl-1",
+				TemplateID: "tractor-trailer-17-point", Gate: "PRE_DOCK", FailedAt: stamp(18, 0), HoldPlaced: true,
+				FailedItems: []inspection.FailedItem{
+					{ItemCode: "fifth-wheel", Note: shared.Str("cracked weld"), Required: true},
+					{ItemCode: "pest-free", Required: true},
+				},
+			},
+			data: `{"inspection_id":"insp-1","site_id":"WH1","trailer_id":"trl-1","template_id":"tractor-trailer-17-point","gate":"PRE_DOCK",` +
+				`"failed_items":[{"item_code":"fifth-wheel","note":"cracked weld","required":true},{"item_code":"pest-free","note":null,"required":true}],` +
+				`"failed_at":"2026-11-05T18:00:00Z","hold_placed":true}`,
+		},
+		{
 			name: "YardCheckClosedClean", integration: true, subject: "yck-2",
 			event: yardcheck.YardCheckClosed{
 				Header: hdr("yardcheck", "YardCheckClosed", "yck-2", at(17, 30)), YardCheckID: "yck-2", SiteID: "WH2", ClosedAt: stamp(17, 30),
@@ -402,8 +436,8 @@ func TestGoldenCasesCoverTheWholeCatalogue(t *testing.T) {
 		}
 	}
 	total, integration := outboundkafka.PublishedCount()
-	if total != 21 || integration != 11 {
-		t.Fatalf("the catalogue holds %d types (%d integration), ADR 0004 + 0010 + 0013 say 21 (11)", total, integration)
+	if total != 23 || integration != 13 {
+		t.Fatalf("the catalogue holds %d types (%d integration), ADR 0004 + 0010 + 0013 + 0015 say 23 (13)", total, integration)
 	}
 	if len(covered) != total {
 		t.Errorf("golden cases cover %d of %d published types", len(covered), total)
@@ -412,6 +446,7 @@ func TestGoldenCasesCoverTheWholeCatalogue(t *testing.T) {
 		"yardvisit.VisitCheckedIn", "yardvisit.VisitRejected", "trailer.TrailerDocked", "trailer.TrailerUndocked",
 		"trailer.SealExceptionRaised", "trailer.TrailerDwellExceeded", "yardcheck.YardCheckClosed",
 		"trailer.DoorWorkCompleted", "trailer.TrailerDeparted", "trailer.TrailerSecured", "trailer.TrailerSecuringReleased",
+		"inspection.InspectionCompleted", "inspection.InspectionFailed",
 	}
 	for _, name := range wantIntegration {
 		parts := strings.SplitN(name, ".", 2)
