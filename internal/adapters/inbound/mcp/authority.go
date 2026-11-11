@@ -9,7 +9,7 @@ import "github.com/modelcontextprotocol/go-sdk/mcp"
 //   - L1 reads facts of this context and changes nothing (the eight read
 //     tools).
 //   - L3 changes state: the caller is accountable and a human approval sits
-//     between the proposal and the call (the six write tools). No tool here
+//     between the proposal and the call (the eight write tools). No tool here
 //     computes a recommendation, so there is no L2, and no ADR grants L4: the
 //     `unused` linter rejects constants nothing references, so neither
 //     constant exists.

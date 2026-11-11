@@ -84,3 +84,21 @@ func (s *Server) handleRecordSeal(w http.ResponseWriter, r *http.Request) {
 	t, err := s.Yard.RecordSeal(r.Context(), pathParam(r, "trailerId"), req.State, req.SealNumber, req.SealClass)
 	respond(w, r, http.StatusOK, t, err)
 }
+
+// handleSecureTrailer backs POST /trailers/{trailerId}/securings (the dock
+// safety interlock, ADR 0013).
+func (s *Server) handleSecureTrailer(w http.ResponseWriter, r *http.Request) {
+	var req securingRequest
+	if err := decodeRequiredJSON(r, &req); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	t, err := s.Yard.SecureTrailer(r.Context(), pathParam(r, "trailerId"), req.Method, req.SecurerRef)
+	respond(w, r, http.StatusOK, t, err)
+}
+
+// handleReleaseTrailerSecuring backs POST /trailers/{trailerId}/securing-releases.
+func (s *Server) handleReleaseTrailerSecuring(w http.ResponseWriter, r *http.Request) {
+	t, err := s.Yard.ReleaseTrailerSecuring(r.Context(), pathParam(r, "trailerId"))
+	respond(w, r, http.StatusOK, t, err)
+}

@@ -62,6 +62,8 @@ var errorCatalogue = []struct {
 	{trailer.ErrTrailerOnHold, problem{"trailer-on-hold", http.StatusConflict}},
 	{trailer.ErrTrailerNotOnHold, problem{"trailer-not-on-hold", http.StatusConflict}},
 	{trailer.ErrDoorWorkOpen, problem{"door-work-open", http.StatusConflict}},
+	{trailer.ErrTrailerNotSecured, problem{"trailer-not-secured", http.StatusConflict}},
+	{trailer.ErrTrailerStillSecured, problem{"trailer-still-secured", http.StatusConflict}},
 	{shared.ErrSealClassTooLow, problem{"seal-class-too-low", http.StatusConflict}},
 	{yardmove.ErrTrailerHasOpenMove, problem{"trailer-has-open-move", http.StatusConflict}},
 	{yardmove.ErrDestinationReserved, problem{"destination-reserved", http.StatusConflict}},

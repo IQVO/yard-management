@@ -24,6 +24,7 @@ repositories and views and raise nothing.
 | RejectAtGate | `RejectAtGate` (`gate_checkin.go`) | `POST /visit-rejections` |
 | CheckOutVisit | `CheckOutVisit` (`gate_checkout.go`) | `POST /visits/{visitId}/check-outs` |
 | StartDoorWork, CompleteDoorWork | `StartDoorWork`, `CompleteDoorWork` (`doors.go`) | `POST /trailers/{trailerId}/door-work-starts`, `…/door-work-completions`; `CompleteDoorWork` also from `ReceiptClosed` |
+| SecureTrailer, ReleaseTrailerSecuring | `SecureTrailer`, `ReleaseTrailerSecuring` (`doors.go`) | `POST /trailers/{trailerId}/securings`, `…/securing-releases` (ADR 0013) |
 | RecordSeal, PlaceHold, ReleaseHold | `RecordSeal`, `PlaceHold`, `ReleaseHold` (`doors.go`) | `POST /trailers/{trailerId}/seals`, `…/holds`, `…/hold-releases` |
 | DwellSweep | `SweepDwell` (`checks_policy.go`) | `POST /dwell-sweeps` (CronJob) |
 | RequestMove, ClaimNextMove, CompleteMove, CancelMove | `RequestMove`, `ClaimNextMove`, `CompleteMove`, `CancelMove` (`moves.go`) | `POST /moves`, `/moves/claims`, `/moves/{moveId}/completions`, `/moves/{moveId}/cancellations` |
@@ -208,6 +209,7 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
 | Error | HTTP | Problem `type` slug |
 | --- | --- | --- |
 | `ErrIllegalTransition` | 409 | `illegal-transition` |
+| `ErrTrailerStillSecured` (a `DOCKED` trailer that is secured; ADR 0013) | 409 | `trailer-still-secured` |
 
 - **Events emitted:** `TrailerUndocked` when leaving a door (reading).
 - **Idempotency:** none of its own; the claim's.
@@ -248,19 +250,60 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
 - **Preconditions:** the trailer is `DOCKED` and its door work is `WAITING`.
 - **Main flow:**
   1. Load the trailer.
-  2. Set `DoorWork` to `IN_PROGRESS`.
-  3. Save and write `DoorWorkStarted` (`started_at`) to the outbox. The driver wait KPI
+  2. Under the site policy `requireSecuringBeforeDoorWork` (default off) the trailer must be secured
+     (ADR 0013); `AutoCompleteUnload` does not use this check.
+  3. Set `DoorWork` to `IN_PROGRESS`.
+  4. Save and write `DoorWorkStarted` (`started_at`) to the outbox. The driver wait KPI
      is arrival to this instant.
 
 | Error | HTTP | Problem `type` slug |
 | --- | --- | --- |
 | `ErrNotFound` | 404 | `not-found` |
 | `ErrIllegalTransition` (not `DOCKED`) | 409 | `illegal-transition` |
+| `ErrTrailerOnHold` | 409 | `trailer-on-hold` |
+| `ErrTrailerNotSecured` (policy on and the trailer is not secured; ADR 0013) | 409 | `trailer-not-secured` |
 | `ErrConcurrentModification` | 409 | `concurrent-modification` |
 
 - **Events emitted:** `DoorWorkStarted` (analytics only).
 - **Idempotency:** `Idempotency-Key`; door work already `IN_PROGRESS` is returned
   unchanged (this page's reading). A held trailer's door work does not start (`ErrTrailerOnHold`).
+
+### SecureTrailer
+
+- **Actor / trigger:** dock operator (floor client); MCP `secure_trailer` behind an approval.
+- **Inbound adapter:** REST `POST /trailers/{trailerId}/securings` (body `method` `RESTRAINT` or `WHEEL_CHOCKS`, `securerRef?`).
+- **Preconditions:** the trailer is `DOCKED` and has no open move.
+- **Main flow:**
+  1. Load the trailer.
+  2. Record `securedBy`, `securedAt` and `securerRef`. The same method again is a no-op (nothing saved or raised).
+  3. Save and write `TrailerSecured` to the outbox.
+
+| Error | HTTP | Problem `type` slug |
+| --- | --- | --- |
+| `ErrIllegalTransition` (not `DOCKED`, or secured another way) | 409 | `illegal-transition` |
+| `ErrTrailerHasOpenMove` | 409 | `trailer-has-open-move` |
+| `ErrValidation` (method) | 422 | `validation` |
+
+- **Events emitted:** `TrailerSecured` (integration, ADR 0013).
+- **Idempotency:** `Idempotency-Key`; the same method is returned unchanged.
+
+### ReleaseTrailerSecuring
+
+- **Actor / trigger:** dock operator (floor client); MCP `release_securing` behind an approval.
+- **Inbound adapter:** REST `POST /trailers/{trailerId}/securing-releases`.
+- **Preconditions:** the trailer is secured and its door work is not `IN_PROGRESS`.
+- **Main flow:**
+  1. Clear `securedBy`, `securedAt` and `securerRef`.
+  2. Save and write `TrailerSecuringReleased`.
+  3. Run `ClearDoorAfterWork` (a `DROP` trailer whose door work is done gets its `FROM_DOOR` move, which was withheld while it was secured).
+
+| Error | HTTP | Problem `type` slug |
+| --- | --- | --- |
+| `ErrTrailerNotSecured` | 409 | `trailer-not-secured` |
+| `ErrDoorWorkOpen` (door work `IN_PROGRESS`) | 409 | `door-work-open` |
+
+- **Events emitted:** `TrailerSecuringReleased` (integration, ADR 0013).
+- **Idempotency:** `Idempotency-Key`.
 
 ### CompleteDoorWork
 
@@ -385,6 +428,7 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
 | Error | HTTP | Problem `type` slug |
 | --- | --- | --- |
 | `ErrDoorWorkOpen` | 409 | `door-work-open` |
+| `ErrTrailerStillSecured` (a `DOCKED` trailer that is still secured; ADR 0013) | 409 | `trailer-still-secured` |
 | `ErrIllegalTransition` (`IN_MOVE` or already `DEPARTED`) | 409 | `illegal-transition` |
 
 - **Events emitted:** `TrailerDeparted` (analytics), `TrailerUndocked` (integration, for
@@ -432,6 +476,7 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
 | Error | HTTP | Problem `type` slug |
 | --- | --- | --- |
 | `ErrTrailerHasOpenMove` | 409 | `trailer-has-open-move` |
+| `ErrTrailerStillSecured` (the trailer is secured at its door; ADR 0013) | 409 | `trailer-still-secured` |
 | `ErrDestinationReserved` | 409 | `destination-reserved` |
 | `ErrNotFound` (trailer) | 404 | `not-found` |
 | `ErrValidation` | 422 | `validation` |
@@ -614,7 +659,8 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
      thresholds and lease are positive.
   2. Replace the policy of the site: `require_appointment`, `holding_spot_codes`,
      `parking_zone_ids`, `dwell_threshold_minutes` per kind, `lease_seconds`,
-     `seal_mismatch_action`, optional `free_time_minutes`.
+     `seal_mismatch_action`, optional `free_time_minutes`, optional `minimum_seal_class`, optional
+     `require_securing_before_door_work` (default false, ADR 0013).
   3. Save.
 
 | Error | HTTP | Problem `type` slug |

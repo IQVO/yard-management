@@ -16,10 +16,11 @@ info:
     and yard checks (ADR 0001, 0002).
 
 
-    **Published.** Four aggregates (YardVisit, Trailer, YardMove, YardCheck) raise 19 event types through a transactional
+    **Published.** Four aggregates (YardVisit, Trailer, YardMove, YardCheck) raise 21 event types through a transactional
     outbox: the aggregate row and its events are written in ONE database transaction and a relay drains them to Kafka (at-least-once;
-    the CloudEvents `id` is stored with the outbox row). Nine types are integration events on `warehouse.yard-management.events`
-    (VisitCheckedIn, VisitRejected, TrailerDocked, TrailerUndocked, SealExceptionRaised, TrailerDwellExceeded, YardCheckClosed, DoorWorkCompleted, TrailerDeparted)
+    the CloudEvents `id` is stored with the outbox row). Eleven types are integration events on `warehouse.yard-management.events`
+    (VisitCheckedIn, VisitRejected, TrailerDocked, TrailerUndocked, SealExceptionRaised, TrailerDwellExceeded, YardCheckClosed, DoorWorkCompleted, TrailerDeparted,
+    TrailerSecured, TrailerSecuringReleased)
     and are mirrored on `warehouse.yard-management.analytics` under the same id; the other ten are analytics-only and go
     ONLY to the analytics topic. The key of every message is its aggregate root id (`visit_id`, `trailer_id`, `move_id`, `yard_check_id`).
 
@@ -66,9 +67,13 @@ channels:
         $ref: '#/components/messages/DoorWorkCompleted'
       TrailerDeparted:
         $ref: '#/components/messages/TrailerDeparted'
+      TrailerSecured:
+        $ref: '#/components/messages/TrailerSecured'
+      TrailerSecuringReleased:
+        $ref: '#/components/messages/TrailerSecuringReleased'
   yardManagementAnalytics:
     address: warehouse.yard-management.analytics
-    description: 'This service''s analytics stream, written by the SAME outbox pass: the nine integration types again (same
+    description: 'This service''s analytics stream, written by the SAME outbox pass: the eleven integration types again (same
       id, byte-identical payload, analytics dataschema) plus the ten analytics-only types. Consumed ONLY by this service''s
       own projector.'
     messages:
@@ -98,6 +103,10 @@ channels:
         $ref: '#/components/messages/TrailerHeldAnalytics'
       TrailerHoldReleasedAnalytics:
         $ref: '#/components/messages/TrailerHoldReleasedAnalytics'
+      TrailerSecuredAnalytics:
+        $ref: '#/components/messages/TrailerSecuredAnalytics'
+      TrailerSecuringReleasedAnalytics:
+        $ref: '#/components/messages/TrailerSecuringReleasedAnalytics'
       YardMoveRequestedAnalytics:
         $ref: '#/components/messages/YardMoveRequestedAnalytics'
       YardMoveClaimedAnalytics:
@@ -154,7 +163,7 @@ operations:
     channel:
       $ref: '#/channels/yardManagementEvents'
     summary: Publish the integration events of the yard.
-    description: 'Publishes the nine integration event types. Consumers: outbound-shipping (TrailerDocked, DoorWorkCompleted, TrailerDeparted), dock-scheduling (VisitCheckedIn, TrailerDocked,
+    description: 'Publishes the eleven integration event types. TrailerSecured and TrailerSecuringReleased (ADR 0013) have no consumer yet: they are the safety interlock facts of the yard. Consumers: outbound-shipping (TrailerDocked, DoorWorkCompleted, TrailerDeparted), dock-scheduling (VisitCheckedIn, TrailerDocked,
       TrailerUndocked), inbound-receiving (TrailerDocked), dock-scheduling (VisitRejected), exception-management (VisitRejected,
       SealExceptionRaised, TrailerDwellExceeded, YardCheckClosed).'
     messages:
@@ -167,6 +176,8 @@ operations:
     - $ref: '#/channels/yardManagementEvents/messages/YardCheckClosed'
     - $ref: '#/channels/yardManagementEvents/messages/DoorWorkCompleted'
     - $ref: '#/channels/yardManagementEvents/messages/TrailerDeparted'
+    - $ref: '#/channels/yardManagementEvents/messages/TrailerSecured'
+    - $ref: '#/channels/yardManagementEvents/messages/TrailerSecuringReleased'
   publishYardManagementAnalytics:
     action: send
     channel:
@@ -187,6 +198,8 @@ operations:
     - $ref: '#/channels/yardManagementAnalytics/messages/TrailerDwellExceededAnalytics'
     - $ref: '#/channels/yardManagementAnalytics/messages/TrailerHeldAnalytics'
     - $ref: '#/channels/yardManagementAnalytics/messages/TrailerHoldReleasedAnalytics'
+    - $ref: '#/channels/yardManagementAnalytics/messages/TrailerSecuredAnalytics'
+    - $ref: '#/channels/yardManagementAnalytics/messages/TrailerSecuringReleasedAnalytics'
     - $ref: '#/channels/yardManagementAnalytics/messages/YardMoveRequestedAnalytics'
     - $ref: '#/channels/yardManagementAnalytics/messages/YardMoveClaimedAnalytics'
     - $ref: '#/channels/yardManagementAnalytics/messages/YardMoveLeaseExpiredAnalytics'
@@ -840,6 +853,158 @@ components:
             version: 8
             seal_state: null
             seal_class: null
+      tags:
+      - name: trailer
+    TrailerSecured:
+      name: TrailerSecured
+      title: TrailerSecured
+      summary: A docked trailer was secured by a vehicle restraint or wheel chocks (the dock safety interlock, ADR 0013).
+      description: '`type` = `com.warehouse.wms.yard-management.trailer.TrailerSecured`; subject and key = `trailer_id`;
+        dataschema `urn:warehouse:yard-management:events:TrailerSecured:v1`. Raised by SecureTrailer (ADR 0013); idempotent for the same method, so a repeat raises nothing.'
+      contentType: application/cloudevents+json
+      payload:
+        allOf:
+        - $ref: '#/components/schemas/CloudEventEnvelope'
+        - type: object
+          properties:
+            type:
+              const: com.warehouse.wms.yard-management.trailer.TrailerSecured
+            dataschema:
+              const: urn:warehouse:yard-management:events:TrailerSecured:v1
+            data:
+              $ref: '#/components/schemas/TrailerSecuredData'
+      examples:
+      - name: TrailerSecured
+        payload:
+          specversion: '1.0'
+          id: 7f3c9a52-1b8d-4e6f-9a07-000000000020
+          source: /warehouse/yard-management
+          type: com.warehouse.wms.yard-management.trailer.TrailerSecured
+          subject: trl-8f7e6d5c-4b3a-4291-8071-6f5e4d3c2b1a
+          time: '2026-11-05T14:21:00Z'
+          datacontenttype: application/json
+          dataschema: urn:warehouse:yard-management:events:TrailerSecured:v1
+          data:
+            trailer_id: trl-8f7e6d5c-4b3a-4291-8071-6f5e4d3c2b1a
+            site_id: WH1
+            door_code: WH1-DOCK-D01
+            method: WHEEL_CHOCKS
+            secured_at: '2026-11-05T14:21:00Z'
+            version: 4
+      tags:
+      - name: trailer
+    TrailerSecuredAnalytics:
+      name: TrailerSecured
+      title: TrailerSecured
+      summary: A docked trailer was secured by a vehicle restraint or wheel chocks (the dock safety interlock, ADR 0013).
+      description: '`type` = `com.warehouse.wms.yard-management.trailer.TrailerSecured`; subject and key = `trailer_id`;
+        dataschema `urn:warehouse:yard-management:analytics:TrailerSecured:v1`. Raised by SecureTrailer (ADR 0013); idempotent for the same method, so a repeat raises nothing. Byte-identical payload to the integration
+        topic.'
+      contentType: application/cloudevents+json
+      payload:
+        allOf:
+        - $ref: '#/components/schemas/CloudEventEnvelope'
+        - type: object
+          properties:
+            type:
+              const: com.warehouse.wms.yard-management.trailer.TrailerSecured
+            dataschema:
+              const: urn:warehouse:yard-management:analytics:TrailerSecured:v1
+            data:
+              $ref: '#/components/schemas/TrailerSecuredData'
+      examples:
+      - name: TrailerSecured
+        payload:
+          specversion: '1.0'
+          id: 7f3c9a52-1b8d-4e6f-9a07-000000000020
+          source: /warehouse/yard-management
+          type: com.warehouse.wms.yard-management.trailer.TrailerSecured
+          subject: trl-8f7e6d5c-4b3a-4291-8071-6f5e4d3c2b1a
+          time: '2026-11-05T14:21:00Z'
+          datacontenttype: application/json
+          dataschema: urn:warehouse:yard-management:analytics:TrailerSecured:v1
+          data:
+            trailer_id: trl-8f7e6d5c-4b3a-4291-8071-6f5e4d3c2b1a
+            site_id: WH1
+            door_code: WH1-DOCK-D01
+            method: WHEEL_CHOCKS
+            secured_at: '2026-11-05T14:21:00Z'
+            version: 4
+      tags:
+      - name: trailer
+    TrailerSecuringReleased:
+      name: TrailerSecuringReleased
+      title: TrailerSecuringReleased
+      summary: The securing of a docked trailer was released (restraint off or chocks removed, ADR 0013).
+      description: '`type` = `com.warehouse.wms.yard-management.trailer.TrailerSecuringReleased`; subject and key = `trailer_id`;
+        dataschema `urn:warehouse:yard-management:events:TrailerSecuringReleased:v1`. Raised by ReleaseTrailerSecuring (ADR 0013); required before a trailer leaves its door.'
+      contentType: application/cloudevents+json
+      payload:
+        allOf:
+        - $ref: '#/components/schemas/CloudEventEnvelope'
+        - type: object
+          properties:
+            type:
+              const: com.warehouse.wms.yard-management.trailer.TrailerSecuringReleased
+            dataschema:
+              const: urn:warehouse:yard-management:events:TrailerSecuringReleased:v1
+            data:
+              $ref: '#/components/schemas/TrailerSecuringReleasedData'
+      examples:
+      - name: TrailerSecuringReleased
+        payload:
+          specversion: '1.0'
+          id: 7f3c9a52-1b8d-4e6f-9a07-000000000021
+          source: /warehouse/yard-management
+          type: com.warehouse.wms.yard-management.trailer.TrailerSecuringReleased
+          subject: trl-8f7e6d5c-4b3a-4291-8071-6f5e4d3c2b1a
+          time: '2026-11-05T15:25:00Z'
+          datacontenttype: application/json
+          dataschema: urn:warehouse:yard-management:events:TrailerSecuringReleased:v1
+          data:
+            trailer_id: trl-8f7e6d5c-4b3a-4291-8071-6f5e4d3c2b1a
+            site_id: WH1
+            door_code: WH1-DOCK-D01
+            released_at: '2026-11-05T15:25:00Z'
+            version: 7
+      tags:
+      - name: trailer
+    TrailerSecuringReleasedAnalytics:
+      name: TrailerSecuringReleased
+      title: TrailerSecuringReleased
+      summary: The securing of a docked trailer was released (restraint off or chocks removed, ADR 0013).
+      description: '`type` = `com.warehouse.wms.yard-management.trailer.TrailerSecuringReleased`; subject and key = `trailer_id`;
+        dataschema `urn:warehouse:yard-management:analytics:TrailerSecuringReleased:v1`. Raised by ReleaseTrailerSecuring (ADR 0013); required before a trailer leaves its door. Byte-identical payload to the integration
+        topic.'
+      contentType: application/cloudevents+json
+      payload:
+        allOf:
+        - $ref: '#/components/schemas/CloudEventEnvelope'
+        - type: object
+          properties:
+            type:
+              const: com.warehouse.wms.yard-management.trailer.TrailerSecuringReleased
+            dataschema:
+              const: urn:warehouse:yard-management:analytics:TrailerSecuringReleased:v1
+            data:
+              $ref: '#/components/schemas/TrailerSecuringReleasedData'
+      examples:
+      - name: TrailerSecuringReleased
+        payload:
+          specversion: '1.0'
+          id: 7f3c9a52-1b8d-4e6f-9a07-000000000021
+          source: /warehouse/yard-management
+          type: com.warehouse.wms.yard-management.trailer.TrailerSecuringReleased
+          subject: trl-8f7e6d5c-4b3a-4291-8071-6f5e4d3c2b1a
+          time: '2026-11-05T15:25:00Z'
+          datacontenttype: application/json
+          dataschema: urn:warehouse:yard-management:analytics:TrailerSecuringReleased:v1
+          data:
+            trailer_id: trl-8f7e6d5c-4b3a-4291-8071-6f5e4d3c2b1a
+            site_id: WH1
+            door_code: WH1-DOCK-D01
+            released_at: '2026-11-05T15:25:00Z'
+            version: 7
       tags:
       - name: trailer
     SealExceptionRaised:
@@ -2247,6 +2412,55 @@ components:
           - H
           - null
           description: Additive, optional. The ISO 17712 class of the seal (I, S or H); null when none was declared.
+    TrailerSecuredData:
+      type: object
+      required:
+      - trailer_id
+      - site_id
+      - door_code
+      - method
+      - secured_at
+      - version
+      properties:
+        trailer_id:
+          type: string
+        site_id:
+          type: string
+        door_code:
+          type: string
+        method:
+          type: string
+          enum:
+          - RESTRAINT
+          - WHEEL_CHOCKS
+          description: A vehicle restraint engaged, or the wheels chocked (OSHA 29 CFR 1910.178(k)(1), ANSI MH30.3, EN 1398).
+        secured_at:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          minimum: 1
+    TrailerSecuringReleasedData:
+      type: object
+      required:
+      - trailer_id
+      - site_id
+      - door_code
+      - released_at
+      - version
+      properties:
+        trailer_id:
+          type: string
+        site_id:
+          type: string
+        door_code:
+          type: string
+        released_at:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          minimum: 1
     SealExceptionRaisedData:
       type: object
       required:

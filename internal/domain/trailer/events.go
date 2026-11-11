@@ -87,6 +87,29 @@ type TrailerDeparted struct {
 	SealClass *string `json:"seal_class"`
 }
 
+// TrailerSecured: a docked trailer was secured by a vehicle restraint or
+// wheel chocks (integration, ADR 0013).
+type TrailerSecured struct {
+	shared.Header `json:"-"`
+	TrailerID     string         `json:"trailer_id"`
+	SiteID        string         `json:"site_id"`
+	DoorCode      string         `json:"door_code"`
+	Method        SecuringMethod `json:"method"`
+	SecuredAt     string         `json:"secured_at"`
+	Version       int64          `json:"version"`
+}
+
+// TrailerSecuringReleased: the restraint was released or the chocks removed
+// (integration, ADR 0013).
+type TrailerSecuringReleased struct {
+	shared.Header `json:"-"`
+	TrailerID     string `json:"trailer_id"`
+	SiteID        string `json:"site_id"`
+	DoorCode      string `json:"door_code"`
+	ReleasedAt    string `json:"released_at"`
+	Version       int64  `json:"version"`
+}
+
 // SealExceptionRaised: the seal found at the gate differs from the expected
 // one (integration). TrailerID is null when the visit was rejected and no
 // trailer was persisted.

@@ -12,9 +12,9 @@ import (
 // and routes every message by Message.Topic (the topic-not-set-twice rule), so
 // the DLQ write needs no writer of its own.
 const (
-	// TopicEvents carries the nine integration types of ADR 0004 (ADR 0010 added DoorWorkCompleted and TrailerDeparted).
+	// TopicEvents carries the eleven integration types of ADR 0004 (ADR 0010 added DoorWorkCompleted and TrailerDeparted, ADR 0013 TrailerSecured and TrailerSecuringReleased).
 	TopicEvents = "warehouse.yard-management.events"
-	// TopicAnalytics carries EVERY published type: the nine integration
+	// TopicAnalytics carries EVERY published type: the eleven integration
 	// types mirrored (same id, type, subject and byte-identical data, only
 	// the dataschema stream segment differs) plus the ten analytics-only
 	// types, which go nowhere else.
@@ -43,7 +43,7 @@ var published = map[string]map[string]bool{
 	outbox.AggregTrailer: {
 		"TrailerDocked": true, "TrailerUndocked": true, "SealExceptionRaised": true, "TrailerDwellExceeded": true,
 		"TrailerParked": false, "DoorWorkStarted": false, "DoorWorkCompleted": true, "TrailerDeparted": true,
-		"TrailerHeld": false, "TrailerHoldReleased": false,
+		"TrailerHeld": false, "TrailerHoldReleased": false, "TrailerSecured": true, "TrailerSecuringReleased": true,
 	},
 	outbox.AggregMove: {
 		"YardMoveRequested": false, "YardMoveClaimed": false, "YardMoveLeaseExpired": false,

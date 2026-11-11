@@ -24,14 +24,14 @@ a new `.v2` type. Every field of every payload is on
 
 | Channel key (AsyncAPI) | Topic (`address`) | Direction | Written or read by |
 | --- | --- | --- | --- |
-| `yardManagementEvents` | `warehouse.yard-management.events` | produced | `cmd/relay`; the **nine integration types** |
-| `yardManagementAnalytics` | `warehouse.yard-management.analytics` | produced | `cmd/relay` in the same pass: the nine integration types again (same `id`, byte-identical `data`, analytics `dataschema`) plus **ten analytics-only types**; consumed only by `cmd/yard-projector` |
+| `yardManagementEvents` | `warehouse.yard-management.events` | produced | `cmd/relay`; the **eleven integration types** |
+| `yardManagementAnalytics` | `warehouse.yard-management.analytics` | produced | `cmd/relay` in the same pass: the eleven integration types again (same `id`, byte-identical `data`, analytics `dataschema`) plus **ten analytics-only types**; consumed only by `cmd/yard-projector` |
 | (none in AsyncAPI) | `warehouse.yard-management.events.dlq` | produced | outbox rows that can never be encoded, verbatim (header `dlq-reason`) |
 | `dockSchedulingEvents` | `warehouse.dock-scheduling.events` | consumed | `cmd/api` consumer, group `DOCK_SCHEDULING_CONSUMER_GROUP` |
 | `facilityEvents` | `warehouse.facility.events` | consumed | `cmd/api`, group `FACILITY_CONSUMER_GROUP` |
 | `inboundReceivingEvents` | `warehouse.inbound-receiving.events` | consumed | `cmd/api`, group `INBOUND_RECEIVING_CONSUMER_GROUP` |
 
-## Published types (19)
+## Published types (21)
 
 Rows are in the order of the encoder's catalogue (`published` in
 `internal/adapters/outbound/kafka/encoder.go`); a row outside it is poison and is
@@ -53,6 +53,8 @@ dead-lettered. The consumers named are the ones whose code reads the type on
 | `com.warehouse.wms.yard-management.trailer.TrailerDeparted` | `TrailerDeparted` | events + analytics | outbound-shipping |
 | `com.warehouse.wms.yard-management.trailer.TrailerHeld` | `TrailerHeld` | analytics only | this service's projector |
 | `com.warehouse.wms.yard-management.trailer.TrailerHoldReleased` | `TrailerHoldReleased` | analytics only | this service's projector |
+| `com.warehouse.wms.yard-management.trailer.TrailerSecured` | `TrailerSecured` | events + analytics | none yet (ADR 0013) |
+| `com.warehouse.wms.yard-management.trailer.TrailerSecuringReleased` | `TrailerSecuringReleased` | events + analytics | none yet (ADR 0013) |
 | `com.warehouse.wms.yard-management.yardmove.YardMoveRequested` | `YardMoveRequested` | analytics only | this service's projector |
 | `com.warehouse.wms.yard-management.yardmove.YardMoveClaimed` | `YardMoveClaimed` | analytics only | this service's projector |
 | `com.warehouse.wms.yard-management.yardmove.YardMoveLeaseExpired` | `YardMoveLeaseExpired` | analytics only | this service's projector |
@@ -60,7 +62,7 @@ dead-lettered. The consumers named are the ones whose code reads the type on
 | `com.warehouse.wms.yard-management.yardmove.YardMoveCancelled` | `YardMoveCancelled` | analytics only | this service's projector |
 | `com.warehouse.wms.yard-management.yardcheck.YardCheckClosed` | `YardCheckClosed` | events + analytics | exception-management |
 
-Totals: 9 integration types (events and analytics), 10 analytics-only.
+Totals: 11 integration types (events and analytics), 10 analytics-only.
 `TestEventCatalogueMatchesContract` ties this list to the AsyncAPI document, and
 the integration/analytics split is decided by the encoder, not by the emitter.
 

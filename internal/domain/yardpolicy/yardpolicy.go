@@ -27,17 +27,18 @@ const DefaultLeaseSeconds = 300
 
 // Policy is the aggregate root.
 type Policy struct {
-	site         string
-	requireAppt  bool
-	holdingSpots []string
-	parkingZones []string
-	dwell        map[shared.TrailerKind]int64
-	leaseSeconds int
-	sealAction   SealAction
-	freeTimeMin  int
-	minSealClass shared.SealClass
-	version      int64
-	declared     bool
+	site          string
+	requireAppt   bool
+	holdingSpots  []string
+	parkingZones  []string
+	dwell         map[shared.TrailerKind]int64
+	leaseSeconds  int
+	sealAction    SealAction
+	freeTimeMin   int
+	minSealClass  shared.SealClass
+	requireSecure bool
+	version       int64
+	declared      bool
 }
 
 // Default is the policy of a site that never declared one: appointments not
@@ -68,6 +69,10 @@ type DeclareInput struct {
 	// MinimumSealClass is the lowest ISO 17712 class a seal may have at
 	// check-in and record-seal; "" (the default) means no minimum (ADR 0012).
 	MinimumSealClass shared.SealClass
+	// RequireSecuringBeforeDoorWork makes door work start only on a secured
+	// trailer (restraint engaged or wheels chocked, ADR 0013). false (the
+	// default) is the behaviour before the interlock existed.
+	RequireSecuringBeforeDoorWork bool
 }
 
 // Declare replaces the policy (DeclareYardPolicy). Holding spots must be
@@ -95,7 +100,7 @@ func (p *Policy) Declare(in DeclareInput, knownSpot func(code string) bool) erro
 		}
 	}
 	p.requireAppt, p.leaseSeconds, p.sealAction, p.freeTimeMin = in.RequireAppointment, in.LeaseSeconds, in.SealMismatchAction, in.FreeTimeMinutes
-	p.minSealClass = in.MinimumSealClass
+	p.minSealClass, p.requireSecure = in.MinimumSealClass, in.RequireSecuringBeforeDoorWork
 	p.holdingSpots, p.parkingZones = slices.Clone(in.HoldingSpotCodes), slices.Clone(in.ParkingZoneIDs)
 	if p.holdingSpots == nil {
 		p.holdingSpots = []string{}
@@ -182,6 +187,7 @@ type Snapshot struct {
 	SealMismatchAction    SealAction
 	FreeTimeMinutes       int
 	MinimumSealClass      shared.SealClass
+	RequireSecuring       bool
 	Version               int64
 	Declared              bool
 }
@@ -195,7 +201,7 @@ func (p *Policy) Snapshot() Snapshot {
 	return Snapshot{
 		SiteID: p.site, RequireAppointment: p.requireAppt, HoldingSpotCodes: p.HoldingSpotCodes(), ParkingZoneIDs: p.ParkingZoneIDs(),
 		DwellThresholdMinutes: d, LeaseSeconds: p.leaseSeconds, SealMismatchAction: p.sealAction, FreeTimeMinutes: p.freeTimeMin,
-		MinimumSealClass: p.minSealClass, Version: p.version, Declared: p.declared,
+		MinimumSealClass: p.minSealClass, RequireSecuring: p.requireSecure, Version: p.version, Declared: p.declared,
 	}
 }
 
@@ -212,7 +218,7 @@ func Restore(s Snapshot) (*Policy, error) {
 	if err := p.Declare(DeclareInput{
 		RequireAppointment: s.RequireAppointment, HoldingSpotCodes: s.HoldingSpotCodes, ParkingZoneIDs: s.ParkingZoneIDs,
 		DwellThresholdMinutes: s.DwellThresholdMinutes, LeaseSeconds: s.LeaseSeconds, SealMismatchAction: s.SealMismatchAction, FreeTimeMinutes: s.FreeTimeMinutes,
-		MinimumSealClass: s.MinimumSealClass,
+		MinimumSealClass: s.MinimumSealClass, RequireSecuringBeforeDoorWork: s.RequireSecuring,
 	}, func(string) bool { return true }); err != nil {
 		return nil, err
 	}
@@ -225,3 +231,7 @@ func (p *Policy) FreeTimeMinutes() int { return p.freeTimeMin }
 
 // MinimumSealClass returns the lowest seal class the site accepts ("" = none).
 func (p *Policy) MinimumSealClass() shared.SealClass { return p.minSealClass }
+
+// RequireSecuringBeforeDoorWork reports whether door work starts only on a
+// secured trailer (false = today's behaviour; a regulated site sets it true).
+func (p *Policy) RequireSecuringBeforeDoorWork() bool { return p.requireSecure }

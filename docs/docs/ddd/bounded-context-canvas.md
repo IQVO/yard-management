@@ -196,6 +196,7 @@ AsyncAPI: `apis/` for `facility-layout` and `inbound-receiving`, `yard/apis/dock
 | `exception-management` | `YardCheckClosed` | Event | Kafka `warehouse.yard-management.events`, `com.warehouse.wms.yard-management.yardcheck.YardCheckClosed` | Customer/Supplier |
 | analytics only | `VisitCheckedOut` | Event | Kafka `warehouse.yard-management.analytics`, `com.warehouse.wms.yard-management.yardvisit.VisitCheckedOut` | PL, no named consumer |
 | `outbound-shipping` | `DoorWorkCompleted`, `TrailerDeparted` | Event | Kafka `warehouse.yard-management.events`, `com.warehouse.wms.yard-management.trailer.<Event>` | Customer/Supplier (integration since 2026-11-09) |
+| none yet (integration topic) | `TrailerSecured`, `TrailerSecuringReleased` | Event | Kafka `warehouse.yard-management.events`, `com.warehouse.wms.yard-management.trailer.<Event>` | PL, no named consumer (ADR 0013) |
 | analytics only | `TrailerParked`, `DoorWorkStarted`, `TrailerHeld`, `TrailerHoldReleased` | Event | Kafka `warehouse.yard-management.analytics`, `com.warehouse.wms.yard-management.trailer.<Event>` | PL, no named consumer |
 | analytics only | `YardMoveRequested`, `YardMoveClaimed`, `YardMoveLeaseExpired`, `YardMoveCompleted`, `YardMoveCancelled` | Event | Kafka `warehouse.yard-management.analytics`, `com.warehouse.wms.yard-management.yardmove.<Event>` | PL, no named consumer |
 | — | (no synchronous calls) | — | `sync_calls: []` | — |

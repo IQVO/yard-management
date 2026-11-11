@@ -8,13 +8,24 @@ import (
 )
 
 // StartDoorWork begins unloading or loading on a DOCKED trailer (WAITING to
-// IN_PROGRESS). A held trailer's door work is blocked until the release.
+// IN_PROGRESS) without the dock safety interlock: the policy-free form, used
+// by AutoCompleteUnload, which completes work that was done and starts none.
 func (t *Trailer) StartDoorWork(at time.Time) error {
+	return t.StartDoorWorkWith(DoorWorkRule{}, at)
+}
+
+// StartDoorWorkWith is StartDoorWork under the site policy r. A held
+// trailer's door work is blocked until the release (ErrTrailerOnHold); with
+// r.RequireSecured an unsecured trailer is ErrTrailerNotSecured (ADR 0013).
+func (t *Trailer) StartDoorWorkWith(r DoorWorkRule, at time.Time) error {
 	if t.state != Docked || t.work != WorkWaiting {
 		return t.illegal("StartDoorWork")
 	}
 	if t.hold != "" {
 		return fmt.Errorf("%w: %s", ErrTrailerOnHold, t.hold)
+	}
+	if r.RequireSecured && t.securedBy == "" {
+		return fmt.Errorf("%w: secure the trailer (restraint or wheel chocks) before door work starts", ErrTrailerNotSecured)
 	}
 	t.work = WorkInProgress
 	t.version++

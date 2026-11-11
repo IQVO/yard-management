@@ -200,7 +200,7 @@ func TestMCPOnRealPostgresAndKafka(t *testing.T) {
 		name string
 		run  func(*testing.T, *server, string, string, string)
 	}{
-		{"the surface is eight L1 reads and six L3 writes over stateless HTTP", surface},
+		{"the surface is eight L1 reads and eight L3 writes over stateless HTTP", surface},
 		{"reads answer from the rows the REST use cases wrote", reads},
 		{"a write is idempotent, attributed and refuses with the REST slugs", writes},
 		{"two moves to one door: exactly one wins", doorRace},

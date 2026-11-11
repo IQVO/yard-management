@@ -1,0 +1,70 @@
+---
+id: secure-trailer
+title: "Secure a docked trailer (SecureTrailer)"
+description: "Records that the DOCKED trailer is secured, by a vehicle restraint (`RESTRAINT`) or wheel chocks (`WHEEL_CHOCKS`): the dock safety interlock of OSHA 29 CFR 1910.178(k)(1) and ANSI MH30.3 (ADR 0013). Where the site yard policy sets `requireSecuringBeforeDoorWork`, door work does not start until this is recorded. Securing the same way again changes nothing and answers 200. A trailer that is not DOCKED, or is already secured another way (release it first), is 409 `illegal-transition`; a trailer with an open move is 409 `trailer-has-open-move`; a method other than the two is 422 `validation`. Raises TrailerSecured."
+sidebar_label: "Secure a docked trailer (SecureTrailer)"
+hide_title: true
+hide_table_of_contents: true
+api: eJztO2tv27iyf2WgTzau5Dhu+nLPvYCbuBufJnHWTtq7aIOalsY2T2hSS1JxjCD//WBISZZfaXdP9mIv0P2wVUxyODOcN4cPgUpRM8uV7CVBOzAYZxqvNOMCdRAGCZpY85TGg3YwwFjpxICdMQt2hnDSP/7YPQHr5wM34AEkIYyXwOAOZzwWCBoNzZEWaqNBd3g16PQurkZ1UBoWM0QB8UzFtwZqo8+n3e7Zt+PT/vHH4ajedrskKr4FwyZol8ClRS3oBzWB/vC0A623cPxhAIdvD5uNw9dvarf12mEdmEygczHswfnpi2bjBdQ6JwNoNg9f1BvweYYaHWTDLcKS6QRSJXi8BIPWwEjj7xnXOCRauJy+x4nSeKKU/qz07SiERBHiSt9CotCAVBaMZdpCJi0XYGfcEC+0YxcmDSgg+U3ZHGHBlsCmjEuIZ0xOPZQZTSHMmTQL1AZazWYDOiV/Hd+539CzPiQWcgNMaGTJsmA/MIKG2m1T0yiQGQRuYcK1sfWQlhw138KIC4FTJiKrmTScjnn0Dli54YLbGTAJKkUJc3WH5cJ8RjRjJqLRiEbd2jnamUrA729nTDqi7UK5ta0WjO6Y4ImTuVEDBowbNJCL3NDj3wjCwLKpCdpfgnzEBDdhkDLN5mjpr/aXh0CyOQbtoJfgPFUWZbyMPuIyCANO0jpDljghzo8zCdpWZ7gp1MdMECFTlKQImEAm+e8Zwi0uocbg+rp3AilqEGrKYybAZOM5tyEcRoetN5BqLi0bC4TO8LjXo9PULCYM6/645uwWDTDQaDXHBAgZNNbJcwMGOWqgJOAd6iVc9odXTgYur6+gdtRswohX6LvFZVTQM3q3Pcal4+6I9ErCnImJ0nNM6iRGGlPBlv5QS0G8xWWYn1kIKXPnncBYJUtCOdPSuLlK8ymXTJAqp0oa9GBGVd4PHHxM2kB8Hr1b2ySXJUj4ZIIapV3fVGm/ZymYWzRnBpMRCYaJZzhnQfshsMuUzt9Y0q0gDOZcnqGc2lnQPgyDObsv/2q9eXwMS4HJhbeXFKJCKHxXUK5IjAtLl/wnmNz4rdDY9ypZ0vrNnWMlLUpLQyxNBY+duhz8yxAmD9sbq/G/MLZBGKSaDLrlaGjUs3gXgiizOWlXaY2DMKjaXtK2dfI7O6w5yimbkrVX2h22M+bGW3PS4scw9yh6gJOdfFpx5tXR5o599+FkzolMjGT0aZ8UtVESFjNVWjy7Op1G8PhYPcwvBR9uwsByKwiDwiIP/DkQpnjP5ikNrvi2zpJ1YgJyS5FKo9fB46Pf0GuG43yr2aR/9koQiY83UG76LjXaXn+p0aC04UqF75jIkKxxhqMQlBRLr/g05p2I8w6F6ufsM1Z5J+EmqAmZeGRacNSlfVq3Ehsm9mnhL2SLsApuHG+eSZ5Xiru1LYkat7hnKJPcXmTzMervDA8JE3yKqt6w/+rF0asglJkQN2FA/5AD2G008tmrU6GtQLq9YMEM5M6QjsPQOfSGfXAriGWMS9T57HdAO8FEaWAw0YgRmfYCVI2sth8rbFR+ymMXvUAe/7TqTitjpjUnalm8i9Z1mh7D4JbLJ83IyeC3b586F0EYDLrdD91BEAYfzjpX77snQRgc9y+uOr2L7iC4eQwDoVgytMw+yeTu+eXVb0EYnPU7Jw7GZWdw1eucOQjme6svO4OPblXv4tt5/1M3CAMfLtFHl0B1T3JcvCDukjwmRH/iwoynZfJ7rBle9q8cAn1Pf6ySncg/5TK2bfGExVxwu4wEW6rMQkHJsUpw2/45HPOtK0bwrCD/cUuOH8MgyQPep4j73Old9S5+8ay+HPR/GXSHQ0ftRXePhpQ+IenYXaBJqpkl+8osRpbPcUsgN9nxuVCujXyE9KvwD6sEIFekxYwLFxPnAXWZuRSa5OOx3dpEm5WpSMXPJe+Xf8rb/pgxOVWLqp9by7d2JVu5e97tnaG2P30Kq7nTdxj2A17+aarIK6o/7+ppcya+7zvkHvO/Sz6/Z2AunHgHvYurzjGd5ftB/2OXrF/n8vKs5+zMp+6g98F/nveG552r49PtmMoDaEPqHbsTvUyOtbpFGTomL9HCHWo+odyhtqCMAu+5sZQpToRaGEi1SrIYKcL3m7fLxNO5FHK39GkrcTxJBIUvDSjQbEM8QycW+cQps+gzVON/wPsUY/JTucchXPH3jIkGFARWgMikEunXhshE9z5GR7fL+BKnnNp91hvgGdiGicoo+3AMaACxuQ2STp4J77cEM+ZJ7xyEARmg0x9UKRI+crmHr18ftsCBL6MkZKIUfZQglUSHdYKxYF7yN+xsLmOFBK3Fm0wQATMlnnaknfPOL05qht3O2bdSsC76V98+9K8vaOTX685Zz7nHYff4euA+95laZqQPbKpcY1ozlyZbnO/gJlGlMjums/ghjX4MgztuuN0VfO3CKU0Vl3aO8odXaM3v/oDDIO+FKdP2P3AyxIQU5bm62xlU7uIBarMeTJCLmDqBmHPJ53TEh5syU01G8wh2LV4NC++9CpwK+cpN39opV5m1QqkiiUVxzyctR7vylPOibAD/HPYvXGJObhEyeSvVQsKEo3Au5+L6DMZLi/Q958aQVaKClC9CbGYNLk1kshwuEv/fM3K0ZW2nEezNF1KtxgLn//WH8wY3+oQYZJqT0OQ82pVbWGYzs/NoSyBc2hctL3uWcbETDplTJuNdm2zKBY0WKJUIlMAroLbcyuDDMbx+03wNOb/I1mekbkBFlEpwI5WMWvf3ZVGnEazk5NKvrWTGvqRQyEZRunApaIWcmbWpaR8coNZKmwZVV6M5k2yKhEFjwTTOVGYwMktD9qeR4N1BCTXK88+IhK6CzUokiwQ1n1AczFGzuWJ8UJ1UxCte6JxET1xExA2U1e8qP9vBgS2KjnQqlVrUR1wOyjN6Jtr3lfcq1G8oEvjKga8xl5N3c8Kgqydv6iKU1dE9ZBfm4Wh3GYMliUZj3HkYlekYV7VwF6D81OK/sxbnB32h7Afy8s8my8W1gFQ2crFcsOV4nIgUYyuZParIrN0xc692usjj2QlxUHeS8YlGfoCIu615VRLcqCeAbk6eHX8CuhN9imd+APv55rQq8jTocSdkjinmf3YC3CyXTuwk4ze6tHPDP0DMcvfkKkmr7TxhFIk9O00EdCc1Q7qH/D4dZnNalQIa9LhLdSwYn1NsSqf9bOhLFcUFYHffV6HgQvn7wQXj1uSFyJkyVpTp0DY5UkEJD3J4W2J24KZUPdLb3R6pcPmxkhPBY2sqJWyKlou0zglDjS414zhLKTVOBYsxXLvndH/ll6Owuhx1N9buKsrs8Kk/Xd7f2eUVFdJ+fuzPphYF4KgQqKrPm2FZmi0v6akGYFaF+jX9eFvRj3IhBaor2Hs9ISWDx1TBuFLqTC2ez2whE5ErjURWqUioxQaFNCGvnXADYxR5nTJPesuCCre4l9h1GFYpEGrRXnVp5BJm8jmnrsRUlGloif+9t9/PrmKevMvgL4l68iLlBocqFdtK6XQvM3ZPb+cfazXg2qrcu9FNUy+K1at2FdelYvbI0IHVInozeY2vkpdxdDR+waKj1tvD6E3z9WH0avISj5IXcWt8yA4IYEQAoxxghb1Dy4X4qxhsCPj3Weym/REmry1ol4Xm8RKqVXoqjTpefj49jE6arb1R0WbCSMbrL0wXHfj9ySKVLAvT48zoVidG7jr3c2qWt3AwU4WQ9xitVj+dSrZa2467k99gO7daVP51JhAmtDyBWlFzKo0hhRarAmJYVpPyK83VD9WbVqUrRiqETOJ9Kuh2NYEEqZruYIewak2q//Tmf2dvnovFWeUC91m0K4cblTfDK0yuNySxqi6t1h6/TeabSWCx5XcIRii74Q33V528GF+vdS48jwXxkCNSkKi8sqja0qrqUC+jX7CX4B0a14avwfHw1+sXzZdHL940vwYwYybPwRI+5Raa79avlapj3MCL/Y48325YhDvPzphVwPNkoPOjbFmtIq7879egEAy6UFIT6IUwJAt1uo9kb0Bf7irVX8uSgWQxM42erR4JkKRgIJDdGn9fLZkwPy3b39myFcf0jFLtAUZuVTVQyAfAoCYxKcaLo3i5Vkh29z+lsLm5LivR+qmsJJfdsqEuVS5ScA2X1djzobwGezwweW+ecRdchJpv9820yHnQPnBZl6AKQ/tN801zq1WdHIOABO9QqJSYE1D/514IzeYBS/nBBkP3QKX7OIhFZqzrcNYqm87goyIRuwkDUp3Bqruzu6OrsNoGstZSWBXjiXIHX613nZeYQeeyV7neaweHjWajmes1i51e582uGzTBnHIF11hG/F1xhORqyu0sGzdiNT/o/fqpv8UPapniMUqDlQ2uL856x92LYffEq+ZmYebz+TCy1FqoFtK3Gzrd8N3u6WxpqK1aLKkF2mV6KrOGJz7LmaiM2niEMEUDT/MwzHvZmq16G7yNLE+h7FyoEcNcqbYeVvMlU25D+ePCvQRAFs/IJNfyCnW+wsXzRRHLuPluN0I7oStWbVx3t9+LKm31EFalRuN/d9XRepmtppTFlK8OKNLN5126Bwj1BvSc+3MRgr9XURNIFihE/u7AVQKYjJcOpgNjdRbf5o0glt9xu6T+MGsaX+VXuXo+UFBOHaF0S8Ni69iOvgLWdp8OoEmVDd2ftKW7t3W+qiiPUTc5zXHBuEcrL2pYmCvjPVvRogPnjpFMI6SZED6vKtlac/W9SOK9LRIT91qhHubOK83MjN5QdFZBv8lZEQtlMo0mLGMyf0yd4QXkDs5ArOYIE63mJHbSRhNM3HQBsUo5rgSLGp3cpWDnspfvHTvJY2D4WNCxO6D3tgHdOwfb0zQWnFCkbptjobIkH1QSRqVF3rLVDhkzcviOGkwysbQ8NqNSlJmvO1Lk6DqjXEfGPdQMIoxYys0BM0sZs5Q3lmwuRnV32lRJ9nitbujGS3fu1BroG3OUyuWZztDQuJ0h1082FUJtKtTYKap/IFFvQNe5IbfbXo+Yl2FH5MHgv+FPebB/GJFN/2fk1ZK+YYzFa5pbHLNxFNP7ljywThSZuNxDkY2C2qir9dlG/W9EejDaKt6N6g24cmbBBWnAMjtDafMACagzW0NtIhAtNQJxsr/QarZeRc230eGhb68lLzdnsmIkfUXEKYtrkCrLN8Pqi6v6psd5WAVqP19f/Xx99X/4+soHnGTtDlylxLXJaxeV+uCt7FyiMKK91sVUxm831PBmLE1+eBgzg9daPD7Sz67nJ2h/uQmDO6a576P68hAk3NB3ErQnTJjNdr2qOtSKRow6bL/M2Yl+0f0mqW8kD60D6q/C5dqjoEdq0877I/40Tj+flf0/e1a2U2S8aGw/MCylh7IKP+nYS0F05dPKYsbWc5fVik5MHbFPzr2ppE50hEEYjPO+q7l7RxBoRrcx9H8ny76R2iWS7reHQDA5zdiU5nqY9N+/AeWsvx0=
+sidebar_class_name: "post api-method"
+info_path: docs/api-reference/rest/yard-management-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Secure a docked trailer (SecureTrailer)"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/trailers/{trailerId}/securings"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Records that the DOCKED trailer is secured, by a vehicle restraint (`RESTRAINT`) or wheel chocks (`WHEEL_CHOCKS`): the dock safety interlock of OSHA 29 CFR 1910.178(k)(1) and ANSI MH30.3 (ADR 0013). Where the site yard policy sets `requireSecuringBeforeDoorWork`, door work does not start until this is recorded. Securing the same way again changes nothing and answers 200. A trailer that is not DOCKED, or is already secured another way (release it first), is 409 `illegal-transition`; a trailer with an open move is 409 `trailer-has-open-move`; a method other than the two is 422 `validation`. Raises TrailerSecured.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./secure-trailer.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./secure-trailer.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./secure-trailer.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

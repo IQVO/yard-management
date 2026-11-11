@@ -76,6 +76,8 @@ Errors are `application/problem+json`; the slug is the last segment of `type`
 | 404 `no-claimable-move` | `POST /moves/claims` found no `REQUESTED` hostler move at the site | expected when idle |
 | a `CLAIMED` move is not released after the lease | the lease sweep did not run (the CronJob is the only scheduler) | `kubectl get cronjob`; run `POST /move-lease-sweeps` by hand; the default lease is 300 s |
 | no `TrailerDwellExceeded` events | the dwell sweep did not run, or the site's policy has no `dwellThresholdMinutes` for that trailer kind | the CronJob, `GET /sites/{siteId}/yard-policy` |
+| 409 `trailer-not-secured` | door work started on a trailer that is not secured and the site yard policy has `requireSecuringBeforeDoorWork` true (ADR 0013) | record the securing (`POST /trailers/{trailerId}/securings`, a restraint or wheel chocks), or turn the policy off |
+| 409 `trailer-still-secured` | a move off the door, or the check-out, of a trailer whose restraint or chocks were recorded and not released | `POST /trailers/{trailerId}/securing-releases` once the restraint is off, then retry |
 | 409 `seal-class-too-low` | the site yard policy has `minimumSealClass` and the seal at check-in or record-seal is of a lower class or has none | send a `sealClass` at or above the minimum, or change the policy |
 | 422 `invalid-unit-number` | a `CONTAINER` (or a unit declared `unitNumberScheme: ISO6346`) whose number is not a valid ISO 6346 number; the detail names the expected check digit | correct the number, or the kind if it is not a container |
 | 422 `invalid-seal-class` | a seal class (or the policy's `minimumSealClass`) that is not `I`, `S` or `H` | use one of the three |

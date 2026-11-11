@@ -54,6 +54,8 @@ func NewRouter(s *Server) http.Handler {
 	keyed.Post("/trailers/{trailerId}/holds", s.handlePlaceHold)
 	keyed.Post("/trailers/{trailerId}/hold-releases", s.handleReleaseHold)
 	keyed.Post("/trailers/{trailerId}/seals", s.handleRecordSeal)
+	keyed.Post("/trailers/{trailerId}/securings", s.handleSecureTrailer)
+	keyed.Post("/trailers/{trailerId}/securing-releases", s.handleReleaseTrailerSecuring)
 
 	keyed.Post("/moves", s.handleRequestMove)
 	r.Get("/moves", s.handleListMoves)

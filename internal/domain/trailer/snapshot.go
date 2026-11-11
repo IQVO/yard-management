@@ -9,19 +9,24 @@ import (
 // Snapshot is the persisted form of a Trailer: scalars only. Restore
 // validates it.
 type Snapshot struct {
-	ID             string
-	SiteID         string
-	SCAC           string
-	Number         string
-	Kind           shared.TrailerKind
-	LoadState      shared.LoadState
-	ASNNumbers     []string
-	OutboundRef    string
-	Purpose        shared.Purpose
-	SealNumber     string
-	SealState      SealState
-	SealClass      shared.SealClass
-	UnitScheme     shared.UnitScheme
+	ID          string
+	SiteID      string
+	SCAC        string
+	Number      string
+	Kind        shared.TrailerKind
+	LoadState   shared.LoadState
+	ASNNumbers  []string
+	OutboundRef string
+	Purpose     shared.Purpose
+	SealNumber  string
+	SealState   SealState
+	SealClass   shared.SealClass
+	UnitScheme  shared.UnitScheme
+	// SecuredBy, SecuredAt and SecurerRef are the dock safety interlock (ADR 0013):
+	// all empty while the trailer is not secured.
+	SecuredBy      SecuringMethod
+	SecuredAt      time.Time
+	SecurerRef     string
 	Hold           HoldReason
 	State          State
 	Location       shared.Location
@@ -42,7 +47,7 @@ func (t *Trailer) Snapshot() Snapshot {
 	return Snapshot{
 		ID: t.id, SiteID: t.site, SCAC: t.scac, Number: t.number, Kind: t.kind, LoadState: t.load,
 		ASNNumbers: shared.Strings(t.asn), OutboundRef: t.outboundRef, Purpose: t.purpose,
-		SealNumber: t.sealNumber, SealState: t.sealState, SealClass: t.sealClass, UnitScheme: t.unitScheme, Hold: t.hold, State: t.state, Location: t.loc,
+		SealNumber: t.sealNumber, SealState: t.sealState, SealClass: t.sealClass, UnitScheme: t.unitScheme, SecuredBy: t.securedBy, SecuredAt: t.securedAt, SecurerRef: t.securerRef, Hold: t.hold, State: t.state, Location: t.loc,
 		DoorWork: t.work, Origin: t.origin, OriginWork: t.originWork, VisitID: t.visitID, AppointmentID: t.appointmentID,
 		ArrivedAt: t.arrivedAt, DepartedAt: t.departedAt, DwellAlertedAt: t.dwellAlertedAt, Version: t.version,
 	}
@@ -60,6 +65,9 @@ func Restore(s Snapshot) (*Trailer, error) {
 	if err := validateSeal(s); err != nil {
 		return nil, err
 	}
+	if err := validateSecuring(s); err != nil {
+		return nil, err
+	}
 	if s.Hold != "" && !s.Hold.Valid() {
 		return nil, shared.Invalid("hold reason %q is not valid", s.Hold)
 	}
@@ -69,7 +77,7 @@ func Restore(s Snapshot) (*Trailer, error) {
 	return &Trailer{
 		id: s.ID, site: s.SiteID, scac: s.SCAC, number: s.Number, kind: s.Kind, load: s.LoadState,
 		asn: shared.Strings(s.ASNNumbers), outboundRef: s.OutboundRef, purpose: s.Purpose,
-		sealNumber: s.SealNumber, sealState: s.SealState, sealClass: s.SealClass, unitScheme: s.UnitScheme, hold: s.Hold, state: s.State, loc: s.Location,
+		sealNumber: s.SealNumber, sealState: s.SealState, sealClass: s.SealClass, unitScheme: s.UnitScheme, securedBy: s.SecuredBy, securedAt: s.SecuredAt.UTC(), securerRef: s.SecurerRef, hold: s.Hold, state: s.State, loc: s.Location,
 		work: s.DoorWork, origin: s.Origin, originWork: s.OriginWork, visitID: s.VisitID, appointmentID: s.AppointmentID,
 		arrivedAt: s.ArrivedAt.UTC(), departedAt: s.DepartedAt.UTC(), dwellAlertedAt: s.DwellAlertedAt.UTC(), version: s.Version,
 	}, nil
@@ -146,3 +154,19 @@ func validateOrigin(s Snapshot) error {
 }
 
 func (w DoorWork) valid() bool { return w == WorkWaiting || w == WorkInProgress || w == WorkDone }
+
+// validateSecuring checks the securing of a snapshot: a known method, an
+// instant exactly when there is a method, a performer only with a method, and
+// only a DOCKED trailer is secured. Rows written before ADR 0013 carry none.
+func validateSecuring(s Snapshot) error {
+	if s.SecuredBy == "" {
+		if !s.SecuredAt.IsZero() || s.SecurerRef != "" {
+			return shared.Invalid("a securing instant or performer needs a securing method")
+		}
+		return nil
+	}
+	if !s.SecuredBy.Valid() || s.SecuredAt.IsZero() || s.State != Docked {
+		return shared.Invalid("securing %q needs a known method, an instant and a DOCKED trailer", s.SecuredBy)
+	}
+	return nil
+}

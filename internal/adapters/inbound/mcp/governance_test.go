@@ -24,12 +24,12 @@ var wantTools = map[string]string{
 	"get_yard_board": "L1", "list_trailers": "L1", "get_trailer": "L1", "list_moves": "L1",
 	"list_visits": "L1", "get_visit": "L1", "get_yard_policy": "L1", "get_yard_dwell_report": "L1",
 	"request_move": "L3", "cancel_move": "L3", "place_hold": "L3", "release_hold": "L3",
-	"record_seal": "L3", "open_yard_check": "L3",
+	"record_seal": "L3", "open_yard_check": "L3", "secure_trailer": "L3", "release_securing": "L3",
 }
 
 // maxTools is the tool budget. Raising it is a deliberate, reviewed act (an
 // ADR 0007 amendment): TestToolSurface still pins the exact curated set.
-const maxTools = 14
+const maxTools = 16
 
 // floorClientPhrases are the actions of the gate clerk, the hostler and the
 // dock operator. They are floor-client actions on REST and must never be tools

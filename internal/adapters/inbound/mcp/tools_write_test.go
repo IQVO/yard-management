@@ -2,6 +2,9 @@ package mcp_test
 
 import (
 	"testing"
+
+	"github.com/claudioed/yard-management/internal/application/usecases"
+	"github.com/claudioed/yard-management/internal/domain/shared"
 )
 
 func door(code string) map[string]any { return map[string]any{"kind": "DOOR", "code": code} }
@@ -101,6 +104,46 @@ func TestRecordSeal(t *testing.T) {
 	}
 	wantError(t, r.write("record_seal", map[string]any{"trailerId": trailerID, "state": "LOOSE"}), "validation")
 	wantError(t, r.write("record_seal", map[string]any{"trailerId": trailerID, "state": "INTACT"}), "validation")
+}
+
+func TestSecureAndReleaseSecuring(t *testing.T) {
+	r := newRig(t)
+	r.seedSite()
+	trailerID := r.parkedTrailer("PLATE1", "T-100")
+	wantError(t, r.write("secure_trailer", map[string]any{"trailerId": trailerID, "method": "RESTRAINT"}), "illegal-transition")
+
+	y, ctx := r.env.Yard, r.env.Ctx
+	if _, err := y.RequestMove(ctx, usecases.RequestMoveInput{TrailerID: trailerID, To: shared.Location{Kind: shared.Door, Code: "WH1-D02"}}); err != nil {
+		t.Fatal(err)
+	}
+	mv, err := y.ClaimNextMove(ctx, "WH1", "h1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := y.CompleteMove(ctx, usecases.CompleteMoveInput{MoveID: mv.MoveID, HostlerRef: "h1", Actual: mv.To}); err != nil {
+		t.Fatal(err)
+	}
+
+	got := r.ok("secure_trailer", map[string]any{"idempotencyKey": "k1", "trailerId": trailerID, "method": "WHEEL_CHOCKS", "securerRef": "op-3", "agentId": "agent-9"}).Data
+	if got["securedBy"] != "WHEEL_CHOCKS" || got["securerRef"] != "op-3" || got["securedAt"] == nil {
+		t.Fatalf("secure_trailer = %v", got)
+	}
+	wantError(t, r.write("secure_trailer", map[string]any{"trailerId": trailerID, "method": "RESTRAINT"}), "illegal-transition")
+	wantError(t, r.write("secure_trailer", map[string]any{"trailerId": trailerID, "method": "LOCKS"}), "validation")
+	wantError(t, r.write("secure_trailer", map[string]any{"trailerId": "trl-nope", "method": "RESTRAINT"}), "trailer-not-found")
+	wantError(t, r.write("request_move", map[string]any{"trailerId": trailerID, "to": map[string]any{"kind": "SPOT", "code": "WH1-Y02"}}), "trailer-still-secured")
+
+	released := r.ok("release_securing", map[string]any{"idempotencyKey": "k2", "trailerId": trailerID}).Data
+	if released["securedBy"] != nil || released["securedAt"] != nil {
+		t.Fatalf("release_securing = %v", released)
+	}
+	wantError(t, r.write("release_securing", map[string]any{"trailerId": trailerID}), "trailer-not-secured")
+	if events := r.eventData("TrailerSecured"); len(events) != 1 || events[0]["initiated_by"] == nil || events[0]["method"] != "WHEEL_CHOCKS" {
+		t.Errorf("TrailerSecured events %v: want one, attributed by the MCP write", events)
+	}
+	if events := r.eventData("TrailerSecuringReleased"); len(events) != 1 {
+		t.Errorf("TrailerSecuringReleased events %v: want one", events)
+	}
 }
 
 func TestOpenYardCheck(t *testing.T) {

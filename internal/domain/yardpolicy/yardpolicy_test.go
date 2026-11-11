@@ -209,3 +209,25 @@ func TestMinimumSealClass(t *testing.T) {
 		t.Errorf("unknown class: %v", err)
 	}
 }
+
+func TestRequireSecuringBeforeDoorWork(t *testing.T) {
+	p, _ := yardpolicy.Default("WH1")
+	if p.RequireSecuringBeforeDoorWork() {
+		t.Fatal("the default policy has the interlock off: door work starts as it always did")
+	}
+	in := declareInput()
+	in.RequireSecuringBeforeDoorWork = true
+	if err := p.Declare(in, known("H1", "H2")); err != nil {
+		t.Fatal(err)
+	}
+	if !p.RequireSecuringBeforeDoorWork() || !p.Snapshot().RequireSecuring {
+		t.Fatalf("declared %+v", p.Snapshot())
+	}
+	restored, err := yardpolicy.Restore(p.Snapshot())
+	if err != nil || !restored.RequireSecuringBeforeDoorWork() {
+		t.Fatalf("round trip: %v", err)
+	}
+	if err := p.Declare(declareInput(), known("H1", "H2")); err != nil || p.RequireSecuringBeforeDoorWork() {
+		t.Fatalf("a replacement without the field turns the interlock off: %v", err)
+	}
+}

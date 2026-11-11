@@ -142,6 +142,11 @@ const sidebars: SidebarsConfig = {
           label: '0012 Standard identifiers at the gate: ISO 6346, ISO 17712, seal state',
           href: '/docs/adr/0012-standard-identifiers-at-the-gate',
         },
+        {
+          type: 'link',
+          label: '0013 Dock safety interlock: secured before door work, released before leaving',
+          href: '/docs/adr/0013-dock-safety-interlock',
+        },
       ],
     },
   ],

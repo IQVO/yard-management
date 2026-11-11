@@ -81,6 +81,9 @@ type Trailer struct {
 	sealState      SealState
 	sealClass      shared.SealClass
 	unitScheme     shared.UnitScheme
+	securedBy      SecuringMethod
+	securedAt      time.Time
+	securerRef     string
 	hold           HoldReason
 	state          State
 	loc            shared.Location

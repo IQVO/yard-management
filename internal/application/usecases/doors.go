@@ -3,6 +3,7 @@ package usecases
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/claudioed/yard-management/internal/application/ports"
@@ -117,9 +118,43 @@ func (y *Yard) newMove(ctx context.Context, tr *trailer.Trailer, to shared.Locat
 	return mv, y.publish(ctx, mv.PullEvents())
 }
 
-// StartDoorWork begins door work on a DOCKED trailer.
+// StartDoorWork begins door work on a DOCKED trailer. When the site's policy
+// requireSecuringBeforeDoorWork is on, an unsecured trailer is refused
+// (ErrTrailerNotSecured, ADR 0013); with it off the behaviour is unchanged.
 func (y *Yard) StartDoorWork(ctx context.Context, trailerID string) (views.Trailer, error) {
-	return y.mutateTrailer(ctx, trailerID, func(tr *trailer.Trailer) error { return tr.StartDoorWork(y.now()) })
+	return y.mutateTrailerWith(ctx, trailerID, func(ctx context.Context, tr *trailer.Trailer) error {
+		pol, err := y.policyOf(ctx, tr.SiteID())
+		if err != nil {
+			return err
+		}
+		return tr.StartDoorWorkWith(trailer.DoorWorkRule{RequireSecured: pol.RequireSecuringBeforeDoorWork()}, y.now())
+	})
+}
+
+// SecureTrailer records that a DOCKED trailer is secured by a vehicle
+// restraint or wheel chocks (ADR 0013). The same method again changes nothing;
+// a trailer with an open move cannot be secured (the move would take it off the
+// door).
+func (y *Yard) SecureTrailer(ctx context.Context, trailerID, method, performerRef string) (views.Trailer, error) {
+	return y.mutateTrailerWith(ctx, trailerID, func(ctx context.Context, tr *trailer.Trailer) error {
+		if open, err := y.openMoveID(ctx, tr.ID()); err != nil {
+			return err
+		} else if open != "" {
+			return fmt.Errorf("%w: %s must end before the trailer is secured", yardmove.ErrTrailerHasOpenMove, open)
+		}
+		changed, err := tr.Secure(trailer.Securing{Method: trailer.SecuringMethod(method), PerformerRef: performerRef}, y.now())
+		if err == nil && !changed {
+			return errUnchanged
+		}
+		return err
+	})
+}
+
+// ReleaseTrailerSecuring ends the securing (ADR 0013); it is required before a
+// trailer leaves its door. A DROP trailer whose door work is done then gets its
+// FROM_DOOR move, which ClearDoorAfterWork withheld while it was secured.
+func (y *Yard) ReleaseTrailerSecuring(ctx context.Context, trailerID string) (views.Trailer, error) {
+	return y.mutateTrailerThen(ctx, trailerID, func(tr *trailer.Trailer) error { return tr.ReleaseSecuring(y.now()) }, y.clearDoorAfterWork)
 }
 
 // CompleteDoorWork ends door work, recording the resulting load state (empty
@@ -134,10 +169,11 @@ func (y *Yard) CompleteDoorWork(ctx context.Context, trailerID string, load shar
 
 // clearDoorAfterWork is policy ClearDoorAfterWork: a DROP trailer whose door
 // work is done gets a HOSTLER move FROM_DOOR to a free spot. With no free spot
-// the policy stands down (the supervisor requests the move later).
+// the policy stands down (the supervisor requests the move later), and so it
+// does while the trailer is still secured (ADR 0013).
 func (y *Yard) clearDoorAfterWork(ctx context.Context, tr *trailer.Trailer) error {
-	if tr.Purpose() != shared.PurposeDrop || tr.State() != trailer.Docked || tr.DoorWork() != trailer.WorkDone {
-		return nil
+	if tr.Purpose() != shared.PurposeDrop || tr.State() != trailer.Docked || tr.DoorWork() != trailer.WorkDone || tr.Secured() {
+		return nil // a secured trailer is not moved off its door: ReleaseTrailerSecuring asks again
 	}
 	if open, err := y.openMoveID(ctx, tr.ID()); err != nil || open != "" {
 		return err
@@ -194,6 +230,10 @@ func (y *Yard) RecordSeal(ctx context.Context, trailerID, state, number, class s
 	})
 }
 
+// errUnchanged is what a command returns when it is a legitimate no-op (an
+// idempotent repeat): nothing is saved or published and the view is answered.
+var errUnchanged = errors.New("usecases: command changed nothing")
+
 // mutateTrailer loads a trailer, applies one command, saves it and answers
 // its view; the follow-up policies of door work run in the same unit of work.
 func (y *Yard) mutateTrailer(ctx context.Context, id string, fn func(*trailer.Trailer) error) (views.Trailer, error) {
@@ -217,11 +257,16 @@ func (y *Yard) mutateTrailerWithThen(ctx context.Context, id string, fn func(con
 		if err != nil {
 			return err
 		}
-		if err := fn(ctx, tr); err != nil {
+		unchanged := false
+		if err := fn(ctx, tr); errors.Is(err, errUnchanged) {
+			unchanged = true
+		} else if err != nil {
 			return err
 		}
-		if err := y.saveTrailer(ctx, tr); err != nil {
-			return err
+		if !unchanged {
+			if err := y.saveTrailer(ctx, tr); err != nil {
+				return err
+			}
 		}
 		if after != nil {
 			if err := after(ctx, tr); err != nil {

@@ -24,3 +24,4 @@ the authority.
 | [0010](./0010-door-work-and-departure-on-the-integration-topic.md) | DoorWorkCompleted and TrailerDeparted on the integration topic | Accepted (2026-11-09); refines 0004 and 0005 |
 | [0011](./0011-kpi-standard-reports.md) | Yard KPI standard v1: turn time, detention exposure and exception rates | Accepted (2026-11-09); refines 0006 |
 | [0012](./0012-standard-identifiers-at-the-gate.md) | Standard identifiers at the gate: ISO 6346 unit numbers, ISO 17712 seal class and a seal state vocabulary | Accepted (2026-11-10); refines 0002 and 0004 |
+| [0013](./0013-dock-safety-interlock.md) | Dock safety interlock: a trailer is secured before door work starts and released before it leaves its door | Accepted (2026-11-10); refines 0002, 0004 and 0007 |

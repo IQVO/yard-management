@@ -329,6 +329,24 @@
           ],
           "type": "object"
         },
+        "securedAt": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "securedBy": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "securerRef": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
         "siteId": {
           "type": "string"
         },
@@ -368,6 +386,9 @@
         "state",
         "location",
         "doorWork",
+        "securedAt",
+        "securedBy",
+        "securerRef",
         "seal",
         "hold",
         "asnNumbers",
@@ -659,6 +680,24 @@
                     ],
                     "type": "object"
                   },
+                  "securedAt": {
+                    "type": [
+                      "null",
+                      "string"
+                    ]
+                  },
+                  "securedBy": {
+                    "type": [
+                      "null",
+                      "string"
+                    ]
+                  },
+                  "securerRef": {
+                    "type": [
+                      "null",
+                      "string"
+                    ]
+                  },
                   "siteId": {
                     "type": "string"
                   },
@@ -698,6 +737,9 @@
                   "state",
                   "location",
                   "doorWork",
+                  "securedAt",
+                  "securedBy",
+                  "securerRef",
                   "seal",
                   "hold",
                   "asnNumbers",
@@ -838,6 +880,24 @@
                 ],
                 "type": "object"
               },
+              "securedAt": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "securedBy": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "securerRef": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
               "siteId": {
                 "type": "string"
               },
@@ -877,6 +937,9 @@
               "state",
               "location",
               "doorWork",
+              "securedAt",
+              "securedBy",
+              "securerRef",
               "seal",
               "hold",
               "asnNumbers",
@@ -1182,6 +1245,24 @@
                     ],
                     "type": "object"
                   },
+                  "securedAt": {
+                    "type": [
+                      "null",
+                      "string"
+                    ]
+                  },
+                  "securedBy": {
+                    "type": [
+                      "null",
+                      "string"
+                    ]
+                  },
+                  "securerRef": {
+                    "type": [
+                      "null",
+                      "string"
+                    ]
+                  },
                   "siteId": {
                     "type": "string"
                   },
@@ -1221,6 +1302,9 @@
                   "state",
                   "location",
                   "doorWork",
+                  "securedAt",
+                  "securedBy",
+                  "securerRef",
                   "seal",
                   "hold",
                   "asnNumbers",
@@ -1459,6 +1543,9 @@
         "requireAppointment": {
           "type": "boolean"
         },
+        "requireSecuringBeforeDoorWork": {
+          "type": "boolean"
+        },
         "sealMismatchAction": {
           "type": "string"
         },
@@ -1479,6 +1566,7 @@
         "sealMismatchAction",
         "freeTimeMinutes",
         "minimumSealClass",
+        "requireSecuringBeforeDoorWork",
         "version",
         "declared"
       ],
@@ -1857,6 +1945,24 @@
                 ],
                 "type": "object"
               },
+              "securedAt": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "securedBy": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "securerRef": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
               "siteId": {
                 "type": "string"
               },
@@ -1896,6 +2002,9 @@
               "state",
               "location",
               "doorWork",
+              "securedAt",
+              "securedBy",
+              "securerRef",
               "seal",
               "hold",
               "asnNumbers",
@@ -2371,6 +2480,24 @@
           ],
           "type": "object"
         },
+        "securedAt": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "securedBy": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "securerRef": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
         "siteId": {
           "type": "string"
         },
@@ -2410,6 +2537,9 @@
         "state",
         "location",
         "doorWork",
+        "securedAt",
+        "securedBy",
+        "securerRef",
         "seal",
         "hold",
         "asnNumbers",
@@ -2587,6 +2717,24 @@
           ],
           "type": "object"
         },
+        "securedAt": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "securedBy": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "securerRef": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
         "siteId": {
           "type": "string"
         },
@@ -2626,6 +2774,9 @@
         "state",
         "location",
         "doorWork",
+        "securedAt",
+        "securedBy",
+        "securerRef",
         "seal",
         "hold",
         "asnNumbers",
@@ -2790,6 +2941,24 @@
           ],
           "type": "object"
         },
+        "securedAt": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "securedBy": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "securerRef": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
         "siteId": {
           "type": "string"
         },
@@ -2829,6 +2998,233 @@
         "state",
         "location",
         "doorWork",
+        "securedAt",
+        "securedBy",
+        "securerRef",
+        "seal",
+        "hold",
+        "asnNumbers",
+        "outboundRef",
+        "visitId",
+        "appointmentId",
+        "arrivedAt",
+        "departedAt",
+        "openMoveId",
+        "version"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "_meta": {
+      "com.warehouse/authority": "L3"
+    },
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "description": "Record that the restraint of a docked trailer was released or its chocks removed. Required before the trailer is moved away from its door or leaves the site; refused while door work is in progress. Changes state (L3): call it only when a human approved, and pass proposalId, approvedBy and agentId. idempotencyKey is required. Fails with trailer-not-found, trailer-not-secured or door-work-open.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "agentId": {
+          "description": "optional id of the calling agent, recorded on the events it raises for attribution (max 128 characters)",
+          "type": "string"
+        },
+        "approvedBy": {
+          "description": "optional id of the human who approved the proposal, recorded on the events it raises for attribution (max 128 characters)",
+          "type": "string"
+        },
+        "idempotencyKey": {
+          "description": "required, 1 to 128 printable ASCII characters, unique per logical request. A retry with the same key and the same arguments returns the first answer; the same key with other arguments is refused with idempotency-key-reused",
+          "type": "string"
+        },
+        "proposalId": {
+          "description": "optional id of the proposal this call executes, recorded on the events it raises for attribution (max 128 characters)",
+          "type": "string"
+        },
+        "trailerId": {
+          "description": "the secured trailer whose restraint is released or chocks removed",
+          "type": "string"
+        }
+      },
+      "required": [
+        "idempotencyKey",
+        "trailerId"
+      ],
+      "type": "object"
+    },
+    "name": "release_securing",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "appointmentId": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "arrivedAt": {
+          "type": "string"
+        },
+        "asnNumbers": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        },
+        "carrierScac": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "departedAt": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "doorWork": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "hold": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "kind": {
+          "type": "string"
+        },
+        "loadState": {
+          "type": "string"
+        },
+        "location": {
+          "additionalProperties": false,
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "code"
+          ],
+          "type": [
+            "null",
+            "object"
+          ]
+        },
+        "openMoveId": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "outboundRef": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "seal": {
+          "additionalProperties": false,
+          "properties": {
+            "class": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "number": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "state": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "number",
+            "state",
+            "class"
+          ],
+          "type": "object"
+        },
+        "securedAt": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "securedBy": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "securerRef": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "siteId": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "trailerId": {
+          "type": "string"
+        },
+        "unitNumber": {
+          "type": "string"
+        },
+        "unitNumberScheme": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "version": {
+          "type": "integer"
+        },
+        "visitId": {
+          "type": [
+            "null",
+            "string"
+          ]
+        }
+      },
+      "required": [
+        "trailerId",
+        "siteId",
+        "unitNumber",
+        "unitNumberScheme",
+        "carrierScac",
+        "kind",
+        "loadState",
+        "state",
+        "location",
+        "doorWork",
+        "securedAt",
+        "securedBy",
+        "securerRef",
         "seal",
         "hold",
         "asnNumbers",
@@ -3064,6 +3460,239 @@
         "claimedAt",
         "completedAt",
         "requestedAt",
+        "version"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "_meta": {
+      "com.warehouse/authority": "L3"
+    },
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "description": "Record that a DOCKED trailer is secured, by a vehicle restraint (RESTRAINT) or wheel chocks (WHEEL_CHOCKS): the dock safety interlock (OSHA 29 CFR 1910.178(k)(1), ANSI MH30.3). Where the site's yard policy sets requireSecuringBeforeDoorWork, door work does not start until this is recorded. The same method again changes nothing. Changes state (L3): call it only when a human approved, and pass proposalId, approvedBy and agentId. idempotencyKey is required. Fails with trailer-not-found, illegal-transition (not docked, or already secured another way), trailer-has-open-move or validation.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "agentId": {
+          "description": "optional id of the calling agent, recorded on the events it raises for attribution (max 128 characters)",
+          "type": "string"
+        },
+        "approvedBy": {
+          "description": "optional id of the human who approved the proposal, recorded on the events it raises for attribution (max 128 characters)",
+          "type": "string"
+        },
+        "idempotencyKey": {
+          "description": "required, 1 to 128 printable ASCII characters, unique per logical request. A retry with the same key and the same arguments returns the first answer; the same key with other arguments is refused with idempotency-key-reused",
+          "type": "string"
+        },
+        "method": {
+          "description": "how it is secured: RESTRAINT (vehicle restraint engaged) or WHEEL_CHOCKS (wheels chocked)",
+          "type": "string"
+        },
+        "proposalId": {
+          "description": "optional id of the proposal this call executes, recorded on the events it raises for attribution (max 128 characters)",
+          "type": "string"
+        },
+        "securerRef": {
+          "description": "optional reference of the person who secured the trailer (max 64 characters)",
+          "type": "string"
+        },
+        "trailerId": {
+          "description": "the DOCKED trailer to secure",
+          "type": "string"
+        }
+      },
+      "required": [
+        "idempotencyKey",
+        "trailerId",
+        "method"
+      ],
+      "type": "object"
+    },
+    "name": "secure_trailer",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "appointmentId": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "arrivedAt": {
+          "type": "string"
+        },
+        "asnNumbers": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        },
+        "carrierScac": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "departedAt": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "doorWork": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "hold": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "kind": {
+          "type": "string"
+        },
+        "loadState": {
+          "type": "string"
+        },
+        "location": {
+          "additionalProperties": false,
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "code"
+          ],
+          "type": [
+            "null",
+            "object"
+          ]
+        },
+        "openMoveId": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "outboundRef": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "seal": {
+          "additionalProperties": false,
+          "properties": {
+            "class": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "number": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "state": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "number",
+            "state",
+            "class"
+          ],
+          "type": "object"
+        },
+        "securedAt": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "securedBy": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "securerRef": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "siteId": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "trailerId": {
+          "type": "string"
+        },
+        "unitNumber": {
+          "type": "string"
+        },
+        "unitNumberScheme": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "version": {
+          "type": "integer"
+        },
+        "visitId": {
+          "type": [
+            "null",
+            "string"
+          ]
+        }
+      },
+      "required": [
+        "trailerId",
+        "siteId",
+        "unitNumber",
+        "unitNumberScheme",
+        "carrierScac",
+        "kind",
+        "loadState",
+        "state",
+        "location",
+        "doorWork",
+        "securedAt",
+        "securedBy",
+        "securerRef",
+        "seal",
+        "hold",
+        "asnNumbers",
+        "outboundRef",
+        "visitId",
+        "appointmentId",
+        "arrivedAt",
+        "departedAt",
+        "openMoveId",
         "version"
       ],
       "type": "object"

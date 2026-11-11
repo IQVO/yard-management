@@ -136,6 +136,13 @@ type sealRequest struct {
 	SealClass  string `json:"sealClass"`
 }
 
+// securingRequest is the body of POST /trailers/{trailerId}/securings:
+// Method is RESTRAINT or WHEEL_CHOCKS, SecurerRef optional (ADR 0013).
+type securingRequest struct {
+	Method     string `json:"method"`
+	SecurerRef string `json:"securerRef"`
+}
+
 type openYardCheckRequest struct {
 	SiteID string `json:"siteId"`
 }
@@ -154,6 +161,8 @@ type declarePolicyRequest struct {
 	SealMismatchAction    string           `json:"sealMismatchAction"`
 	FreeTimeMinutes       int              `json:"freeTimeMinutes"`
 	MinimumSealClass      string           `json:"minimumSealClass"`
+	// RequireSecuringBeforeDoorWork is optional and false when left out (ADR 0013).
+	RequireSecuringBeforeDoorWork bool `json:"requireSecuringBeforeDoorWork"`
 }
 
 func (q declarePolicyRequest) input() yardpolicy.DeclareInput {
@@ -165,6 +174,7 @@ func (q declarePolicyRequest) input() yardpolicy.DeclareInput {
 		RequireAppointment: q.RequireAppointment, HoldingSpotCodes: q.HoldingSpotCodes, ParkingZoneIDs: q.ParkingZoneIDs,
 		DwellThresholdMinutes: dwell, LeaseSeconds: q.LeaseSeconds, SealMismatchAction: yardpolicy.SealAction(q.SealMismatchAction),
 		FreeTimeMinutes: q.FreeTimeMinutes, MinimumSealClass: shared.SealClass(q.MinimumSealClass),
+		RequireSecuringBeforeDoorWork: q.RequireSecuringBeforeDoorWork,
 	}
 }
 

@@ -243,7 +243,7 @@ paths:
       description: 'The visit leaves the site with `trailersOut`. Every trailer taken out must be on site and released: no open move and either
         PARKED or DOCKED with door work DONE (`trailer-not-released` 409), and every LOADED trailer of a LIVE_LOAD or PICKUP visit must carry
         a seal (`seal-required` 409). Each trailer departs (TrailerDeparted, and TrailerUndocked when it leaves a door); a trailer the visit brought
-        and does not take stays PARKED (a drop). Only a CHECKED_IN visit checks out (409 `illegal-transition`).'
+        and does not take stays PARKED (a drop). Only a CHECKED_IN visit checks out (409 `illegal-transition`). A DOCKED trailer that is still secured does not depart (409 `trailer-still-secured`, ADR 0013): release the securing first.'
       tags:
       - Visits
       parameters:
@@ -429,6 +429,9 @@ paths:
                   kind: SPOT
                   code: WH1-YARD-P014
                 doorWork: null
+                securedAt: null
+                securedBy: null
+                securerRef: null
                 seal:
                   number: SL-778
                   state: INTACT
@@ -453,7 +456,7 @@ paths:
     post:
       operationId: startDoorWork
       summary: Start door work (StartDoorWork)
-      description: 'Unloading or loading begins on a DOCKED trailer: WAITING to IN_PROGRESS. Refused while the trailer is held (409 `trailer-on-hold`).'
+      description: 'Unloading or loading begins on a DOCKED trailer: WAITING to IN_PROGRESS. Refused while the trailer is held (409 `trailer-on-hold`). Where the site yard policy sets `requireSecuringBeforeDoorWork`, an unsecured trailer is refused with 409 `trailer-not-secured` (ADR 0013); with the policy off (the default) nothing changes.'
       tags:
       - Trailers
       parameters:
@@ -656,13 +659,101 @@ paths:
           $ref: '#/components/responses/Unprocessable'
         '500':
           $ref: '#/components/responses/InternalError'
+  /trailers/{trailerId}/securings:
+    post:
+      operationId: secureTrailer
+      summary: Secure a docked trailer (SecureTrailer)
+      description: 'Records that the DOCKED trailer is secured, by a vehicle restraint (`RESTRAINT`) or wheel chocks (`WHEEL_CHOCKS`): the dock safety
+        interlock of OSHA 29 CFR 1910.178(k)(1) and ANSI MH30.3 (ADR 0013). Where the site yard policy sets `requireSecuringBeforeDoorWork`, door
+        work does not start until this is recorded. Securing the same way again changes nothing and answers 200. A trailer that is not DOCKED, or is
+        already secured another way (release it first), is 409 `illegal-transition`; a trailer with an open move is 409 `trailer-has-open-move`; a
+        method other than the two is 422 `validation`. Raises TrailerSecured.'
+      tags:
+      - Trailers
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - name: trailerId
+        in: path
+        required: true
+        description: The trailer id.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SecuringRequest'
+            example:
+              method: WHEEL_CHOCKS
+              securerRef: dock-op-7
+      responses:
+        '200':
+          description: The trailer.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trailer'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /trailers/{trailerId}/securing-releases:
+    post:
+      operationId: releaseTrailerSecuring
+      summary: Release the securing (ReleaseTrailerSecuring)
+      description: 'Records that the restraint was released or the chocks removed. It is required before a trailer is moved away from its door
+        (`POST /moves` answers 409 `trailer-still-secured`) and before its visit checks out (409 `trailer-still-secured`). A trailer that is not
+        secured is 409 `trailer-not-secured`; the securing stays while door work is IN_PROGRESS (409 `door-work-open`). A DROP trailer whose door
+        work is done then gets its FROM_DOOR move. Raises TrailerSecuringReleased.'
+      tags:
+      - Trailers
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - name: trailerId
+        in: path
+        required: true
+        description: The trailer id.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      responses:
+        '200':
+          description: The trailer.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trailer'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /moves:
     post:
       operationId: requestMove
       summary: Request a move (RequestMove)
       description: 'A supervisor asks for a HOSTLER move of a trailer to a spot or door. The destination is validated now (known active slot of
         the site, closure, door flow, hold) and RESERVED: no two open moves share a destination (409 `destination-reserved`), the destination
-        must be free (409 `location-occupied`), and a trailer has at most one open move (409 `trailer-has-open-move`).'
+        must be free (409 `location-occupied`), and a trailer has at most one open move (409 `trailer-has-open-move`). A trailer that is secured at its door (ADR 0013) is not moved away until the securing is released (409 `trailer-still-secured`).'
       tags:
       - Moves
       parameters:
@@ -1096,6 +1187,7 @@ paths:
                 sealMismatchAction: FLAG
                 freeTimeMinutes: 120
                 minimumSealClass: null
+                requireSecuringBeforeDoorWork: false
                 version: 1
                 declared: true
         '400':
@@ -1152,6 +1244,7 @@ paths:
                 sealMismatchAction: FLAG
                 freeTimeMinutes: 120
                 minimumSealClass: null
+                requireSecuringBeforeDoorWork: false
                 version: 1
                 declared: true
         '400':
@@ -1592,6 +1685,20 @@ components:
                 status: 409
                 detail: 'seal class is too low: the site requires class H and the seal is class I'
                 instance: /visits
+            trailerNotSecured:
+              value:
+                type: https://errors.yard-management.warehouse-systems.dev/trailer-not-secured
+                title: The trailer is not secured
+                status: 409
+                detail: 'trailer is not secured: secure the trailer (restraint or wheel chocks) before door work starts'
+                instance: /trailers/trl-8f7e6d5c-4b3a-4291-8071-6f5e4d3c2b1a/door-work-starts
+            trailerStillSecured:
+              value:
+                type: https://errors.yard-management.warehouse-systems.dev/trailer-still-secured
+                title: The trailer is still secured
+                status: 409
+                detail: 'trailer is still secured: secured by WHEEL_CHOCKS at door WH1-D02'
+                instance: /moves
             idempotencyKeyReused:
               value:
                 type: https://errors.yard-management.warehouse-systems.dev/idempotency-key-reused
@@ -1996,6 +2103,23 @@ components:
           - DONE
           - null
           nullable: true
+        securedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the DOCKED trailer was secured (ADR 0013); null while it is not secured, and for every trailer stored before the interlock.
+        securedBy:
+          type: string
+          enum:
+          - RESTRAINT
+          - WHEEL_CHOCKS
+          - null
+          nullable: true
+          description: How the trailer is secured, a vehicle restraint engaged or the wheels chocked (OSHA 29 CFR 1910.178(k)(1), ANSI MH30.3); null while it is not secured.
+        securerRef:
+          type: string
+          nullable: true
+          description: The optional reference of the person who secured the trailer.
         seal:
           $ref: '#/components/schemas/Seal'
         hold:
@@ -2250,6 +2374,21 @@ components:
           - SECURITY
       required:
       - reason
+    SecuringRequest:
+      type: object
+      properties:
+        method:
+          type: string
+          enum:
+          - RESTRAINT
+          - WHEEL_CHOCKS
+          description: A vehicle restraint engaged, or the wheels chocked.
+        securerRef:
+          type: string
+          maxLength: 64
+          description: Optional reference of the person who secured the trailer.
+      required:
+      - method
     SealRequest:
       type: object
       properties:
@@ -2397,6 +2536,10 @@ components:
           - null
           nullable: true
           description: The lowest ISO 17712 class a seal may have at check-in and record-seal (I below S below H); null = no minimum, today's behaviour.
+        requireSecuringBeforeDoorWork:
+          type: boolean
+          description: When true, door work starts only on a secured trailer (409 `trailer-not-secured` otherwise; ADR 0013). false (the default) is the
+            behaviour before the interlock existed. A regulated site (OSHA 29 CFR 1910.178(k)(1)) sets it true; a later ADR may flip the default.
         version:
           type: integer
           minimum: 1
@@ -2449,6 +2592,10 @@ components:
           - S
           - H
           description: Optional. Seals of a lower class, or with no class, are refused with 409 `seal-class-too-low`. Left out = no minimum.
+        requireSecuringBeforeDoorWork:
+          type: boolean
+          default: false
+          description: Optional. When true, door work starts only on a secured trailer (409 `trailer-not-secured`; ADR 0013). Left out = false.
       required:
       - requireAppointment
       - sealMismatchAction

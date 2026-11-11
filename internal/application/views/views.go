@@ -50,16 +50,21 @@ type Trailer struct {
 	State            string             `json:"state"`
 	Location         *shared.Location   `json:"location"`
 	DoorWork         *string            `json:"doorWork"`
-	Seal             Seal               `json:"seal"`
-	Hold             *string            `json:"hold"`
-	ASNNumbers       []string           `json:"asnNumbers"`
-	OutboundRef      *string            `json:"outboundRef"`
-	VisitID          *string            `json:"visitId"`
-	AppointmentID    *string            `json:"appointmentId"`
-	ArrivedAt        time.Time          `json:"arrivedAt"`
-	DepartedAt       *time.Time         `json:"departedAt"`
-	OpenMoveID       *string            `json:"openMoveId"`
-	Version          int64              `json:"version"`
+	// SecuredAt, SecuredBy (RESTRAINT or WHEEL_CHOCKS) and SecurerRef are the
+	// dock safety interlock (ADR 0013); null while the trailer is not secured.
+	SecuredAt     *time.Time `json:"securedAt"`
+	SecuredBy     *string    `json:"securedBy"`
+	SecurerRef    *string    `json:"securerRef"`
+	Seal          Seal       `json:"seal"`
+	Hold          *string    `json:"hold"`
+	ASNNumbers    []string   `json:"asnNumbers"`
+	OutboundRef   *string    `json:"outboundRef"`
+	VisitID       *string    `json:"visitId"`
+	AppointmentID *string    `json:"appointmentId"`
+	ArrivedAt     time.Time  `json:"arrivedAt"`
+	DepartedAt    *time.Time `json:"departedAt"`
+	OpenMoveID    *string    `json:"openMoveId"`
+	Version       int64      `json:"version"`
 }
 
 // Priority is the claim order of a move.
@@ -135,8 +140,11 @@ type YardPolicy struct {
 	// MinimumSealClass is the lowest ISO 17712 class a seal may have; null =
 	// no minimum.
 	MinimumSealClass *string `json:"minimumSealClass"`
-	Version          int64   `json:"version"`
-	Declared         bool    `json:"declared"`
+	// RequireSecuringBeforeDoorWork: door work starts only on a secured
+	// trailer (ADR 0013); false = the behaviour before the interlock.
+	RequireSecuringBeforeDoorWork bool  `json:"requireSecuringBeforeDoorWork"`
+	Version                       int64 `json:"version"`
+	Declared                      bool  `json:"declared"`
 }
 
 // BoardPlace is one spot or door of the yard board.

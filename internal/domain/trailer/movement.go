@@ -7,13 +7,17 @@ import (
 	"github.com/claudioed/yard-management/internal/domain/shared"
 )
 
-// StartMoving takes the trailer off its place (PARKED or DOCKED to IN_MOVE).
+// StartMoving takes the trailer off its place (PARKED or DOCKED to IN_MOVE; a
+// secured trailer stays at its door, ErrTrailerStillSecured, ADR 0013).
 // The origin is released now (Y-8) and remembered for ReturnToOrigin; leaving
 // a door raises TrailerUndocked. Invoked by the YardMove claim use case in
 // the same unit of work as the move.
 func (t *Trailer) StartMoving(at time.Time) error {
 	if t.state != Parked && t.state != Docked {
 		return t.illegal("StartMoving")
+	}
+	if err := t.checkReleasedFromDoor(); err != nil {
+		return err
 	}
 	if t.state == Docked {
 		t.emit(t.undocked(at))
@@ -83,8 +87,8 @@ func (t *Trailer) place(target shared.Location, work DoorWork, at time.Time) {
 
 // Depart takes the trailer off the site (PARKED or DOCKED to DEPARTED) for
 // the visit that takes it; a DOCKED trailer departs only when its door work
-// is DONE (ErrDoorWorkOpen) and raises TrailerUndocked first. The trailer
-// keeps the visit id of the visit that took it.
+// is DONE (ErrDoorWorkOpen) and not secured (ErrTrailerStillSecured) and raises
+// TrailerUndocked first. The trailer keeps the visit id of the visit that took it.
 func (t *Trailer) Depart(visitID string, at time.Time) error {
 	switch t.state {
 	case Parked:
@@ -94,6 +98,9 @@ func (t *Trailer) Depart(visitID string, at time.Time) error {
 		}
 	default:
 		return t.illegal("Depart")
+	}
+	if err := t.checkReleasedFromDoor(); err != nil {
+		return err
 	}
 	if t.state == Docked {
 		t.emit(t.undocked(at))

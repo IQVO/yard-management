@@ -1,0 +1,70 @@
+---
+id: release-trailer-securing
+title: "Release the securing (ReleaseTrailerSecuring)"
+description: "Records that the restraint was released or the chocks removed. It is required before a trailer is moved away from its door (`POST /moves` answers 409 `trailer-still-secured`) and before its visit checks out (409 `trailer-still-secured`). A trailer that is not secured is 409 `trailer-not-secured`; the securing stays while door work is IN_PROGRESS (409 `door-work-open`). A DROP trailer whose door work is done then gets its FROM_DOOR move. Raises TrailerSecuringReleased."
+sidebar_label: "Release the securing (ReleaseTrailerSecuring)"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: docs/api-reference/rest/yard-management-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Release the securing (ReleaseTrailerSecuring)"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/trailers/{trailerId}/securing-releases"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Records that the restraint was released or the chocks removed. It is required before a trailer is moved away from its door (`POST /moves` answers 409 `trailer-still-secured`) and before its visit checks out (409 `trailer-still-secured`). A trailer that is not secured is 409 `trailer-not-secured`; the securing stays while door work is IN_PROGRESS (409 `door-work-open`). A DROP trailer whose door work is done then gets its FROM_DOOR move. Raises TrailerSecuringReleased.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./release-trailer-securing.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./release-trailer-securing.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./release-trailer-securing.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

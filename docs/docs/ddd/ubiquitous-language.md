@@ -33,6 +33,7 @@ From `contexts[yard-management].ul`.
 | **Door Work** | Unloading or loading while a trailer is docked; `WAITING`, `IN_PROGRESS`, `DONE`. | `trailer.DoorWork` | **Receipt** (`inbound-receiving`: the receiving of an ASN's goods) |
 | **Dwell** | Time on site from gate-in to gate-out (per trailer: arrival to departure). | `trailer.Trailer` | **Detention** |
 | **Seal** | The numbered seal on a trailer's doors; `NONE`, `INTACT` (present, not yet verified), `APPLIED` (recorded at the origin or dock), `VERIFIED` or `MISMATCH` (checked at the gate against the expected number) or `BROKEN`, with an optional ISO 17712 class `I`, `S` or `H` ([ADR 0012](/docs/adr/0012-standard-identifiers-at-the-gate)). | `trailer.SealState` | **Expected seal** (`expected_seal_number` on the appointment: what the carrier declared) |
+| **Secured** | A `DOCKED` trailer held to the dock by a vehicle restraint or wheel chocks (`RESTRAINT`, `WHEEL_CHOCKS`); door work starts on it where the site policy requires it, and it does not leave its door until the securing is released ([ADR 0013](/docs/adr/0013-dock-safety-interlock)). | `trailer.SecuringMethod` | **Seal** (the numbered seal on the trailer's doors) |
 | **Yard Check** | A yard audit reconciling observed trailers with the model. | `yardcheck.Check` | — |
 | **Detention** | Carrier waiting time charged beyond the agreed free time; the free time is a site setting. | `yardpolicy.Policy` | **Dwell** (a duration; detention is the chargeable part beyond free time) |
 

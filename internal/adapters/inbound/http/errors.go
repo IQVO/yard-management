@@ -94,6 +94,8 @@ var problemCatalogue = []struct {
 	{trailer.ErrTrailerOnHold, conflict("trailer-on-hold", "The trailer is on hold")},
 	{trailer.ErrTrailerNotOnHold, conflict("trailer-not-on-hold", "The trailer is not on hold")},
 	{trailer.ErrDoorWorkOpen, conflict("door-work-open", "Door work is not done")},
+	{trailer.ErrTrailerNotSecured, conflict("trailer-not-secured", "The trailer is not secured")},
+	{trailer.ErrTrailerStillSecured, conflict("trailer-still-secured", "The trailer is still secured")},
 	{trailer.ErrTrailerAlreadyOnSite, conflict("trailer-already-on-site", "The trailer is already on site")},
 	{shared.ErrSealClassTooLow, conflict("seal-class-too-low", "The seal class is below the minimum of the site")},
 	{yardmove.ErrTrailerHasOpenMove, conflict("trailer-has-open-move", "The trailer already has an open move")},
