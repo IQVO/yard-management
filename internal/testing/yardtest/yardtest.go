@@ -51,10 +51,18 @@ func (e *Env) Site(siteCode string, spots []string, doors map[string]string) {
 	must(feed.ApplyZone(e.Ctx, siteCode+"-yard", siteCode))
 	must(feed.ApplyZone(e.Ctx, siteCode+"-dock", siteCode))
 	for _, code := range spots {
-		must(feed.ApplySlot(e.Ctx, code, siteCode+"-yard", shared.Spot, ""))
+		must(feed.ApplySlot(e.Ctx, code, siteCode+"-yard", shared.Spot, "", shared.SpotKindUnknown))
 	}
 	for code, flow := range doors {
-		must(feed.ApplySlot(e.Ctx, code, siteCode+"-dock", shared.Door, flow))
+		must(feed.ApplySlot(e.Ctx, code, siteCode+"-dock", shared.Door, flow, shared.SpotKindUnknown))
+	}
+}
+
+// SpotKind registers the spot code of siteCode again with the facility-layout
+// spotKind kind, as a LocationSlotRegistered event carrying it would (ADR 0014).
+func (e *Env) SpotKind(siteCode, code string, kind shared.SpotKind) {
+	if err := e.Store.Locations().ApplySlot(e.Ctx, code, siteCode+"-yard", shared.Spot, "", kind); err != nil {
+		panic(err)
 	}
 }
 

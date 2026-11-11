@@ -38,13 +38,13 @@ func (l *Locations) ApplyZone(ctx context.Context, zoneID, siteCode string) erro
 
 // ApplySlot implements ports.LocationFeed: a slot is (re)registered active; its
 // site is the zone's when the zone is known, NULL until then.
-func (l *Locations) ApplySlot(ctx context.Context, code, zoneID string, kind shared.LocationKind, dockFlow string) error {
+func (l *Locations) ApplySlot(ctx context.Context, code, zoneID string, kind shared.LocationKind, dockFlow string, spotKind shared.SpotKind) error {
 	_, err := queryFor(ctx, l.pool).Exec(ctx, `
-		INSERT INTO locations (location_code, zone_id, site_code, kind, dock_flow, active)
-		VALUES ($1, $2, (SELECT site_code FROM zones WHERE zone_id = $2), $3, $4, true)
+		INSERT INTO locations (location_code, zone_id, site_code, kind, dock_flow, spot_kind, active)
+		VALUES ($1, $2, (SELECT site_code FROM zones WHERE zone_id = $2), $3, $4, $5, true)
 		ON CONFLICT (location_code) DO UPDATE
 		SET zone_id = EXCLUDED.zone_id, site_code = EXCLUDED.site_code, kind = EXCLUDED.kind,
-		    dock_flow = EXCLUDED.dock_flow, active = true`, code, zoneID, string(kind), dockFlow)
+		    dock_flow = EXCLUDED.dock_flow, spot_kind = EXCLUDED.spot_kind, active = true`, code, zoneID, string(kind), dockFlow, string(spotKind))
 	if err != nil {
 		return fmt.Errorf("apply slot: %w", err)
 	}
@@ -59,15 +59,15 @@ func (l *Locations) Decommission(ctx context.Context, code string) error {
 	return nil
 }
 
-const locationColumns = `location_code, zone_id, COALESCE(site_code, ''), kind, dock_flow, active`
+const locationColumns = `location_code, zone_id, COALESCE(site_code, ''), kind, dock_flow, spot_kind, active`
 
 func scanLocation(row pgx.Row) (views.LocationInfo, error) {
 	var (
-		info views.LocationInfo
-		kind string
+		info           views.LocationInfo
+		kind, spotKind string
 	)
-	err := row.Scan(&info.Code, &info.ZoneID, &info.SiteCode, &kind, &info.DockFlow, &info.Active)
-	info.Kind = shared.LocationKind(kind)
+	err := row.Scan(&info.Code, &info.ZoneID, &info.SiteCode, &kind, &info.DockFlow, &spotKind, &info.Active)
+	info.Kind, info.SpotKind = shared.LocationKind(kind), shared.SpotKind(spotKind)
 	return info, err
 }
 
@@ -105,13 +105,20 @@ func (l *Locations) ListBySite(ctx context.Context, siteID string) ([]views.Loca
 // FreeSpots implements ports.Locations: up to limit active Yard slots of the
 // site, by code, that hold no trailer and are reserved by no open move; zoneIDs,
 // when not empty, restricts them to those zones.
-func (l *Locations) FreeSpots(ctx context.Context, siteID string, zoneIDs []string, limit int) ([]string, error) {
+func (l *Locations) FreeSpots(ctx context.Context, siteID string, zoneIDs []string, kinds []shared.SpotKind, limit int) ([]string, error) {
 	var w whereBuilder
 	w.add("l.site_code = ?", siteID)
 	w.raw("l.active")
 	w.raw("l.kind = 'SPOT'")
 	if len(zoneIDs) > 0 {
 		w.add("l.zone_id = ANY(?)", zoneIDs)
+	}
+	if len(kinds) > 0 {
+		names := make([]string, len(kinds))
+		for i, k := range kinds {
+			names[i] = string(k)
+		}
+		w.add("l.spot_kind = ANY(?)", names)
 	}
 	w.raw(`NOT EXISTS (SELECT 1 FROM trailers t WHERE t.location_kind = 'SPOT' AND t.location_code = l.location_code AND t.state IN ('PARKED', 'DOCKED'))`)
 	w.raw(`NOT EXISTS (SELECT 1 FROM yard_moves m WHERE m.to_kind = 'SPOT' AND m.to_code = l.location_code AND m.state IN ('REQUESTED', 'CLAIMED'))`)

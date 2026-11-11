@@ -15,7 +15,7 @@ import (
 
 // RelayEncoder maps a claimed outbox row to its Kafka wire form: one message
 // per destination topic (the integration topic and its analytics twin for the
-// nine integration types, the analytics topic alone for the other ten,
+// eleven integration types, the analytics topic alone for the other ten,
 // ADR 0004). The kafka adapter's Encoder is the production implementation;
 // the poison contract is Encode's: ok=false + a cause means the row can never
 // be sent, so it is dead-lettered instead of retried.

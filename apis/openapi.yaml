@@ -89,13 +89,17 @@ paths:
         first free spot of the site''s parking zones, and a walk-in or an arrival earlier than the appointment tolerance goes to a holding spot
         (TO_HOLDING). SealCheckAtGate compares each recorded seal with the appointment''s expected seal; a mismatch raises SealExceptionRaised
         and, under the REJECT policy, records a REJECTED visit instead (reason SEAL_MISMATCH). A refused check-in persists nothing: 409 `appointment-required`,
-        `visit-already-open`, `trailer-already-on-site`, `door-closed`, `door-flow-mismatch`, `no-free-spot`, `seal-class-too-low` (the site yard policy
+        `visit-already-open`, `trailer-already-on-site`, `door-closed`, `door-flow-mismatch`, `no-free-spot`, `placement-rule-violated`, `seal-class-too-low` (the site yard policy
         sets `minimumSealClass` and the seal is of a lower class or has none); 422 `invalid-carrier`, `unknown-appointment`
-        (also when the visit names an appointment but does not carry exactly one trailer), `invalid-unit-number`, `invalid-seal-class`, `validation`.
+        (also when the visit names an appointment but does not carry exactly one trailer), `invalid-unit-number`, `invalid-seal-class`, `invalid-hazmat-class`, `invalid-un-number`, `validation`.
         The unit number of a `CONTAINER` trailer, and of any trailer whose `unitNumberScheme` is `ISO6346`, must be an ISO 6346 container number
         (4 letters: a 3-letter owner code and the category U, J or Z; 6 digits; the check digit), else 422 `invalid-unit-number` whose detail names
         the expected check digit; a domestic road trailer keeps a free-form number. A matching seal ends `VERIFIED` and a different one `MISMATCH`
-        (ADR 0012). The gate clerk may then record the refusal with `POST /visit-rejections`.'
+        (ADR 0012). A trailer may declare what it carries: `hazmatClass`, `unNumber`, `requiresTemperatureControl` (ADR 0014). A trailer that declares
+        a hazard class is placed only on a HAZMAT spot (a site with none refuses it, unless the policy sets `allowHazmatOnUnclassifiedSpots`, then
+        only spots whose kind is unknown); a trailer that requires temperature control only on a REEFER_PLUG spot where the site has any. A site
+        with no suitable free spot answers 409 `no-free-spot` (all taken) or `placement-rule-violated` (none exists); doors are exempt; a trailer
+        that declares nothing, and a spot with no known kind, are judged as before. The gate clerk may then record the refusal with `POST /visit-rejections`.'
       tags:
       - Visits
       parameters:
@@ -243,7 +247,7 @@ paths:
       description: 'The visit leaves the site with `trailersOut`. Every trailer taken out must be on site and released: no open move and either
         PARKED or DOCKED with door work DONE (`trailer-not-released` 409), and every LOADED trailer of a LIVE_LOAD or PICKUP visit must carry
         a seal (`seal-required` 409). Each trailer departs (TrailerDeparted, and TrailerUndocked when it leaves a door); a trailer the visit brought
-        and does not take stays PARKED (a drop). Only a CHECKED_IN visit checks out (409 `illegal-transition`).'
+        and does not take stays PARKED (a drop). Only a CHECKED_IN visit checks out (409 `illegal-transition`). A DOCKED trailer that is still secured does not depart (409 `trailer-still-secured`, ADR 0013): release the securing first.'
       tags:
       - Visits
       parameters:
@@ -429,6 +433,12 @@ paths:
                   kind: SPOT
                   code: WH1-YARD-P014
                 doorWork: null
+                securedAt: null
+                securedBy: null
+                securerRef: null
+                hazmatClass: null
+                unNumber: null
+                requiresTemperatureControl: false
                 seal:
                   number: SL-778
                   state: INTACT
@@ -453,7 +463,7 @@ paths:
     post:
       operationId: startDoorWork
       summary: Start door work (StartDoorWork)
-      description: 'Unloading or loading begins on a DOCKED trailer: WAITING to IN_PROGRESS. Refused while the trailer is held (409 `trailer-on-hold`).'
+      description: 'Unloading or loading begins on a DOCKED trailer: WAITING to IN_PROGRESS. Refused while the trailer is held (409 `trailer-on-hold`). Where the site yard policy sets `requireSecuringBeforeDoorWork`, an unsecured trailer is refused with 409 `trailer-not-secured` (ADR 0013); with the policy off (the default) nothing changes.'
       tags:
       - Trailers
       parameters:
@@ -656,13 +666,152 @@ paths:
           $ref: '#/components/responses/Unprocessable'
         '500':
           $ref: '#/components/responses/InternalError'
+  /trailers/{trailerId}/classifications:
+    post:
+      operationId: classifyTrailer
+      summary: Set what a trailer carries (ClassifyTrailer)
+      description: 'Sets the hazard class, the UN number and the temperature-control need of a trailer that is on site (ADR 0014): a full replacement,
+        so a field left out is cleared and `{}` declares nothing. The same facts again change nothing and answer 200. Classifying a parked trailer
+        does not move it; the placement rules judge the next placement (`POST /moves`, check-in, and the spot where a move is completed). An unknown
+        hazard class is 422 `invalid-hazmat-class`, a malformed UN number 422 `invalid-un-number`, a UN number without a class 422 `validation`; a
+        departed trailer is 409 `illegal-transition`.'
+      tags:
+      - Trailers
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - name: trailerId
+        in: path
+        required: true
+        description: The trailer id.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClassificationRequest'
+            example:
+              hazmatClass: '3'
+              unNumber: UN1203
+              requiresTemperatureControl: false
+      responses:
+        '200':
+          description: The trailer.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trailer'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /trailers/{trailerId}/securings:
+    post:
+      operationId: secureTrailer
+      summary: Secure a docked trailer (SecureTrailer)
+      description: 'Records that the DOCKED trailer is secured, by a vehicle restraint (`RESTRAINT`) or wheel chocks (`WHEEL_CHOCKS`): the dock safety
+        interlock of OSHA 29 CFR 1910.178(k)(1) and ANSI MH30.3 (ADR 0013). Where the site yard policy sets `requireSecuringBeforeDoorWork`, door
+        work does not start until this is recorded. Securing the same way again changes nothing and answers 200. A trailer that is not DOCKED, or is
+        already secured another way (release it first), is 409 `illegal-transition`; a trailer with an open move is 409 `trailer-has-open-move`; a
+        method other than the two is 422 `validation`. Raises TrailerSecured.'
+      tags:
+      - Trailers
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - name: trailerId
+        in: path
+        required: true
+        description: The trailer id.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SecuringRequest'
+            example:
+              method: WHEEL_CHOCKS
+              securerRef: dock-op-7
+      responses:
+        '200':
+          description: The trailer.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trailer'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /trailers/{trailerId}/securing-releases:
+    post:
+      operationId: releaseTrailerSecuring
+      summary: Release the securing (ReleaseTrailerSecuring)
+      description: 'Records that the restraint was released or the chocks removed. It is required before a trailer is moved away from its door
+        (`POST /moves` answers 409 `trailer-still-secured`) and before its visit checks out (409 `trailer-still-secured`). A trailer that is not
+        secured is 409 `trailer-not-secured`; the securing stays while door work is IN_PROGRESS (409 `door-work-open`). A DROP trailer whose door
+        work is done then gets its FROM_DOOR move. Raises TrailerSecuringReleased.'
+      tags:
+      - Trailers
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - name: trailerId
+        in: path
+        required: true
+        description: The trailer id.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      responses:
+        '200':
+          description: The trailer.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trailer'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /moves:
     post:
       operationId: requestMove
       summary: Request a move (RequestMove)
       description: 'A supervisor asks for a HOSTLER move of a trailer to a spot or door. The destination is validated now (known active slot of
         the site, closure, door flow, hold) and RESERVED: no two open moves share a destination (409 `destination-reserved`), the destination
-        must be free (409 `location-occupied`), and a trailer has at most one open move (409 `trailer-has-open-move`).'
+        must be free (409 `location-occupied`), and a trailer has at most one open move (409 `trailer-has-open-move`). A trailer that is secured at its door (ADR 0013) is not moved away until the securing is released (409 `trailer-still-secured`). A trailer that carries a hazard class or needs temperature control is sent only to a yard spot its kind allows (409 `placement-rule-violated`, ADR 0014); the same rule judges the spot where the hostler completes the move.'
       tags:
       - Moves
       parameters:
@@ -1096,6 +1245,8 @@ paths:
                 sealMismatchAction: FLAG
                 freeTimeMinutes: 120
                 minimumSealClass: null
+                requireSecuringBeforeDoorWork: false
+                allowHazmatOnUnclassifiedSpots: false
                 version: 1
                 declared: true
         '400':
@@ -1152,6 +1303,8 @@ paths:
                 sealMismatchAction: FLAG
                 freeTimeMinutes: 120
                 minimumSealClass: null
+                requireSecuringBeforeDoorWork: false
+                allowHazmatOnUnclassifiedSpots: false
                 version: 1
                 declared: true
         '400':
@@ -1592,6 +1745,27 @@ components:
                 status: 409
                 detail: 'seal class is too low: the site requires class H and the seal is class I'
                 instance: /visits
+            placementRuleViolated:
+              value:
+                type: https://errors.yard-management.warehouse-systems.dev/placement-rule-violated
+                title: The spot is not allowed for what the trailer carries
+                status: 409
+                detail: 'placement rule violated: a trailer with hazmat class 3 may only be placed on a HAZMAT spot; spot WH1-YARD-P014 is not classified'
+                instance: /moves
+            trailerNotSecured:
+              value:
+                type: https://errors.yard-management.warehouse-systems.dev/trailer-not-secured
+                title: The trailer is not secured
+                status: 409
+                detail: 'trailer is not secured: secure the trailer (restraint or wheel chocks) before door work starts'
+                instance: /trailers/trl-8f7e6d5c-4b3a-4291-8071-6f5e4d3c2b1a/door-work-starts
+            trailerStillSecured:
+              value:
+                type: https://errors.yard-management.warehouse-systems.dev/trailer-still-secured
+                title: The trailer is still secured
+                status: 409
+                detail: 'trailer is still secured: secured by WHEEL_CHOCKS at door WH1-D02'
+                instance: /moves
             idempotencyKeyReused:
               value:
                 type: https://errors.yard-management.warehouse-systems.dev/idempotency-key-reused
@@ -1600,7 +1774,7 @@ components:
                 detail: the key was used with another request
                 instance: /trailers
     Unprocessable:
-      description: A value or reference rule failed (unknown location or appointment, invalid carrier, invalid unit number or seal class, unexplained destination, validation).
+      description: A value or reference rule failed (unknown location or appointment, invalid carrier, invalid unit number, seal class, hazmat class or UN number, unexplained destination, validation).
       content:
         application/problem+json:
           schema:
@@ -1619,6 +1793,20 @@ components:
                 title: The unit number is invalid
                 status: 422
                 detail: 'invalid unit number: "CSQU3054380" has check digit 0; the expected check digit is 3'
+                instance: /visits
+            invalidHazmatClass:
+              value:
+                type: https://errors.yard-management.warehouse-systems.dev/invalid-hazmat-class
+                title: The hazmat class is invalid
+                status: 422
+                detail: 'invalid hazmat class: "1.7" is not a US DOT hazard class (1 to 9) or division (such as 1.4, 2.1, 4.3, 6.1)'
+                instance: /visits
+            invalidUnNumber:
+              value:
+                type: https://errors.yard-management.warehouse-systems.dev/invalid-un-number
+                title: The UN number is invalid
+                status: 422
+                detail: 'invalid UN number: "UN12" is not UN and four digits (for example UN1203)'
                 instance: /visits
             invalidSealClass:
               value:
@@ -1759,6 +1947,44 @@ components:
           - H
           description: Optional ISO 17712 class of the seal (I indicative, S security, H high security); needs a sealNumber. Refused with 409
             `seal-class-too-low` when below the `minimumSealClass` of the site yard policy.
+        hazmatClass:
+          type: string
+          enum:
+          - '1'
+          - '1.1'
+          - '1.2'
+          - '1.3'
+          - '1.4'
+          - '1.5'
+          - '1.6'
+          - '2'
+          - '2.1'
+          - '2.2'
+          - '2.3'
+          - '3'
+          - '4'
+          - '4.1'
+          - '4.2'
+          - '4.3'
+          - '5'
+          - '5.1'
+          - '5.2'
+          - '6'
+          - '6.1'
+          - '6.2'
+          - '7'
+          - '8'
+          - '9'
+          description: Optional. The US DOT hazard class or division of what the trailer carries (49 CFR 172.101). Any other value is 422 `invalid-hazmat-class`.
+            A trailer that declares one is placed only on a HAZMAT spot (ADR 0014).
+        unNumber:
+          type: string
+          pattern: ^UN[0-9]{4}$
+          description: Optional. The UN number of the material, `UN` and four digits; needs a `hazmatClass` (422 `validation`), malformed is 422 `invalid-un-number`.
+        requiresTemperatureControl:
+          type: boolean
+          default: false
+          description: Optional. True for a load that needs a refrigeration plug; such a trailer is placed only on a REEFER_PLUG spot where the site has any (ADR 0014).
       required:
       - unitNumber
       - kind
@@ -1996,6 +2222,62 @@ components:
           - DONE
           - null
           nullable: true
+        securedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the DOCKED trailer was secured (ADR 0013); null while it is not secured, and for every trailer stored before the interlock.
+        securedBy:
+          type: string
+          enum:
+          - RESTRAINT
+          - WHEEL_CHOCKS
+          - null
+          nullable: true
+          description: How the trailer is secured, a vehicle restraint engaged or the wheels chocked (OSHA 29 CFR 1910.178(k)(1), ANSI MH30.3); null while it is not secured.
+        securerRef:
+          type: string
+          nullable: true
+          description: The optional reference of the person who secured the trailer.
+        hazmatClass:
+          type: string
+          enum:
+          - '1'
+          - '1.1'
+          - '1.2'
+          - '1.3'
+          - '1.4'
+          - '1.5'
+          - '1.6'
+          - '2'
+          - '2.1'
+          - '2.2'
+          - '2.3'
+          - '3'
+          - '4'
+          - '4.1'
+          - '4.2'
+          - '4.3'
+          - '5'
+          - '5.1'
+          - '5.2'
+          - '6'
+          - '6.1'
+          - '6.2'
+          - '7'
+          - '8'
+          - '9'
+          - null
+          nullable: true
+          description: The US DOT hazard class or division the trailer carries (ADR 0014); null when none was declared, and for every trailer stored before it.
+        unNumber:
+          type: string
+          nullable: true
+          pattern: ^UN[0-9]{4}$
+          description: The UN number of the material; null when none was declared.
+        requiresTemperatureControl:
+          type: boolean
+          description: True for a load that needs a refrigeration plug; false when not declared.
         seal:
           $ref: '#/components/schemas/Seal'
         hold:
@@ -2250,6 +2532,61 @@ components:
           - SECURITY
       required:
       - reason
+    ClassificationRequest:
+      type: object
+      properties:
+        hazmatClass:
+          type: string
+          enum:
+          - '1'
+          - '1.1'
+          - '1.2'
+          - '1.3'
+          - '1.4'
+          - '1.5'
+          - '1.6'
+          - '2'
+          - '2.1'
+          - '2.2'
+          - '2.3'
+          - '3'
+          - '4'
+          - '4.1'
+          - '4.2'
+          - '4.3'
+          - '5'
+          - '5.1'
+          - '5.2'
+          - '6'
+          - '6.1'
+          - '6.2'
+          - '7'
+          - '8'
+          - '9'
+          description: Optional. The US DOT hazard class or division; left out clears it.
+        unNumber:
+          type: string
+          pattern: ^UN[0-9]{4}$
+          description: Optional. `UN` and four digits; needs a `hazmatClass`.
+        requiresTemperatureControl:
+          type: boolean
+          default: false
+          description: Optional. True for a load that needs a refrigeration plug.
+    SecuringRequest:
+      type: object
+      properties:
+        method:
+          type: string
+          enum:
+          - RESTRAINT
+          - WHEEL_CHOCKS
+          description: A vehicle restraint engaged, or the wheels chocked.
+        securerRef:
+          type: string
+          maxLength: 64
+          description: Optional reference of the person who secured the trailer.
+      required:
+      - method
     SealRequest:
       type: object
       properties:
@@ -2397,6 +2734,15 @@ components:
           - null
           nullable: true
           description: The lowest ISO 17712 class a seal may have at check-in and record-seal (I below S below H); null = no minimum, today's behaviour.
+        requireSecuringBeforeDoorWork:
+          type: boolean
+          description: When true, door work starts only on a secured trailer (409 `trailer-not-secured` otherwise; ADR 0013). false (the default) is the
+            behaviour before the interlock existed. A regulated site (OSHA 29 CFR 1910.178(k)(1)) sets it true; a later ADR may flip the default.
+        allowHazmatOnUnclassifiedSpots:
+          type: boolean
+          description: When true, a trailer with a hazard class may take a spot whose kind is unknown at a site that has no HAZMAT spot (ADR 0014).
+            false (the default) refuses it with 409 `placement-rule-violated`. Never lets a hazmat trailer onto a spot of another kind, nor
+            onto an unclassified one where the site has a HAZMAT spot.
         version:
           type: integer
           minimum: 1
@@ -2449,6 +2795,14 @@ components:
           - S
           - H
           description: Optional. Seals of a lower class, or with no class, are refused with 409 `seal-class-too-low`. Left out = no minimum.
+        requireSecuringBeforeDoorWork:
+          type: boolean
+          default: false
+          description: Optional. When true, door work starts only on a secured trailer (409 `trailer-not-secured`; ADR 0013). Left out = false.
+        allowHazmatOnUnclassifiedSpots:
+          type: boolean
+          default: false
+          description: Optional. When true, a trailer with a hazard class may take a spot of unknown kind at a site with no HAZMAT spot (ADR 0014). Left out = false.
       required:
       - requireAppointment
       - sealMismatchAction

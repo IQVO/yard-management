@@ -24,12 +24,14 @@ repositories and views and raise nothing.
 | RejectAtGate | `RejectAtGate` (`gate_checkin.go`) | `POST /visit-rejections` |
 | CheckOutVisit | `CheckOutVisit` (`gate_checkout.go`) | `POST /visits/{visitId}/check-outs` |
 | StartDoorWork, CompleteDoorWork | `StartDoorWork`, `CompleteDoorWork` (`doors.go`) | `POST /trailers/{trailerId}/door-work-starts`, `…/door-work-completions`; `CompleteDoorWork` also from `ReceiptClosed` |
+| SecureTrailer, ReleaseTrailerSecuring | `SecureTrailer`, `ReleaseTrailerSecuring` (`doors.go`) | `POST /trailers/{trailerId}/securings`, `…/securing-releases` (ADR 0013) |
 | RecordSeal, PlaceHold, ReleaseHold | `RecordSeal`, `PlaceHold`, `ReleaseHold` (`doors.go`) | `POST /trailers/{trailerId}/seals`, `…/holds`, `…/hold-releases` |
 | DwellSweep | `SweepDwell` (`checks_policy.go`) | `POST /dwell-sweeps` (CronJob) |
 | RequestMove, ClaimNextMove, CompleteMove, CancelMove | `RequestMove`, `ClaimNextMove`, `CompleteMove`, `CancelMove` (`moves.go`) | `POST /moves`, `/moves/claims`, `/moves/{moveId}/completions`, `/moves/{moveId}/cancellations` |
 | ExpireLease | `SweepMoveLeases` (`moves.go`) | `POST /move-lease-sweeps` (CronJob) |
 | OpenYardCheck, RecordObservation, CloseYardCheck | `OpenYardCheck`, `RecordObservation`, `CloseYardCheck` (`checks_policy.go`) | `POST /yard-checks`, `…/observations`, `…/closures` |
 | DeclareYardPolicy | `DeclareYardPolicy` (`checks_policy.go`) | `PUT /sites/{siteId}/yard-policy` |
+| ClassifyTrailer | `ClassifyTrailer` (`doors.go`) | `POST /trailers/{trailerId}/classifications` |
 | Event-driven reactions | `ApplyZone`, `ApplySlot`, `DecommissionSlot`, `ApplyAppointment`, `ScheduleClosure`, `LiftClosure`, `RegisterAsn`, `CancelAsn`, `OpenReceipt`, `CloseReceipt` (`consumers.go`) | the three Kafka consumers |
 
 Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/server.go`, `internal/adapters/inbound/mcp/tools_write.go`.
@@ -98,7 +100,9 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
      move, `CLAIMED`, performer `VISITING_DRIVER`, no lease. Destination: a door when the
      appointment's door is free, not closed and flow-compatible (reason `TO_DOOR`); the
      holding spot when it is a walk-in or the arrival is earlier than the tolerance
-     (`TO_HOLDING`); otherwise the first free spot of the parking zones by location code.
+     (`TO_HOLDING`); otherwise the first free spot of the parking zones by location code. A trailer that
+     declares a hazard class or a temperature-control need is offered only the spots its rule allows (ADR 0014):
+     a HAZMAT spot, or a REEFER_PLUG spot where the site has any.
   8. Save and write `VisitCheckedIn` to the outbox, one transaction.
 
 | Error | HTTP | Problem `type` slug |
@@ -111,6 +115,9 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
 | `ErrDestinationReserved` (first move) | 409 | `destination-reserved` |
 | `ErrInvalidUnitNumber` (ISO 6346 check; ADR 0012) | 422 | `invalid-unit-number` |
 | `ErrInvalidSealClass` (ADR 0012) | 422 | `invalid-seal-class` |
+| `ErrInvalidHazmatClass` (ADR 0014) | 422 | `invalid-hazmat-class` |
+| `ErrInvalidUNNumber` (ADR 0014) | 422 | `invalid-un-number` |
+| `ErrPlacementRuleViolated` (a trailer with a hazard class at a site with no HAZMAT spot; ADR 0014) | 409 | `placement-rule-violated` |
 | `ErrValidation` | 422 | `validation` |
 
 - **Events emitted:** `VisitCheckedIn`; `SealExceptionRaised` when the seal mismatches;
@@ -208,6 +215,7 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
 | Error | HTTP | Problem `type` slug |
 | --- | --- | --- |
 | `ErrIllegalTransition` | 409 | `illegal-transition` |
+| `ErrTrailerStillSecured` (a `DOCKED` trailer that is secured; ADR 0013) | 409 | `trailer-still-secured` |
 
 - **Events emitted:** `TrailerUndocked` when leaving a door (reading).
 - **Idempotency:** none of its own; the claim's.
@@ -248,19 +256,60 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
 - **Preconditions:** the trailer is `DOCKED` and its door work is `WAITING`.
 - **Main flow:**
   1. Load the trailer.
-  2. Set `DoorWork` to `IN_PROGRESS`.
-  3. Save and write `DoorWorkStarted` (`started_at`) to the outbox. The driver wait KPI
+  2. Under the site policy `requireSecuringBeforeDoorWork` (default off) the trailer must be secured
+     (ADR 0013); `AutoCompleteUnload` does not use this check.
+  3. Set `DoorWork` to `IN_PROGRESS`.
+  4. Save and write `DoorWorkStarted` (`started_at`) to the outbox. The driver wait KPI
      is arrival to this instant.
 
 | Error | HTTP | Problem `type` slug |
 | --- | --- | --- |
 | `ErrNotFound` | 404 | `not-found` |
 | `ErrIllegalTransition` (not `DOCKED`) | 409 | `illegal-transition` |
+| `ErrTrailerOnHold` | 409 | `trailer-on-hold` |
+| `ErrTrailerNotSecured` (policy on and the trailer is not secured; ADR 0013) | 409 | `trailer-not-secured` |
 | `ErrConcurrentModification` | 409 | `concurrent-modification` |
 
 - **Events emitted:** `DoorWorkStarted` (analytics only).
 - **Idempotency:** `Idempotency-Key`; door work already `IN_PROGRESS` is returned
   unchanged (this page's reading). A held trailer's door work does not start (`ErrTrailerOnHold`).
+
+### SecureTrailer
+
+- **Actor / trigger:** dock operator (floor client); MCP `secure_trailer` behind an approval.
+- **Inbound adapter:** REST `POST /trailers/{trailerId}/securings` (body `method` `RESTRAINT` or `WHEEL_CHOCKS`, `securerRef?`).
+- **Preconditions:** the trailer is `DOCKED` and has no open move.
+- **Main flow:**
+  1. Load the trailer.
+  2. Record `securedBy`, `securedAt` and `securerRef`. The same method again is a no-op (nothing saved or raised).
+  3. Save and write `TrailerSecured` to the outbox.
+
+| Error | HTTP | Problem `type` slug |
+| --- | --- | --- |
+| `ErrIllegalTransition` (not `DOCKED`, or secured another way) | 409 | `illegal-transition` |
+| `ErrTrailerHasOpenMove` | 409 | `trailer-has-open-move` |
+| `ErrValidation` (method) | 422 | `validation` |
+
+- **Events emitted:** `TrailerSecured` (integration, ADR 0013).
+- **Idempotency:** `Idempotency-Key`; the same method is returned unchanged.
+
+### ReleaseTrailerSecuring
+
+- **Actor / trigger:** dock operator (floor client); MCP `release_securing` behind an approval.
+- **Inbound adapter:** REST `POST /trailers/{trailerId}/securing-releases`.
+- **Preconditions:** the trailer is secured and its door work is not `IN_PROGRESS`.
+- **Main flow:**
+  1. Clear `securedBy`, `securedAt` and `securerRef`.
+  2. Save and write `TrailerSecuringReleased`.
+  3. Run `ClearDoorAfterWork` (a `DROP` trailer whose door work is done gets its `FROM_DOOR` move, which was withheld while it was secured).
+
+| Error | HTTP | Problem `type` slug |
+| --- | --- | --- |
+| `ErrTrailerNotSecured` | 409 | `trailer-not-secured` |
+| `ErrDoorWorkOpen` (door work `IN_PROGRESS`) | 409 | `door-work-open` |
+
+- **Events emitted:** `TrailerSecuringReleased` (integration, ADR 0013).
+- **Idempotency:** `Idempotency-Key`.
 
 ### CompleteDoorWork
 
@@ -385,6 +434,7 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
 | Error | HTTP | Problem `type` slug |
 | --- | --- | --- |
 | `ErrDoorWorkOpen` | 409 | `door-work-open` |
+| `ErrTrailerStillSecured` (a `DOCKED` trailer that is still secured; ADR 0013) | 409 | `trailer-still-secured` |
 | `ErrIllegalTransition` (`IN_MOVE` or already `DEPARTED`) | 409 | `illegal-transition` |
 
 - **Events emitted:** `TrailerDeparted` (analytics), `TrailerUndocked` (integration, for
@@ -426,13 +476,17 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
   2. Refuse if the trailer has another `REQUESTED` or `CLAIMED` move.
   3. Under the destination's advisory lock: the destination is free
      (`Occupancy.CheckFree`) and no other open move names it; reserve it.
+  3a. For a yard spot, a trailer that carries a hazard class or needs temperature control must meet its
+     placement rule (`ErrPlacementRuleViolated`, 409 `placement-rule-violated`, ADR 0014); a door is exempt.
   4. Create `YardMove` in `REQUESTED`, performer `HOSTLER`.
   5. Save and write `YardMoveRequested` to the outbox.
 
 | Error | HTTP | Problem `type` slug |
 | --- | --- | --- |
 | `ErrTrailerHasOpenMove` | 409 | `trailer-has-open-move` |
+| `ErrTrailerStillSecured` (the trailer is secured at its door; ADR 0013) | 409 | `trailer-still-secured` |
 | `ErrDestinationReserved` | 409 | `destination-reserved` |
+| `ErrPlacementRuleViolated` (ADR 0014) | 409 | `placement-rule-violated` |
 | `ErrNotFound` (trailer) | 404 | `not-found` |
 | `ErrValidation` | 422 | `validation` |
 
@@ -614,7 +668,9 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
      thresholds and lease are positive.
   2. Replace the policy of the site: `require_appointment`, `holding_spot_codes`,
      `parking_zone_ids`, `dwell_threshold_minutes` per kind, `lease_seconds`,
-     `seal_mismatch_action`, optional `free_time_minutes`.
+     `seal_mismatch_action`, optional `free_time_minutes`, optional `minimum_seal_class`, optional
+     `require_securing_before_door_work` (default false, ADR 0013), optional
+     `allow_hazmat_on_unclassified_spots` (default false, ADR 0014).
   3. Save.
 
 | Error | HTTP | Problem `type` slug |

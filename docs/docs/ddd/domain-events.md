@@ -11,9 +11,9 @@ description: "Every event Yard Management publishes and consumes, with full Clou
 Every event this context publishes and consumes, from
 `contexts[yard-management].publishes` and `.consumes`. The envelope follows the
 yard [CloudEvents standard](https://iqvo.github.io/warehouse-docs/yard/strategic-design/event-standard-cloudevents).
-There are **nineteen published events** (nine integration, ten analytics only)
+There are **twenty-one published events** (eleven integration, ten analytics only)
 and **thirteen consumed events**. The split is as built (service ADR 0004, refined by ADR 0010 on
-2026-11-09, which moved `DoorWorkCompleted` and `TrailerDeparted` to the integration topic); the AsyncAPI is
+2026-11-09, which moved `DoorWorkCompleted` and `TrailerDeparted` to the integration topic; ADR 0013 added `TrailerSecured` and `TrailerSecuringReleased`); the AsyncAPI is
 version 3.0.0 and the topic of each channel is in its `address`.
 
 ## Envelope
@@ -64,8 +64,10 @@ Topic `warehouse.yard-management.events` (each message also goes, as a twin, to 
 | `TrailerDwellExceeded` | `com.warehouse.wms.yard-management.trailer.TrailerDwellExceeded` | `trailer_id`, `site_id`, `kind`, `dwell_minutes`, `threshold_minutes`, `location_code` | `DwellSweep` | `exception-management` |
 | `DoorWorkCompleted` | `com.warehouse.wms.yard-management.trailer.DoorWorkCompleted` | `trailer_id`, `site_id`, `door_code`, `appointment_id`, `completed_at`, `load_state`, `version` | `CompleteDoorWork` (also `AutoCompleteUnload`) | `outbound-shipping` |
 | `TrailerDeparted` | `com.warehouse.wms.yard-management.trailer.TrailerDeparted` | `trailer_id`, `site_id`, `visit_id`, `departed_at`, `dwell_minutes`, `load_state`, `seal_number`, `version` | `Depart` | `outbound-shipping` |
+| `TrailerSecured` | `com.warehouse.wms.yard-management.trailer.TrailerSecured` | `trailer_id`, `site_id`, `door_code`, `method`, `secured_at`, `version` | `SecureTrailer` (not raised again for the same method) | none yet |
+| `TrailerSecuringReleased` | `com.warehouse.wms.yard-management.trailer.TrailerSecuringReleased` | `trailer_id`, `site_id`, `door_code`, `released_at`, `version` | `ReleaseTrailerSecuring` | none yet |
 
-`kind` in `TrailerDwellExceeded` is the `TrailerKind` whose threshold was crossed. `DoorWorkCompleted` and
+`TrailerDocked` and each `trailers` entry of `VisitCheckedIn` carry the optional `hazmat_class`, `un_number` (null when not declared) and `requires_temperature_control` (false when not declared), additive since ADR 0014; no new type. `method` in `TrailerSecured` is `RESTRAINT` (a vehicle restraint engaged) or `WHEEL_CHOCKS` (ADR 0013). `kind` in `TrailerDwellExceeded` is the `TrailerKind` whose threshold was crossed. `DoorWorkCompleted` and
 `TrailerDeparted` reached this topic on 2026-11-09 (service ADR 0010) because `outbound-shipping` confirms a shipment
 when the trailer physically leaves; messages raised before that stayed on the analytics topic. `SealExceptionRaised.trailer_id`
 is null when the visit was rejected at the gate (the CloudEvents subject is then the visit id).

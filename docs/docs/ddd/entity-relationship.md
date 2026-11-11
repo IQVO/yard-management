@@ -66,6 +66,12 @@ erDiagram
         TEXT seal_state "NONE, INTACT, BROKEN, APPLIED, VERIFIED, MISMATCH"
         TEXT seal_class "I, S, H or empty (ISO 17712)"
         TEXT unit_number_scheme "ISO6346 or empty for a free-form number"
+        TEXT secured_by "RESTRAINT, WHEEL_CHOCKS or empty when not secured (ADR 0013)"
+        TIMESTAMPTZ secured_at "null when not secured"
+        TEXT secured_by_ref "empty when none"
+        TEXT hazmat_class "US DOT hazard class or division, empty when not declared (ADR 0014)"
+        TEXT un_number "UN and four digits, empty when none (ADR 0014)"
+        BOOLEAN requires_temperature_control "false when not declared (ADR 0014)"
         TEXT hold "empty or a HoldReason"
         TEXT location_kind "SPOT or DOOR, empty while IN_MOVE"
         TEXT location_code "empty while IN_MOVE"
@@ -153,6 +159,8 @@ erDiagram
         TEXT seal_mismatch_action "FLAG, REJECT"
         INTEGER free_time_minutes "0 means none"
         TEXT minimum_seal_class "I, S, H or empty for no minimum"
+        BOOLEAN require_securing_before_door_work "false by default (ADR 0013)"
+        BOOLEAN allow_hazmat_on_unclassified_spots "false by default (ADR 0014)"
         BOOLEAN declared "false for the defaults"
         BIGINT version "2 or more"
         TIMESTAMPTZ updated_at
@@ -198,6 +206,7 @@ erDiagram
         TEXT site_code "nullable"
         TEXT kind "SPOT or DOOR"
         TEXT dock_flow "empty, or the flow"
+        TEXT spot_kind "facility-layout spotKind of a yard spot, empty when unknown (ADR 0014)"
         BOOLEAN active "false after decommission"
     }
     appointments {
@@ -282,7 +291,7 @@ Source: `migrations/0001_yard-management.up.sql`, `migrations/0002_idempotency_k
 
 **All three are infrastructure, not domain.** `outbox` is written in the same transaction as the aggregate and
 drained by the `relay` binary to Kafka; `attempts`, `next_attempt_at` and `last_error` track the retries. The table
-has no topic column; which topic an event goes to is decided by the relay, not by the schema (19 types on the
+has no topic column; which topic an event goes to is decided by the relay, not by the schema (21 types on the
 analytics topic, 9 of them also on the events topic). `processed_events` is the inbox: one row per consumed
 CloudEvents `id`, written in the same transaction as the effect. `idempotency_keys` stores the first response to a
 REST `Idempotency-Key`, with a request fingerprint. The migration tool's own bookkeeping table is not part of the SQL.

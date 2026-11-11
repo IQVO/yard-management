@@ -19,7 +19,7 @@ One image carries five binaries (`Dockerfile` builds every `cmd/*`; the image en
 | Binary | Role | Port |
 | --- | --- | --- |
 | `cmd/api` | REST API and the three Kafka consumers (dock-scheduling, facility-layout, inbound-receiving) | `:8080` |
-| `cmd/mcp` | MCP server, Streamable HTTP, eight read and six write tools | `:8090` |
+| `cmd/mcp` | MCP server, Streamable HTTP, eight read and eight write tools | `:8090` |
 | `cmd/relay` | transactional outbox to Kafka (CloudEvents) | `:8081` (`/healthz`) |
 | `cmd/yard-projector` | writer of the `analytics` schema | `:8091` |
 | `cmd/yard-reports` | read-only `/reports/*` | `:8092` |

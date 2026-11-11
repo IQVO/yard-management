@@ -1,0 +1,70 @@
+---
+id: secure-trailer
+title: "Secure a docked trailer (SecureTrailer)"
+description: "Records that the DOCKED trailer is secured, by a vehicle restraint (`RESTRAINT`) or wheel chocks (`WHEEL_CHOCKS`): the dock safety interlock of OSHA 29 CFR 1910.178(k)(1) and ANSI MH30.3 (ADR 0013). Where the site yard policy sets `requireSecuringBeforeDoorWork`, door work does not start until this is recorded. Securing the same way again changes nothing and answers 200. A trailer that is not DOCKED, or is already secured another way (release it first), is 409 `illegal-transition`; a trailer with an open move is 409 `trailer-has-open-move`; a method other than the two is 422 `validation`. Raises TrailerSecured."
+sidebar_label: "Secure a docked trailer (SecureTrailer)"
+hide_title: true
+hide_table_of_contents: true
+api: eJztO/1zIrly/0rXVH6AygwG7P1ik1RxNnsma2M/sHdz2XMOMSNAz0LiJI0xz+X/PdWtmWH4sr33fKlL1V7VeQF9dbf6u1sPgZ5zw5zQqpsErcDyODX8yjAhuQnCIOE2NmKO40Er6PNYm8SCmzIHbsrh5OL4c+cEnJ8PwoLfIAlhtAQGd3wqYsnBcItzlIPKsN8ZXPXb3d7VsArawGLKuYR4quNbC5Xh19NO5+y349OL48+DYbVFpyQ6vgXLxtwtQSjHjcQf9BguBqdtaH6A4099aHxo1GuNd+8rt9VKowpMJdDuDbpwfnpYrx1CpX3Sh3q9cVitwdcpN5x2tsJxWDKTwFxLES/BcmdhaPjvqTB8gLgINfmJj7XhJ1qbr9rcDkNINAKuzS0kmltQ2oF1zDhIlRMS3FRYpIUhcvGkBvlO/lA247BgS2ATJhTEU6YmfpcpTkHImbILbiw06/UatAv6Et2FP9CTPkQSCgtMGs6SZU5+YLgbN3RMxXDJmeUgHIyFsa4a4pKj+gcYCin5hMnIGaaswGsefgRWHLgQbgpMgZ5zBTN9x4uF2YxoymyEoxGO0toZd1OdgD/fTZkipN1C09pmE4Z3TIqEeG5Ygz4TllvIWG7g4a8FYeDYxAatb0E2YoObMJgzw2bc4bfWt4dAsRkPWkE34bO5dlzFy+gzXwZhIJBbp5wlxMTZdSZBy5mUbzL1MZOIyIQrFASeQKrE7ymHW76ECoPr6+4JzLkBqSciZhJsOpoJF0IjajTfw9wI5dhIcmgPjrtdvE3DYoSw6q9rxm65BQaGOyN4AggMt474uQb9DDTQCvgdN0u4vBhcEQ9cXl9B5aheh6Eo4XfLl1GOz/Dj9phQRN0hypWCGZNjbWY8qSIbGT6XbOkvtWDEW74MszsLYc7ovhMY6WSJIKdGWZqrjZgIxSSK8lwry/02wzLt+7Q/T1qAdB5+XDsk4yVIxHjMDVdu/VBt/JkFY27hnFqeDJExbDzlMxa0HgK3nOP9W4eyFYTBTKgzriZuGrQaYTBj98W35vvHx7BgmIx5u0nOKgjCs4xyhWyca7rkn4Hkxh/FrftJJ0tcv3lyrJXjyuEQm8+liElcDv5uEZKH7YP16O88dkEYzA0qdCe4xVFP4l0AcpXOULoKbRyEQVn3orSto9/eoc25mrAJantt6LJJmVuvzVGKH8PMopg+H++k04oyb482T7ygD8RzxDIxR6WP58y5sVrBYqoLjedWt1MLHh/Ll/ktp8NNGDjhJEKQa+S+vweElN+z2RwHV3RbJ8k6MgGapUjPo3fB46M/0EsGUb5Zr+M/ezkI2ccrKJq+S4y2118abrly4UqE75hMOWrjlA9D0EouveDjmDciZB1y0c/IZ532RoIm6DGqeM6MFNwU+mldS2yo2KeZP+cthCq4Idq8Ej+vBHfrWGQ14fieoVQJ10tnI26eGR4gJPwprLqDi7eHR2+DUKVS3oQB/oMGYLfSyGavbgWPAkVnwYJZyIwhXofFe+gOLoBWIMmYUNxksz8CngRjbYDB2HAeoWrPt6qg1vZjuY7KbnlE3gtk/k+zSlIZM2MEYsviXbiu4/QYBrdCPalGTvq//Pal3QvCoN/pfOr0gzD4dNa++qlzEoTB8UXvqt3tdfrBzWMYSM2SgWPuSSJ3zi+vfgnC4OyifUJ7XLb7V932Ge1gn1t92e5/plXd3m/nF186QRh4dwk/dHCrzkkGi2fEXZzHpLwYk5vxNE8+R5rB5cUVAXDh8Y91shP4p0zGti4es1hI4ZaRZEudOsgxOdYJ39Z/BGN2dEkJnuXoP27x8WMYJJnD+xRyX9vdq27vZ0/qy/7Fz/3OYEDY9jp7JKSwCUnb7doauZo51K/M8ciJGd9iyE1yfM2FayMeQfnK7cMqAMgEaTEVknzizKEuIpdckrw/tlua8LAiFCnZueSn5R+yti9TJqd6UbZza/HWrmArM8+7rTNU9odPYTl2eoZgL7DyT2OFVlH/cVMfBlP2jxlzx5JZ+xTxG0EYNGr+b5P+HtLfI/r7hv6+DcIAx5o0r1nzn3Ee/o8zj2jkiEaOaARXvqFf39CvuMdb+v6Wvr8LwuB9EAYfXnjLSI/rAZxcXMGU/QOD0xhRw1tMxJ2wQqs1LvC63BYcfrS6MK5AacVJEBIeS/ZiBheu5g3jPqu5jcWcOccNYvA/171v9ejDzcPR479sJREIvV5ut7JbnjHHjWDyScgJokyt2Ss+o8xFavixVs5oWYJxpLXkTG2fbVKeWUk0Qz5CU5wn3kcaGzHJsiEwl+nkI4yZtDwHx61DYjmTz7ss6oX0e4ld65FWDbq9q/YxqpCf+hefO2h025eXZ10yb186/e4n//G8OzhvXx2fbrvyfoMWzL0/SQyRqpHRt1yFhOiSO7jjRowxZK0skEz8XliHCYqx1AsLc6OTNOYYWPrDW0W+gzwZ9PLwoyuFj8TCqDAhB7MF8ZSTNsomTpjjPjFi/Q/8fs5jdI8yhkFY+e8pkzXIESxtopJSgFkZcCY79zEnvCnRkBBDGfpYrYEnYAvGOsWglwhQAyRzCxQqHCa9u/ScbukGYYB27/Q7ZBw9vca7d41mLt+Zc86fF4MN857xWM5Ba2EOk6QitXzaf2uft38mrhl02me/FYzVu7j67dPFdQ9H/nbdPuuSVzboHF/36eM+C89spjjKVGPGMMrOOD7bQU3ESqduhHfxIkPyGAaoDt0un38XTPO5FsrNuHrxCmPE3Xf4Keg08Tkz7p/wbZAIc67O9d3OWGYXDbix6z4seiYTYoiZUGKGV9zY5JlyDiQLnNbCpDB3Glf+es5fmepbu+UysVYglTgxzyn7WPloV3h8nmer4D8HFz3KB6GxglTdKr1QMBZckqfTuz6D0dJx/DwT1qJWwjyoz31tBquUnWCqGM7zTb+naP6KlGIt2Bumzo0eST771+8OV2n0CTZIjUCmyWi0K6R1zKV259UWmwjlDpue9xwTcuc+qE6ZincdsskXOJqDVABQbF7aasus9D8dw7v39XeQ0Qt1fYriBpi7K7kcSquoeX9f5BJrwYpPLv3aUkLGZ7Jy3sgzZpT5KKEzdW5uWwcH3BhtbA2T+tGMKTbhCEFtwQyf6tTyyC4t6p9awu8Oil2jLO0RIdOVoFmxZJ4XySbkF3NUr68IH5Qn5W6yZzri6DE54sJCUXQp07MVHLg81423UkqBfubLfnFHr4T7vqxyCfsNQQKfsPKljWLybkpYTmWMTVmEIim/B+1cPRztzp6xJDHcWroPq1MT81UJhhyUH1L8V5bi7KJ72n1CK/9qvJxXo5R2EflywZbhIRbJx1Y8e1TiWbdj5l7pJM/j1RGhXXei8QVHXoDE3da8Mgo06hHAgt2rw4+b7gQf/ZkXQD/bnFYGHgc97AjMMfr8r44AzaJwYicav1A4jsMvQGa5e3IZpdVxHjH0xF4dJ9x0JzYDLH8/j4fdnFbGAAc97EofSyZm6Jvibb8a+EpHcb4xlZlLGPS0L0svmHA2i+yn2jpZhEPb6CgNxX6Q7bfFZgc0pWyRPuy2SLnJj7UaSxE7W6qcoLech3XEDBWspcdxOsfQeC5ZzMO18jp9y2rysKrJU6MEVUDtDpv6w+T9lU1enpi/yK791cQi3zjKGaps86a8qAgUvSGYA7Cr+tCafHwoyUexEB3V1d57LSEGg5R8vdL6TC9eT21xJiNKjURO60jqxQaGOCHLnQgLIy6z9HgW9BYJFeH4XmTX93Bag9SL1qo5KE83ZnNOKcWUp2lwif+9u9/Okpgjmv1U8i9CSyz2vRqRit0jk0oe3eX7b1Bqrou0PZNSLzKuXuSNXBu55L3kKo4DPA7y41qbPUM+JZ8R5xBmWHvG4vSIe7VHDS8MTtv/fd6+IvA+eiC/njaiX9r9k+iy3jjKQaZtKBe51yNYeZZZC9Gf4ltmFYgN6pbKMaW6yF4a7p7eyj6sXUdlVcvZaJWr5on6VS8ataDZPZJ64IyM3o/f8bfJmzg6Gh2y6Kj5oRG9r79rRG/Hb/hRchg3Rw12gBtGuGGUbVgi78AJKf8sAlvc/HkS07TvIfLaglZRRRotoVyCwwQ00RI58KTe3Mtpm2E5mog/MSin7feH5JgYzhU8GautNqvMQdlPqWnWn8VseYesgXC1+umAvdncdo/aWXsKOS95WY/0xhiXJ1DJM3uFyUEHbpWmDYucXdavsPqh1EYRlgxBuK55tFmVmkJIFb+fS+ypSCDhWMygQ0NYNSRWfzhTf2VnKuOXs1LbxquIXbZvVPSDrCC53mDRshw1m3vcJrKzCljsxB0HK7XbcEb2J/08f1+v9Su9jmrxO0coOVFRMSor2XJrEnYw+wV7Ed4hii34NTge/O36sP7m6PB9/dcApsxmIXAiJsJB/eN6Va88Jiwc7vejsuNO14v9r0oarzu8z7lBmzW18h3EKa9D6jRq734NChbZWeevNMBp+FBdK/hXbBpPsbDaqB2F0Kw1QjiqHYbwttaoPkuza/Wn8dJuTlrV97+DVMUipNN1r9FcEeq6lzUtpMbzioUKKRKvGwBn1w+fJ8QgD1VenRKrYOXJIOWltFitQmL814oSWAzWY+iGMED+ON2HsjfLb3aV2a5VIX1oh1PDvUx6IEChdgbJ2a31LU6KSfvDLP6VzWJ+Ta/I1X7DiFaV3c9sACw3yCb5eH4Vb9aKQFS7LZiN5lJGwZinMgoZ7xY92HNN/if16JcjmoeihP14YLN2bopcCTT/QiQ1MqNB64AyJhKzg6339ff1reYg9CokJPyOSz1H4gT4ZGDvDvX6AZuLgw2C7tkVa+kQy9Q6ehRjdDqZwmeNLHYTBig6/dWDgM6ORvRy5+BaF3qZjceaLr6cqz4vIIP2ZbdUmm8FjVq9Vs/kmsUk19n7iA2cYIYRKPUiI31XFEG+mgg3TUe1WM8Oun/7crFFD+yyFTFXlpcOuO6ddY87vUHnxIvmZlL16/kgctiNrhfKN4mRbPgHUvPp0uJLHIk5BZ+l0amzIvGxMxmJBZOy6IirN8Ks/bnerLbA68jiFoquowoSjMos1bAchdviGLRBC3o8xlk8RZVcyapL2QqKEvMEtKX5dBqCnWB7hLH0IMifhVnyagirMoH1v1Nlo1pkmuYYGxcP1TB+yuZd0pu1ag265DuRe+lronoMyYJLmT1VoyweU/GS9qRtnEnj26yJy4k74ZbYUuxs7Vf1q1q9OMsxx0cEWGFlsSOyZ2mcFn2kDTF7E9JXPJJ6LshW5altfIBEGR7K0RNYWULSwUxbb9nyrk44J0Iyw2GeSumj9YKsFcrNR4rfuzzcpQdu1TAzXvPUTvHZXXsVStqMFLHUNjXchoVD76+pPehBZuAsxHrGYWz0DNlOuWjME5ouIdbzUqtlHXtjqaDfvuxmZ8fEeQysGEm8dtr03tWgc0d7e5xGUiCI6NAdS50m2aBWMCw08pauJmDskOAd1phiculEbIcFKzNfM8Cwg5ppqZvqHiqWcxiyubAHzC5VzOaitmQzOazSbWMVyMO1qq6PlnTv2E3um+q0zvgZ79DiuJtyYZ7sQ4fKROoRCap/U1etQYfMEJ221yJmJZQhWjD4d/hDFuzfrEwn/zH0YomfYcTzB5i3fMRGUYxPIrOoLNGo4jILhToKKsOOMWcbufshysFwK/E+rNbgitQCOWnAUjflymUOEuBjHgOVseScOki9Q9+sN99G9Q9Ro+FfZKCVmzFVUpI+z0bCQs2NRVJwUH6kW920OA8rR+3Hg90fD3b/Dx/seocTtd0BpdmogdyQV+qdt6LrEN2I1loHYuG/3WCzqnU4+eFhxCy/NvLxEX+mfr2g9e0mDO6YEb4H8ttDkAiLn5OgRd3aT4hDJW+iqsL2Y86d4Oedqwp7vjLXOsDeSL5ce0f6iC97st6mPwzTj5fI/89eIu9kGc8a22/SC+7BqMJPOvZcEF35sDKfsfVCcrWiHWM3+5Nzb0qhE15hEAajrGdyRk/PAsOwkop/iZf92xsKJOm3h0AyNUnZBOf6PfG//wUkucvA
+sidebar_class_name: "post api-method"
+info_path: docs/api-reference/rest/yard-management-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Secure a docked trailer (SecureTrailer)"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/trailers/{trailerId}/securings"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Records that the DOCKED trailer is secured, by a vehicle restraint (`RESTRAINT`) or wheel chocks (`WHEEL_CHOCKS`): the dock safety interlock of OSHA 29 CFR 1910.178(k)(1) and ANSI MH30.3 (ADR 0013). Where the site yard policy sets `requireSecuringBeforeDoorWork`, door work does not start until this is recorded. Securing the same way again changes nothing and answers 200. A trailer that is not DOCKED, or is already secured another way (release it first), is 409 `illegal-transition`; a trailer with an open move is 409 `trailer-has-open-move`; a method other than the two is 422 `validation`. Raises TrailerSecured.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./secure-trailer.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./secure-trailer.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./secure-trailer.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

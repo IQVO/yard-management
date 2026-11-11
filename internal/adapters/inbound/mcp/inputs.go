@@ -113,6 +113,18 @@ type recordSealInput struct {
 	SealClass  string `json:"sealClass,omitempty" jsonschema:"optional: the ISO 17712 class of the seal, I (indicative), S (security) or H (high security); refused when below the minimumSealClass of the site yard policy"`
 }
 
+type secureTrailerInput struct {
+	callArgs
+	TrailerID  string `json:"trailerId" jsonschema:"the DOCKED trailer to secure"`
+	Method     string `json:"method" jsonschema:"how it is secured: RESTRAINT (vehicle restraint engaged) or WHEEL_CHOCKS (wheels chocked)"`
+	SecurerRef string `json:"securerRef,omitempty" jsonschema:"optional reference of the person who secured the trailer (max 64 characters)"`
+}
+
+type releaseSecuringInput struct {
+	callArgs
+	TrailerID string `json:"trailerId" jsonschema:"the secured trailer whose restraint is released or chocks removed"`
+}
+
 type openYardCheckInput struct {
 	callArgs
 	SiteID string `json:"siteId" jsonschema:"the site to audit; at most one yard check is open per site"`

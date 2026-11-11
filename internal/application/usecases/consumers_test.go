@@ -13,9 +13,9 @@ import (
 func TestFacilityFactsFeedTheLocationCopy(t *testing.T) {
 	e := yardtest.New()
 	ctx := e.Ctx
-	must(t, e.Yard.ApplySlot(ctx, "ev-1", "WH9-S1", "z-yard", "Yard", ""))
-	must(t, e.Yard.ApplySlot(ctx, "ev-2", "WH9-D1", "z-dock", "Dock", "Inbound"))
-	must(t, e.Yard.ApplySlot(ctx, "ev-3", "WH9-B1", "z-yard", "Storage", ""))
+	must(t, e.Yard.ApplySlot(ctx, "ev-1", "WH9-S1", "z-yard", "Yard", "", ""))
+	must(t, e.Yard.ApplySlot(ctx, "ev-2", "WH9-D1", "z-dock", "Dock", "Inbound", ""))
+	must(t, e.Yard.ApplySlot(ctx, "ev-3", "WH9-B1", "z-yard", "Storage", "", ""))
 	info, ok, err := e.Store.Locations().Get(ctx, "WH9-S1")
 	must(t, err)
 	if !ok || info.SiteCode != "" || info.Kind != shared.Spot {
@@ -41,7 +41,7 @@ func TestAConsumedEventIsAppliedOnce(t *testing.T) {
 	e := yardtest.New()
 	must(t, e.Yard.ApplyZone(e.Ctx, "ev-1", "z1", "WH1"))
 	must(t, e.Yard.ApplyZone(e.Ctx, "ev-1", "z1", "OTHER")) // the same CloudEvents id: skipped
-	must(t, e.Yard.ApplySlot(e.Ctx, "ev-2", "WH1-S1", "z1", "Yard", ""))
+	must(t, e.Yard.ApplySlot(e.Ctx, "ev-2", "WH1-S1", "z1", "Yard", "", ""))
 	if info, _, _ := e.Store.Locations().Get(e.Ctx, "WH1-S1"); info.SiteCode != "WH1" {
 		t.Fatalf("the duplicate did not overwrite the zone: %+v", info)
 	}

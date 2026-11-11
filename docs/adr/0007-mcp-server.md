@@ -23,7 +23,7 @@ an audit.
   only.
 - **Stateless.** `StreamableHTTPOptions{Stateless: true}`: no `Mcp-Session-Id`, the 2026-07-28 per-request handshake is answered, legacy
   `initialize` clients keep working. Nothing relies on session state; a write is made safe to retry by its idempotency key.
-- **Fourteen tools: eight reads at L1, six writes at L3.** Arguments are camelCase like the REST bodies; times are RFC 3339 strings; a bad
+- **Fourteen tools: eight reads at L1, six writes at L3** (sixteen tools, eight writes, since ADR 0013). Arguments are camelCase like the REST bodies; times are RFC 3339 strings; a bad
   value is an `isError` result, not a protocol error.
 
   | Tool | Level | Use case | REST twin |
@@ -112,4 +112,4 @@ in-flight requests (10 s bound), then the pool closes.
 - **M2** The list tools accept `limit` 1..500 (0 or absent = 100); a larger or negative value is `invalid-limit`, not silently clamped.
 - **M3** A stored client-error answer is replayed verbatim for its key (REST does the same); the agent uses a new key for a deliberate retry
   after fixing the cause.
-- **M4** The tool budget is fourteen; raising it is an amendment of this ADR.
+- **M4** The tool budget is fourteen; raising it is an amendment of this ADR. ADR 0013 amends it to sixteen (the writes `secure_trailer` and `release_securing`).

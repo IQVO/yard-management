@@ -42,10 +42,10 @@ without `Err`.
 
 ## Domain events
 
-Nine integration events on `warehouse.yard-management.events` (VisitCheckedIn, VisitRejected, TrailerDocked,
+Eleven integration events on `warehouse.yard-management.events` (VisitCheckedIn, VisitRejected, TrailerDocked,
 TrailerUndocked, DoorWorkCompleted, TrailerDeparted, SealExceptionRaised, TrailerDwellExceeded,
-YardCheckClosed), mirrored on `.analytics`; ten more are analytics-only. Catalogue:
-`docs/adr/0004-cloudevents-envelope-and-type-catalogue.md`, refined by ADR 0010.
+YardCheckClosed, TrailerSecured, TrailerSecuringReleased), mirrored on `.analytics`; ten more are analytics-only. Catalogue:
+`docs/adr/0004-cloudevents-envelope-and-type-catalogue.md`, refined by ADR 0010 and ADR 0013.
 
 ## Key use cases (`internal/application/usecases`, type `Yard`)
 

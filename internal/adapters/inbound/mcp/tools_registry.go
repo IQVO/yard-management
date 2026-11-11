@@ -33,7 +33,7 @@ var replayMeta = mcp.Meta{"com.warehouse/idempotency-replayed": true}
 
 // --- registry -----------------------------------------------------------------
 
-// registerTools adds the eight read tools (L1) and the six write tools (L3).
+// registerTools adds the eight read tools (L1) and the eight write tools (L3).
 // Every annotations literal stays inline on its tool so the authority fitness
 // sensor can prove ReadOnlyHint (internal/architecture). The gate, hostler
 // and dock-operator actions (check-in, check-out, claim, complete, door work)

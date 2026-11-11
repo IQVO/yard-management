@@ -3,7 +3,7 @@ id: tools
 title: MCP tools
 sidebar_label: MCP tools
 sidebar_position: 2
-description: "The yard-management MCP server: eight read tools, six write tools, resources and the review_yard prompt, with inputs and annotations."
+description: "The yard-management MCP server: eight read tools, eight write tools, resources and the review_yard prompt, with inputs and annotations."
 ---
 
 # MCP tools
@@ -23,7 +23,7 @@ server was not run while writing this page. `TestEveryMCPToolDeclaresAuthority`
 and `TestMCPWriteToolsAreAtLeastL3` keep the annotations and authority levels
 in the code consistent.
 
-The surface: **eight read tools (L1)** and **six write tools (L3)**. Gate
+The surface: **eight read tools (L1)** and **eight write tools (L3)**. Gate
 check-in and check-out, hostler claims and completions and door work are
 floor-client actions on REST and are deliberately **not** tools.
 
@@ -69,11 +69,13 @@ a human approved.
 | `place_hold` | `trailerId`, `reason` (`DAMAGED`, `SEAL_BROKEN`, `NOT_FOUND`, `QUALITY`, `SECURITY`) required | a held trailer is not docked or moved to a door |
 | `release_hold` | `trailerId` required | releases the hold |
 | `record_seal` | `trailerId`, `state` (`INTACT`, `APPLIED`, `BROKEN`) required; `sealNumber` (required when `INTACT` or `APPLIED`); `sealClass` (`I`, `S`, `H`, optional) | `BROKEN` also places a `SEAL_BROKEN` hold; a class below the site's `minimumSealClass` is `seal-class-too-low`, an unknown one `invalid-seal-class` (ADR 0012) |
+| `secure_trailer` | `trailerId`, `method` (`RESTRAINT`, `WHEEL_CHOCKS`) required; `securerRef` optional | records that a `DOCKED` trailer is secured (the dock safety interlock, ADR 0013); the same method again changes nothing; `trailer-has-open-move`, `illegal-transition` or `validation` otherwise |
+| `release_securing` | `trailerId` required | records that the restraint was released or the chocks removed; required before the trailer leaves its door; `trailer-not-secured` when it is not secured, `door-work-open` while door work is in progress |
 | `open_yard_check` | `siteId` required | opens an audit; at most one open check per site. The walk and the closing are floor actions |
 
 Errors come back as tool results with `isError: true` and a slug such as
 `trailer-not-found`, `destination-reserved`, `trailer-on-hold`,
-`invalid-state`; an unexpected error is `internal-error` and is logged.
+`trailer-not-secured`, `trailer-still-secured`, `invalid-state`; an unexpected error is `internal-error` and is logged.
 
 ## Resources and prompt
 

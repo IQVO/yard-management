@@ -171,7 +171,7 @@ present of the yard.
 | `dock-scheduling` | `DockAppointmentNoShow` | Event | Kafka `warehouse.dock-scheduling.events`, `com.warehouse.wms.dock-scheduling.dockappointment.DockAppointmentNoShow` | Customer/Supplier |
 | `dock-scheduling` | `DoorClosureScheduled` | Event | Kafka `warehouse.dock-scheduling.events`, `com.warehouse.wms.dock-scheduling.dockcalendar.DoorClosureScheduled` | Customer/Supplier |
 | `dock-scheduling` | `DoorClosureLifted` | Event | Kafka `warehouse.dock-scheduling.events`, `com.warehouse.wms.dock-scheduling.dockcalendar.DoorClosureLifted` | Customer/Supplier |
-| `facility-layout` | `LocationSlotRegistered` | Event | Kafka `warehouse.facility.events`, `com.warehouse.wms.facility-layout.locationslot.LocationSlotRegistered` | Conformist |
+| `facility-layout` | `LocationSlotRegistered` (optional `spotKind`, ADR 0014) | Event | Kafka `warehouse.facility.events`, `com.warehouse.wms.facility-layout.locationslot.LocationSlotRegistered` | Conformist |
 | `facility-layout` | `LocationSlotDecommissioned` | Event | Kafka `warehouse.facility.events`, `com.warehouse.wms.facility-layout.locationslot.LocationSlotDecommissioned` | Conformist |
 | `facility-layout` | `ZoneRegistered` | Event | Kafka `warehouse.facility.events`, `com.warehouse.wms.facility-layout.zone.ZoneRegistered` | Conformist |
 | `inbound-receiving` | `ASNRegistered` | Event | Kafka `warehouse.inbound-receiving.events`, `com.warehouse.wms.inbound-receiving.asn.ASNRegistered` | Conformist |
@@ -196,6 +196,7 @@ AsyncAPI: `apis/` for `facility-layout` and `inbound-receiving`, `yard/apis/dock
 | `exception-management` | `YardCheckClosed` | Event | Kafka `warehouse.yard-management.events`, `com.warehouse.wms.yard-management.yardcheck.YardCheckClosed` | Customer/Supplier |
 | analytics only | `VisitCheckedOut` | Event | Kafka `warehouse.yard-management.analytics`, `com.warehouse.wms.yard-management.yardvisit.VisitCheckedOut` | PL, no named consumer |
 | `outbound-shipping` | `DoorWorkCompleted`, `TrailerDeparted` | Event | Kafka `warehouse.yard-management.events`, `com.warehouse.wms.yard-management.trailer.<Event>` | Customer/Supplier (integration since 2026-11-09) |
+| none yet (integration topic) | `TrailerSecured`, `TrailerSecuringReleased` | Event | Kafka `warehouse.yard-management.events`, `com.warehouse.wms.yard-management.trailer.<Event>` | PL, no named consumer (ADR 0013) |
 | analytics only | `TrailerParked`, `DoorWorkStarted`, `TrailerHeld`, `TrailerHoldReleased` | Event | Kafka `warehouse.yard-management.analytics`, `com.warehouse.wms.yard-management.trailer.<Event>` | PL, no named consumer |
 | analytics only | `YardMoveRequested`, `YardMoveClaimed`, `YardMoveLeaseExpired`, `YardMoveCompleted`, `YardMoveCancelled` | Event | Kafka `warehouse.yard-management.analytics`, `com.warehouse.wms.yard-management.yardmove.<Event>` | PL, no named consumer |
 | — | (no synchronous calls) | — | `sync_calls: []` | — |

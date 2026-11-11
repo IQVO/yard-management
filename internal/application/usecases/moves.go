@@ -64,7 +64,8 @@ func deriveReason(tr *trailer.Trailer, to shared.Location) yardmove.Reason {
 }
 
 // requestable checks that tr may be sent to loc: it is on site, has no open
-// move and the destination is a place it can take.
+// move, is not secured at a door (ADR 0013) and the destination is a place it
+// can take.
 func (y *Yard) requestable(ctx context.Context, tr *trailer.Trailer, to shared.Location) error {
 	if tr.State() == trailer.Departed {
 		return fmt.Errorf("%w: RequestMove on a DEPARTED trailer", shared.ErrIllegalTransition)
@@ -76,6 +77,9 @@ func (y *Yard) requestable(ctx context.Context, tr *trailer.Trailer, to shared.L
 	}
 	if tr.Location() == to {
 		return shared.Invalid("the trailer is already at %s", to.Code)
+	}
+	if err := tr.CanLeaveDoor(); err != nil {
+		return err
 	}
 	return y.canTake(ctx, tr, to, "")
 }
@@ -195,7 +199,7 @@ func (y *Yard) arrive(ctx context.Context, tr *trailer.Trailer, mv *yardmove.Mov
 	if err := y.d.Locks.Lock(ctx, actual.Code); err != nil {
 		return err
 	}
-	p, err := y.placementFor(ctx, actual, now)
+	p, err := y.placementFor(ctx, tr, actual, now)
 	if err != nil {
 		return err
 	}

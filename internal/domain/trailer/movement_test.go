@@ -118,6 +118,7 @@ func TestArriveAtDoor(t *testing.T) {
 	eq(t, data(t, only(t, tr)), map[string]any{
 		"trailer_id": "trl-1", "site_id": "WH1", "door_code": "WH1-D1", "appointment_id": "appt-1", "asn_numbers": []any{"ASN-1", "ASN-2"},
 		"visit_id": "visit-1", "docked_at": "2026-11-05T14:02:00Z", "version": float64(2), "seal_state": nil, "seal_class": nil,
+		"hazmat_class": nil, "un_number": nil, "requires_temperature_control": false,
 	})
 }
 

@@ -26,6 +26,8 @@ func TrailerRepo(t *testing.T, newStore NewStore) {
 			wantErr(t, err, ports.ErrNotFound)
 		},
 		"the seal class, the unit number scheme and every seal state round trip": trailerIdentifiers,
+		"a securing round trips, and releasing it clears it":                     trailerSecuring,
+		"a classification round trips, and clearing it empties every column":     trailerClassification,
 		"save then find round trips a trailer in every state":                    trailerRoundTrip,
 		"a spot or door holds at most one trailer":                               trailerOneAtALocation,
 		"a trailer in a move or departed holds no location":                      trailerFreesLocation,
@@ -281,5 +283,32 @@ func trailerIdentifiers(t *testing.T, s Store) {
 	must(t, err)
 	if sn := got.Snapshot(); sn.UnitScheme != "" || sn.SealClass != "" || sn.Number != "free form 7" {
 		t.Fatalf("a free-form trailer keeps no scheme and no class: %+v", sn)
+	}
+}
+
+// trailerSecuring: a docked trailer is secured by wheel chocks with a
+// performer, the securing survives the store, the version guard moves on, and
+// releasing it clears every securing column (ADR 0013).
+func trailerSecuring(t *testing.T, s Store) {
+	tr := Arrived(t, "trl-sec", "WH1", "SEC-1", 0)
+	must(t, s.Trailers.Save(bg, tr))
+	ArriveAt(t, tr, door("WH1-D1"), time.Minute)
+	must(t, s.Trailers.Save(bg, tr))
+	changed, err := tr.Secure(trailer.Securing{Method: trailer.SecuredByWheelChock, PerformerRef: "op-7"}, T0.Add(2*time.Minute))
+	if err != nil || !changed {
+		t.Fatalf("Secure: changed=%v err=%v", changed, err)
+	}
+	must(t, s.Trailers.Save(bg, tr))
+	got, err := s.Trailers.FindByID(bg, "trl-sec")
+	must(t, err)
+	if !reflect.DeepEqual(got.Snapshot(), tr.Snapshot()) || got.SecuredBy() != trailer.SecuredByWheelChock || !got.SecuredAt().Equal(T0.Add(2*time.Minute)) || got.Snapshot().SecurerRef != "op-7" {
+		t.Fatalf("round trip changed the securing:\ngot  %+v\nwant %+v", got.Snapshot(), tr.Snapshot())
+	}
+	must(t, tr.ReleaseSecuring(T0.Add(3*time.Minute)))
+	must(t, s.Trailers.Save(bg, tr))
+	got, err = s.Trailers.FindByID(bg, "trl-sec")
+	must(t, err)
+	if sn := got.Snapshot(); got.Secured() || sn.SecuredBy != "" || !sn.SecuredAt.IsZero() || sn.SecurerRef != "" || sn.Version != tr.Snapshot().Version {
+		t.Fatalf("a released trailer is not secured: %+v", sn)
 	}
 }

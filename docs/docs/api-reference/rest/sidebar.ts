@@ -96,6 +96,24 @@ const sidebar: SidebarsConfig = {
           label: "Record or break the seal (RecordSeal, BreakSeal)",
           className: "api-method post",
         },
+        {
+          type: "doc",
+          id: "api-reference/rest/classify-trailer",
+          label: "Set what a trailer carries (ClassifyTrailer)",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "api-reference/rest/secure-trailer",
+          label: "Secure a docked trailer (SecureTrailer)",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "api-reference/rest/release-trailer-securing",
+          label: "Release the securing (ReleaseTrailerSecuring)",
+          className: "api-method post",
+        },
       ],
     },
     {

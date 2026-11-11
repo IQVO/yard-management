@@ -5,7 +5,7 @@
 // no stdio, no SSE-only transport) on real Postgres: there is no in-memory mode.
 // It is a second, independent deployable alongside cmd/api.
 //
-// The surface is eight L1 read tools and six L3 write tools. A write runs in
+// The surface is eight L1 read tools and eight L3 write tools. A write runs in
 // one unit of work with the idempotency key and the transactional outbox rows
 // it raises, so this binary never needs Kafka: the events leave through the
 // outbox, which cmd/relay publishes. It never runs the relay or the consumers;

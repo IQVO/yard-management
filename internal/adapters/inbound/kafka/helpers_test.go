@@ -192,8 +192,12 @@ func (r *recorder) ApplyZone(_ context.Context, id, zoneID, site string) error {
 	return r.record(fmt.Sprintf("zone %s %s %s", id, zoneID, site))
 }
 
-func (r *recorder) ApplySlot(_ context.Context, id, code, zoneID, role, flow string) error {
-	return r.record(fmt.Sprintf("slot %s %s %s %s %s", id, code, zoneID, role, flow))
+func (r *recorder) ApplySlot(_ context.Context, id, code, zoneID, role, flow, spotKind string) error {
+	line := fmt.Sprintf("slot %s %s %s %s %s", id, code, zoneID, role, flow)
+	if spotKind != "" {
+		line += " kind=" + spotKind
+	}
+	return r.record(line)
 }
 
 func (r *recorder) DecommissionSlot(_ context.Context, id, code string) error {

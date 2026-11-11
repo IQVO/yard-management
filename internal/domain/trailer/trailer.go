@@ -81,6 +81,10 @@ type Trailer struct {
 	sealState      SealState
 	sealClass      shared.SealClass
 	unitScheme     shared.UnitScheme
+	class          Classification
+	securedBy      SecuringMethod
+	securedAt      time.Time
+	securerRef     string
 	hold           HoldReason
 	state          State
 	loc            shared.Location
@@ -116,6 +120,9 @@ type ArrivalInput struct {
 	// needs a seal number. MinimumSealClass is the site policy floor ("" =
 	// none): a seal below it refuses the arrival (ErrSealClassTooLow).
 	SealClass, MinimumSealClass shared.SealClass
+	// Classification is what the trailer carries (hazard class, UN number,
+	// temperature control); the zero value declares nothing (ADR 0014).
+	Classification Classification
 }
 
 // RecordArrival creates a trailer IN_MOVE at version 1: it just passed the
@@ -132,7 +139,7 @@ func RecordArrival(in ArrivalInput) (*Trailer, error) {
 	t := &Trailer{
 		id: in.ID, site: in.SiteID, scac: in.SCAC, number: unit.String(), unitScheme: unit.Scheme(), kind: in.Kind, load: in.Load,
 		asn: shared.Strings(in.ASNNumbers), outboundRef: in.OutboundRef, purpose: in.Purpose,
-		sealNumber: in.SealNumber, sealClass: in.SealClass, sealState: SealNone, state: InMove, visitID: in.VisitID,
+		sealNumber: in.SealNumber, sealClass: in.SealClass, class: in.Classification, sealState: SealNone, state: InMove, visitID: in.VisitID,
 		appointmentID: in.AppointmentID, arrivedAt: in.At.UTC(), version: 1,
 	}
 	if in.SealNumber != "" {
@@ -167,6 +174,9 @@ func validateArrival(in ArrivalInput) (shared.UnitNumber, error) {
 	}
 	unit, err := shared.NewUnitNumber(in.Number, in.Kind, in.UnitScheme)
 	if err != nil {
+		return shared.UnitNumber{}, err
+	}
+	if err := in.Classification.Validate(); err != nil {
 		return shared.UnitNumber{}, err
 	}
 	return unit, validateArrivalSeal(in)

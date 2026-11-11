@@ -21,6 +21,12 @@ type VisitTrailer struct {
 	// (ADR 0012).
 	UnitNumberScheme *string `json:"unit_number_scheme"`
 	SealClass        *string `json:"seal_class"`
+	// HazmatClass and UNNumber are the US DOT hazard class and the UN number
+	// the shipper declared, null when none; RequiresTemperatureControl is
+	// false when none was declared. All three additive (ADR 0014).
+	HazmatClass                *string `json:"hazmat_class"`
+	UNNumber                   *string `json:"un_number"`
+	RequiresTemperatureControl bool    `json:"requires_temperature_control"`
 }
 
 // VisitCheckedIn: a visit passed the gate (integration).

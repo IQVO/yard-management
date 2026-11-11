@@ -45,6 +45,13 @@ func TestMigration0003KeepsExistingRowsAndGoesDown(t *testing.T) {
 	if err := m.Migrate(3); err != nil {
 		t.Fatalf("migrate to 3: %v", err)
 	}
+	// The repositories read the latest schema (0004 added the securing columns,
+	// 0005 the classification), so the rows are read after the later migrations;
+	// their own tests are migration_interlock_integration_test.go and
+	// migration_placement_integration_test.go.
+	if err := m.Migrate(5); err != nil {
+		t.Fatalf("migrate to 5: %v", err)
+	}
 
 	trailers, policies := postgres.NewTrailers(pool), postgres.NewPolicies(pool)
 	ctx := context.Background()
@@ -85,6 +92,9 @@ func TestMigration0003KeepsExistingRowsAndGoesDown(t *testing.T) {
 	}
 
 	// Down: the new states collapse to INTACT, the old rows stay.
+	if err := m.Migrate(3); err != nil {
+		t.Fatalf("down to 3: %v", err)
+	}
 	if err := m.Steps(-1); err != nil {
 		t.Fatalf("down from 3: %v", err)
 	}

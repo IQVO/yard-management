@@ -53,11 +53,19 @@ func (d Deps) recordSeal(ctx context.Context, in recordSealInput) (views.Trailer
 	return d.Yard.RecordSeal(ctx, in.TrailerID, in.State, in.SealNumber, in.SealClass)
 }
 
+func (d Deps) secureTrailer(ctx context.Context, in secureTrailerInput) (views.Trailer, error) {
+	return d.Yard.SecureTrailer(ctx, in.TrailerID, in.Method, in.SecurerRef)
+}
+
+func (d Deps) releaseSecuring(ctx context.Context, in releaseSecuringInput) (views.Trailer, error) {
+	return d.Yard.ReleaseTrailerSecuring(ctx, in.TrailerID)
+}
+
 func (d Deps) openYardCheck(ctx context.Context, in openYardCheckInput) (views.YardCheck, error) {
 	return d.Yard.OpenYardCheck(ctx, in.SiteID)
 }
 
-// registerWriteTools adds the six write tools (L3).
+// registerWriteTools adds the eight write tools (L3).
 func (d Deps) registerWriteTools(server *mcp.Server) {
 	// The shared hint values; the annotations literals themselves stay inline.
 	closedWorld, notDestructive, destructive := false, false, true
@@ -65,10 +73,10 @@ func (d Deps) registerWriteTools(server *mcp.Server) {
 	addWrite(server, d, &mcp.Tool{
 		Name: "request_move",
 		Description: "Ask for a trailer to be moved to a free spot or door of its site. The destination is validated now (known active " +
-			"slot, door open and flow-compatible, trailer not on hold) and RESERVED by the open move; a hostler then claims it from the " +
+			"slot, door open and flow-compatible, trailer not on hold; a trailer with a hazmat class or a temperature-control need only to a spot its kind allows) and RESERVED by the open move; a hostler then claims it from the " +
 			"floor client. Changes state (L3): call it only for a move a human approved, and pass proposalId, approvedBy and agentId so " +
 			"the move is attributable. idempotencyKey is required. Fails with trailer-not-found, trailer-has-open-move, " +
-			"location-occupied, destination-reserved, door-closed, door-flow-mismatch, trailer-on-hold, unknown-location or validation.",
+			"location-occupied, destination-reserved, door-closed, door-flow-mismatch, trailer-on-hold, trailer-still-secured, placement-rule-violated, unknown-location or validation.",
 		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &notDestructive, IdempotentHint: true, OpenWorldHint: &closedWorld},
 		Meta:        authorityMeta(authorityL3),
 	}, d.requestMove)
@@ -108,6 +116,25 @@ func (d Deps) registerWriteTools(server *mcp.Server) {
 		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &notDestructive, IdempotentHint: true, OpenWorldHint: &closedWorld},
 		Meta:        authorityMeta(authorityL3),
 	}, d.recordSeal)
+
+	addWrite(server, d, &mcp.Tool{
+		Name: "secure_trailer",
+		Description: "Record that a DOCKED trailer is secured, by a vehicle restraint (RESTRAINT) or wheel chocks (WHEEL_CHOCKS): the dock safety interlock " +
+			"(OSHA 29 CFR 1910.178(k)(1), ANSI MH30.3). Where the site's yard policy sets requireSecuringBeforeDoorWork, door work does not start until this is recorded. " +
+			"The same method again changes nothing. Changes state (L3): call it only when a human approved, and pass proposalId, approvedBy and agentId. " +
+			"idempotencyKey is required. Fails with trailer-not-found, illegal-transition (not docked, or already secured another way), trailer-has-open-move or validation.",
+		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &notDestructive, IdempotentHint: true, OpenWorldHint: &closedWorld},
+		Meta:        authorityMeta(authorityL3),
+	}, d.secureTrailer)
+
+	addWrite(server, d, &mcp.Tool{
+		Name: "release_securing",
+		Description: "Record that the restraint of a docked trailer was released or its chocks removed. Required before the trailer is moved away from its door or leaves " +
+			"the site; refused while door work is in progress. Changes state (L3): call it only when a human approved, and pass proposalId, approvedBy and agentId. " +
+			"idempotencyKey is required. Fails with trailer-not-found, trailer-not-secured or door-work-open.",
+		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &notDestructive, IdempotentHint: true, OpenWorldHint: &closedWorld},
+		Meta:        authorityMeta(authorityL3),
+	}, d.releaseSecuring)
 
 	addWrite(server, d, &mcp.Tool{
 		Name: "open_yard_check",

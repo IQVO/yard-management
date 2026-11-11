@@ -160,9 +160,9 @@ func fixture(t *testing.T, dsn string) (first, second string) {
 	feed := postgres.NewLocations(pool)
 	for _, step := range []error{
 		feed.ApplyZone(ctx, "WH1-yard", "WH1"), feed.ApplyZone(ctx, "WH1-dock", "WH1"),
-		feed.ApplySlot(ctx, "WH1-Y01", "WH1-yard", shared.Spot, ""), feed.ApplySlot(ctx, "WH1-Y02", "WH1-yard", shared.Spot, ""),
-		feed.ApplySlot(ctx, "WH1-Y03", "WH1-yard", shared.Spot, ""),
-		feed.ApplySlot(ctx, "WH1-D01", "WH1-dock", shared.Door, "Inbound"), feed.ApplySlot(ctx, "WH1-D02", "WH1-dock", shared.Door, "Both"),
+		feed.ApplySlot(ctx, "WH1-Y01", "WH1-yard", shared.Spot, "", ""), feed.ApplySlot(ctx, "WH1-Y02", "WH1-yard", shared.Spot, "", ""),
+		feed.ApplySlot(ctx, "WH1-Y03", "WH1-yard", shared.Spot, "", ""),
+		feed.ApplySlot(ctx, "WH1-D01", "WH1-dock", shared.Door, "Inbound", ""), feed.ApplySlot(ctx, "WH1-D02", "WH1-dock", shared.Door, "Both", ""),
 	} {
 		if step != nil {
 			t.Fatal(step)
@@ -200,7 +200,7 @@ func TestMCPOnRealPostgresAndKafka(t *testing.T) {
 		name string
 		run  func(*testing.T, *server, string, string, string)
 	}{
-		{"the surface is eight L1 reads and six L3 writes over stateless HTTP", surface},
+		{"the surface is eight L1 reads and eight L3 writes over stateless HTTP", surface},
 		{"reads answer from the rows the REST use cases wrote", reads},
 		{"a write is idempotent, attributed and refuses with the REST slugs", writes},
 		{"two moves to one door: exactly one wins", doorRace},
@@ -231,7 +231,7 @@ func surface(t *testing.T, s *server, _, _, _ string) {
 	want := map[string]string{
 		"get_yard_board": "L1", "list_trailers": "L1", "get_trailer": "L1", "list_moves": "L1", "list_visits": "L1",
 		"get_visit": "L1", "get_yard_policy": "L1", "get_yard_dwell_report": "L1",
-		"request_move": "L3", "cancel_move": "L3", "place_hold": "L3", "release_hold": "L3", "record_seal": "L3", "open_yard_check": "L3",
+		"request_move": "L3", "cancel_move": "L3", "place_hold": "L3", "release_hold": "L3", "record_seal": "L3", "open_yard_check": "L3", "secure_trailer": "L3", "release_securing": "L3",
 	}
 	if len(levels) != len(want) {
 		t.Fatalf("tools %v, want %v", levels, want)
