@@ -3,6 +3,7 @@ package usecases
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/claudioed/yard-management/internal/application/ports"
 	"github.com/claudioed/yard-management/internal/application/views"
@@ -37,18 +38,30 @@ func (y *Yard) CheckOutVisit(ctx context.Context, visitID string, trailerIDs []s
 		if err := y.publish(ctx, events); err != nil {
 			return err
 		}
-		for _, tr := range trailers {
-			if err := tr.Depart(v.ID(), now); err != nil {
-				return err
-			}
-			if err := y.saveTrailer(ctx, tr); err != nil {
-				return err
-			}
+		if err := y.departTrailers(ctx, v.ID(), trailers, now); err != nil {
+			return err
 		}
 		out = visitView(v)
 		return nil
 	})
 	return out, err
+}
+
+// departTrailers departs every trailer the visit takes, each one only after the
+// PRE_DEPARTURE inspection its site requires (ADR 0015) has passed.
+func (y *Yard) departTrailers(ctx context.Context, visitID string, trailers []*trailer.Trailer, now time.Time) error {
+	for _, tr := range trailers {
+		if err := tr.Depart(visitID, now); err != nil {
+			return err
+		}
+		if err := y.requireInspections(ctx, tr, shared.GatePreDeparture); err != nil {
+			return err
+		}
+		if err := y.saveTrailer(ctx, tr); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // departures loads the trailers a visit takes and states what CheckOut needs

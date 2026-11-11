@@ -1,6 +1,6 @@
 module github.com/claudioed/yard-management
 
-go 1.27.3
+go 1.27.4
 
 require (
 	github.com/arch-go/arch-go v1.7.0

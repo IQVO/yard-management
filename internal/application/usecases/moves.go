@@ -213,6 +213,11 @@ func (y *Yard) arrive(ctx context.Context, tr *trailer.Trailer, mv *yardmove.Mov
 	if err := tr.ArriveAt(p, now); err != nil {
 		return err
 	}
+	if actual.Kind == shared.Door {
+		if err := y.requireInspections(ctx, tr, shared.GatePreDock); err != nil {
+			return err
+		}
+	}
 	return y.saveTrailer(ctx, tr)
 }
 

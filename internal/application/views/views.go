@@ -150,9 +150,26 @@ type YardPolicy struct {
 	RequireSecuringBeforeDoorWork bool `json:"requireSecuringBeforeDoorWork"`
 	// AllowHazmatOnUnclassifiedSpots: a hazmat trailer may take a spot with no
 	// spotKind at a site with no HAZMAT spot (ADR 0014); false = refused.
-	AllowHazmatOnUnclassifiedSpots bool  `json:"allowHazmatOnUnclassifiedSpots"`
-	Version                        int64 `json:"version"`
-	Declared                       bool  `json:"declared"`
+	AllowHazmatOnUnclassifiedSpots bool `json:"allowHazmatOnUnclassifiedSpots"`
+	// RequiredInspections are the inspections a trailer needs before it docks,
+	// loads or leaves (ADR 0015); empty = none, the behaviour before them.
+	RequiredInspections []InspectionRule `json:"requiredInspections"`
+	Version             int64            `json:"version"`
+	Declared            bool             `json:"declared"`
+}
+
+// InspectionRule is one entry of YardPolicy.requiredInspections.
+type InspectionRule struct {
+	Gate       string `json:"gate"`
+	TemplateID string `json:"templateId"`
+	// AppliesTo narrows the rule; an empty list means every purpose or kind.
+	AppliesTo InspectionAppliesTo `json:"appliesTo"`
+}
+
+// InspectionAppliesTo is the purpose and trailer kind filter of a rule.
+type InspectionAppliesTo struct {
+	Purposes     []string `json:"purposes"`
+	TrailerKinds []string `json:"trailerKinds"`
 }
 
 // BoardPlace is one spot or door of the yard board.

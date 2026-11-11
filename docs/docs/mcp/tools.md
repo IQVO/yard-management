@@ -23,7 +23,7 @@ server was not run while writing this page. `TestEveryMCPToolDeclaresAuthority`
 and `TestMCPWriteToolsAreAtLeastL3` keep the annotations and authority levels
 in the code consistent.
 
-The surface: **eight read tools (L1)** and **eight write tools (L3)**. Gate
+The surface (the budget is twenty-one tools since ADR 0015): **ten read tools (L1)** and **eleven write tools (L3)**. Gate
 check-in and check-out, hostler claims and completions and door work are
 floor-client actions on REST and are deliberately **not** tools.
 
@@ -32,7 +32,7 @@ Every tool declares `com.warehouse/authority` in its `_meta` (`L1` or `L3`) and
 
 ## Read tools (L1)
 
-All eight carry `readOnlyHint: true`, `idempotentHint: true`.
+All ten carry `readOnlyHint: true`, `idempotentHint: true`.
 
 | Tool | Inputs | Answers |
 | --- | --- | --- |
@@ -44,6 +44,8 @@ All eight carry `readOnlyHint: true`, `idempotentHint: true`.
 | `get_visit` | `visitId` (required) | one visit with carrier, plate, purpose, appointment, state, rejection reason, trailers in and out. `visit-not-found` |
 | `get_yard_policy` | `siteId` (required) | the site's policy (appointment required, holding spots, parking zones, dwell thresholds per kind, lease seconds, seal mismatch action, free time); the defaults with `declared: false` when none was declared |
 | `get_yard_dwell_report` | `from`, `to` (required, RFC 3339, `to` after `from`, at most 92 days), `siteId` (optional) | per trailer kind: trailers, average and maximum dwell minutes, average driver wait; `lastEventAt`. **Rows are empty**: `cmd/mcp` does not wire the analytics reader (`mcpDeps` in `cmd/mcp/wire.go`). `invalid-report-range` for a bad window |
+| `get_inspection` | `inspectionId` (required) | one compliance inspection: gate, status, the template snapshot with each item's result, note and evidence references, condition grade, version. `inspection-not-found` |
+| `list_trailer_inspections` | `trailerId` (required), `limit`, `cursor` | the inspections of a trailer, newest first. `trailer-not-found` |
 
 List tools page with `limit` (1 to 500, default 100) and the opaque
 `nextCursor` returned by the previous page.
@@ -71,6 +73,9 @@ a human approved.
 | `record_seal` | `trailerId`, `state` (`INTACT`, `APPLIED`, `BROKEN`) required; `sealNumber` (required when `INTACT` or `APPLIED`); `sealClass` (`I`, `S`, `H`, optional) | `BROKEN` also places a `SEAL_BROKEN` hold; a class below the site's `minimumSealClass` is `seal-class-too-low`, an unknown one `invalid-seal-class` (ADR 0012) |
 | `secure_trailer` | `trailerId`, `method` (`RESTRAINT`, `WHEEL_CHOCKS`) required; `securerRef` optional | records that a `DOCKED` trailer is secured (the dock safety interlock, ADR 0013); the same method again changes nothing; `trailer-has-open-move`, `illegal-transition` or `validation` otherwise |
 | `release_securing` | `trailerId` required | records that the restraint was released or the chocks removed; required before the trailer leaves its door; `trailer-not-secured` when it is not secured, `door-work-open` while door work is in progress |
+| `open_inspection` | `trailerId`, `templateId`, `gate` (`PRE_DOCK`, `PRE_LOAD`, `PRE_DEPARTURE`, `ON_DEMAND`) required; `templateVersion`, `visitId`, `performerRef` optional | opens an inspection from the latest (or named) template version, every item pending (ADR 0015); `unknown-template`, `inspection-already-open` |
+| `record_inspection_item` | `inspectionId`, `itemCode`, `result` (`PASS`, `FAIL`, `NOT_APPLICABLE`) required; `note`, `evidenceRefs` optional | records one item while the inspection is open; `unknown-item`, `not-applicable-not-allowed`, `inspection-closed` |
+| `complete_inspection` | `inspectionId` required; `conditionGrade` (`CLEAN`, `DIRTY`, `ODOUR`, `DAMAGED`) optional | ends the inspection `PASSED` or `FAILED`; a failure holds the trailer in the same unit of work; `required-item-pending`, `inspection-closed` |
 | `open_yard_check` | `siteId` required | opens an audit; at most one open check per site. The walk and the closing are floor actions |
 
 Errors come back as tool results with `isError: true` and a slug such as

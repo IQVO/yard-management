@@ -129,7 +129,7 @@ func TestRouter_ReadyzIsNotReadyWhileDraining(t *testing.T) {
 }
 
 // Both mount points speak Streamable HTTP, with no credentials, and a real
-// client lists all sixteen tools and calls a read and a write.
+// client lists all twenty-one tools and calls a read and a write.
 func TestStreamableHTTP_RootAndMCPPathsServeTools(t *testing.T) {
 	srv := newTestServer(t, allUp())
 	for _, path := range []string{"/", "/mcp"} {
@@ -158,8 +158,8 @@ func exerciseEndpoint(t *testing.T, endpoint string) {
 			writes++
 		}
 	}
-	if reads != 8 || writes != 8 {
-		t.Fatalf("tools = %d read + %d write, want 8 + 8", reads, writes)
+	if reads != 10 || writes != 11 {
+		t.Fatalf("tools = %d read + %d write, want 10 + 11", reads, writes)
 	}
 	res, err := session.CallTool(ctx, &sdk.CallToolParams{Name: "list_moves", Arguments: map[string]any{}})
 	if err != nil || res.IsError {

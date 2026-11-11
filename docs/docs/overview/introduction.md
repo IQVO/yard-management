@@ -35,9 +35,9 @@ CronJobs are switched off in infra until capacity is freed; see
 | Dwell: a sweep raises `TrailerDwellExceeded` once per trailer and threshold crossing | `POST /dwell-sweeps` |
 | Yard checks (audits) with discrepancies (`YardCheck`) | `/yard-checks` |
 | Per-site rules: appointment required, holding spots, parking zones, dwell thresholds, lease length, seal mismatch action `FLAG` or `REJECT` (`YardPolicy`) | `PUT /sites/{siteId}/yard-policy` |
-| Yard facts for everyone else: eleven integration events and ten analytics-only events | [Event catalogue](/docs/api-reference/events) |
+| Yard facts for everyone else: thirteen integration events and ten analytics-only events | [Event catalogue](/docs/api-reference/events) |
 | Yard KPIs: dwell, door utilisation, hostler productivity, turn time, detention exposure, exception rates | `/reports/*` ([ADR 0011](/docs/adr/0011-kpi-standard-reports)) |
-| Agent access: eight read tools and eight approval-gated write tools | [MCP tools](/docs/mcp/tools) |
+| Agent access: ten read tools and eleven approval-gated write tools | [MCP tools](/docs/mcp/tools) |
 
 ## What it does not own
 

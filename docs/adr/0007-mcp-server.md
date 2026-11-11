@@ -112,4 +112,4 @@ in-flight requests (10 s bound), then the pool closes.
 - **M2** The list tools accept `limit` 1..500 (0 or absent = 100); a larger or negative value is `invalid-limit`, not silently clamped.
 - **M3** A stored client-error answer is replayed verbatim for its key (REST does the same); the agent uses a new key for a deliberate retry
   after fixing the cause.
-- **M4** The tool budget is fourteen; raising it is an amendment of this ADR. ADR 0013 amends it to sixteen (the writes `secure_trailer` and `release_securing`).
+- **M4** The tool budget is fourteen; raising it is an amendment of this ADR. ADR 0013 amends it to sixteen (the writes `secure_trailer` and `release_securing`); ADR 0015 amends it to twenty-one (the reads `get_inspection` and `list_trailer_inspections`, the writes `open_inspection`, `record_inspection_item` and `complete_inspection`).

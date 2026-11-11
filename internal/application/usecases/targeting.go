@@ -8,6 +8,7 @@ import (
 
 	"github.com/claudioed/yard-management/internal/application/ports"
 	"github.com/claudioed/yard-management/internal/application/views"
+	"github.com/claudioed/yard-management/internal/domain/inspection"
 	"github.com/claudioed/yard-management/internal/domain/shared"
 	"github.com/claudioed/yard-management/internal/domain/trailer"
 	"github.com/claudioed/yard-management/internal/domain/yardmove"
@@ -116,6 +117,11 @@ func (y *Yard) canTake(ctx context.Context, tr *trailer.Trailer, loc shared.Loca
 	if err := tr.CanPlaceAt(p); err != nil {
 		return err
 	}
+	if loc.Kind == shared.Door {
+		if err := y.requireInspections(ctx, tr, shared.GatePreDock); err != nil {
+			return err
+		}
+	}
 	mv, err := y.d.Moves.FindOpenByDestination(ctx, loc)
 	switch {
 	case errors.Is(err, ports.ErrNotFound):
@@ -156,7 +162,7 @@ func (y *Yard) firstFreeSpot(ctx context.Context, tr *trailer.Trailer, preferred
 
 // isPlacementRefusal reports the refusals that only mean "not this place".
 func isPlacementRefusal(err error) bool {
-	for _, target := range []error{trailer.ErrLocationOccupied, trailer.ErrUnknownLocation, trailer.ErrDoorClosed, trailer.ErrDoorFlowMismatch, trailer.ErrTrailerOnHold, trailer.ErrPlacementRuleViolated, yardmove.ErrDestinationReserved} {
+	for _, target := range []error{trailer.ErrLocationOccupied, trailer.ErrUnknownLocation, trailer.ErrDoorClosed, trailer.ErrDoorFlowMismatch, trailer.ErrTrailerOnHold, trailer.ErrPlacementRuleViolated, yardmove.ErrDestinationReserved, inspection.ErrInspectionRequired, inspection.ErrInspectionFailed} {
 		if errors.Is(err, target) {
 			return true
 		}

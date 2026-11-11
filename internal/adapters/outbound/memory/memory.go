@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/claudioed/yard-management/internal/application/views"
+	"github.com/claudioed/yard-management/internal/domain/inspection"
 	"github.com/claudioed/yard-management/internal/domain/shared"
 	"github.com/claudioed/yard-management/internal/domain/trailer"
 	"github.com/claudioed/yard-management/internal/domain/yardcheck"
@@ -22,26 +23,29 @@ import (
 
 // state is everything the store holds; a UnitOfWork snapshots it with clone.
 type state struct {
-	visits    map[string]yardvisit.Snapshot
-	trailers  map[string]trailer.Snapshot
-	moves     map[string]yardmove.Snapshot
-	checks    map[string]yardcheck.Snapshot
-	policies  map[string]yardpolicy.Snapshot
-	zones     map[string]string
-	locations map[string]views.LocationInfo
-	appts     map[string]views.Appointment
-	closures  map[string]views.Closure
-	asns      map[string]bool // asn number -> cancelled
-	receipts  map[string]views.Receipt
-	processed map[string]bool
-	idem      map[string]views.IdempotencyRecord
-	events    []shared.Event
+	visits      map[string]yardvisit.Snapshot
+	trailers    map[string]trailer.Snapshot
+	moves       map[string]yardmove.Snapshot
+	checks      map[string]yardcheck.Snapshot
+	policies    map[string]yardpolicy.Snapshot
+	inspections map[string]inspection.Snapshot
+	templates   map[string]inspection.TemplateSnapshot // "<id>#<version>" -> custom template
+	zones       map[string]string
+	locations   map[string]views.LocationInfo
+	appts       map[string]views.Appointment
+	closures    map[string]views.Closure
+	asns        map[string]bool // asn number -> cancelled
+	receipts    map[string]views.Receipt
+	processed   map[string]bool
+	idem        map[string]views.IdempotencyRecord
+	events      []shared.Event
 }
 
 func newState() state {
 	return state{
 		visits: map[string]yardvisit.Snapshot{}, trailers: map[string]trailer.Snapshot{}, moves: map[string]yardmove.Snapshot{},
-		checks: map[string]yardcheck.Snapshot{}, policies: map[string]yardpolicy.Snapshot{}, zones: map[string]string{},
+		checks: map[string]yardcheck.Snapshot{}, policies: map[string]yardpolicy.Snapshot{},
+		inspections: map[string]inspection.Snapshot{}, templates: map[string]inspection.TemplateSnapshot{}, zones: map[string]string{},
 		locations: map[string]views.LocationInfo{}, appts: map[string]views.Appointment{}, closures: map[string]views.Closure{},
 		asns: map[string]bool{}, receipts: map[string]views.Receipt{}, processed: map[string]bool{}, idem: map[string]views.IdempotencyRecord{},
 	}
@@ -58,6 +62,7 @@ func copyMap[V any](m map[string]V) map[string]V {
 func (s state) clone() state {
 	return state{
 		visits: copyMap(s.visits), trailers: copyMap(s.trailers), moves: copyMap(s.moves), checks: copyMap(s.checks), policies: copyMap(s.policies),
+		inspections: copyMap(s.inspections), templates: copyMap(s.templates),
 		zones: copyMap(s.zones), locations: copyMap(s.locations), appts: copyMap(s.appts), closures: copyMap(s.closures), asns: copyMap(s.asns),
 		receipts: copyMap(s.receipts), processed: copyMap(s.processed), idem: copyMap(s.idem), events: append([]shared.Event(nil), s.events...),
 	}

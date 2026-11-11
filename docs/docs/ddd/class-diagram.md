@@ -574,7 +574,7 @@ All paths are under `internal/` (`internal/adapters/inbound/{http,kafka,mcp}`,
 `internal/application/usecases`, `internal/domain`, `internal/application/ports`,
 `internal/adapters/outbound/{postgres,kafka,analyticsstore,memory,system}`). The service has five binaries under
 `cmd/` (`api`, `mcp`, `relay`, `yard-projector`, `yard-reports`); `http` is the `api` binary and `mcp` serves the
-16 tools of the service's MCP server (8 reads, 8 L3 writes). The ports are named as in `ports.go`: the five
+21 tools of the service's MCP server (10 reads, 11 L3 writes). The ports are named as in `ports.go`: the five
 repositories, the read ports `Locations`, `Appointments`, `Closures`, `Asns` and `Receipts` with a feed each,
 `LocationLock`, `EventPublisher`, `ProcessedEvents`, `IDGen`, `Clock`, `IdempotencyStore` and `UnitOfWork`. The
 KPI reports read an analytics store (`analyticsstore`) fed from the analytics topic. The dashed arrows mean every use case

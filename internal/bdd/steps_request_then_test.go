@@ -18,9 +18,9 @@ func registerRequestSteps(sc *godog.ScenarioContext, w *world) {
 	sc.Step(`^I send PUT "([^"]*)" with If-Match version (\d+) and body (.+)$`, w.sendIfMatch)
 }
 
-var placeholder = regexp.MustCompile(`<(visit|trailer|move) ([^>]+)>`)
+var placeholder = regexp.MustCompile(`<(visit|trailer|move|inspection) ([^>]+)>`)
 
-// resolve replaces <visit A>, <trailer TR-1> and <move TR-1> (the open move of
+// resolve replaces <visit A>, <trailer TR-1>, <inspection I> and <move TR-1> (the open move of
 // the trailer) with the ids the scenario met.
 func (w *world) resolve(s string) (string, error) {
 	var failure error
@@ -29,6 +29,8 @@ func (w *world) resolve(s string) (string, error) {
 		var id string
 		var err error
 		switch parts[1] {
+		case "inspection":
+			id, err = w.inspectionID(parts[2])
 		case "visit":
 			id, err = w.visitID(parts[2])
 		case "trailer":

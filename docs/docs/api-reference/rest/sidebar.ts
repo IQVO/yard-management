@@ -118,6 +118,70 @@ const sidebar: SidebarsConfig = {
     },
     {
       type: "category",
+      label: "Inspections",
+      link: {
+        type: "doc",
+        id: "api-reference/rest/inspections",
+      },
+      items: [
+        {
+          type: "doc",
+          id: "api-reference/rest/open-inspection",
+          label: "Open an inspection (OpenInspection)",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "api-reference/rest/list-trailer-inspections",
+          label: "List the inspections of a trailer",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "api-reference/rest/get-inspection",
+          label: "Get an inspection",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "api-reference/rest/record-inspection-item",
+          label: "Record an inspection item (RecordInspectionItem)",
+          className: "api-method put",
+        },
+        {
+          type: "doc",
+          id: "api-reference/rest/complete-inspection",
+          label: "Complete an inspection (CompleteInspection)",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "api-reference/rest/list-inspection-templates",
+          label: "List the inspection templates",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "api-reference/rest/get-inspection-template",
+          label: "Get the latest version of an inspection template",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "api-reference/rest/get-inspection-template-version",
+          label: "Get one version of an inspection template",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "api-reference/rest/publish-inspection-template",
+          label: "Publish an inspection template version (PublishInspectionTemplate)",
+          className: "api-method put",
+        },
+      ],
+    },
+    {
+      type: "category",
       label: "Moves",
       link: {
         type: "doc",

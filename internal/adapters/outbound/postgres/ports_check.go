@@ -11,6 +11,8 @@ var (
 	_ ports.MoveRepo         = (*Moves)(nil)
 	_ ports.CheckRepo        = (*Checks)(nil)
 	_ ports.PolicyRepo       = (*Policies)(nil)
+	_ ports.InspectionRepo   = (*Inspections)(nil)
+	_ ports.TemplateRepo     = (*Templates)(nil)
 	_ ports.Locations        = (*Locations)(nil)
 	_ ports.LocationFeed     = (*Locations)(nil)
 	_ ports.Appointments     = (*Appointments)(nil)

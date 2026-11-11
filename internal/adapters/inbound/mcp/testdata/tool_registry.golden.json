@@ -199,6 +199,340 @@
   },
   {
     "_meta": {
+      "com.warehouse/authority": "L3"
+    },
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "description": "Complete an inspection. It is FAILED when a required item failed (and the trailer is then placed on hold in the same step, unless it already is held), PASSED otherwise; completing is final. Every required item needs a result first. Changes state (L3): call it only when a human approved, and pass proposalId, approvedBy and agentId. idempotencyKey is required. Fails with inspection-not-found, inspection-closed, required-item-pending or validation.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "agentId": {
+          "description": "optional id of the calling agent, recorded on the events it raises for attribution (max 128 characters)",
+          "type": "string"
+        },
+        "approvedBy": {
+          "description": "optional id of the human who approved the proposal, recorded on the events it raises for attribution (max 128 characters)",
+          "type": "string"
+        },
+        "conditionGrade": {
+          "description": "optional overall condition of the equipment: CLEAN, DIRTY, ODOUR or DAMAGED; a record, never the verdict",
+          "type": "string"
+        },
+        "idempotencyKey": {
+          "description": "required, 1 to 128 printable ASCII characters, unique per logical request. A retry with the same key and the same arguments returns the first answer; the same key with other arguments is refused with idempotency-key-reused",
+          "type": "string"
+        },
+        "inspectionId": {
+          "description": "the OPEN inspection to complete",
+          "type": "string"
+        },
+        "proposalId": {
+          "description": "optional id of the proposal this call executes, recorded on the events it raises for attribution (max 128 characters)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "idempotencyKey",
+        "inspectionId"
+      ],
+      "type": "object"
+    },
+    "name": "complete_inspection",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "completedAt": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "conditionGrade": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "gate": {
+          "type": "string"
+        },
+        "inspectionId": {
+          "type": "string"
+        },
+        "items": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "allowNotApplicable": {
+                "type": "boolean"
+              },
+              "evidenceRefs": {
+                "items": {
+                  "type": "string"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              },
+              "holdReason": {
+                "type": "string"
+              },
+              "itemCode": {
+                "type": "string"
+              },
+              "note": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "result": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "itemCode",
+              "text",
+              "required",
+              "allowNotApplicable",
+              "holdReason",
+              "result",
+              "note",
+              "evidenceRefs"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        },
+        "openedAt": {
+          "type": "string"
+        },
+        "performerRef": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "siteId": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "templateId": {
+          "type": "string"
+        },
+        "templateVersion": {
+          "type": "integer"
+        },
+        "trailerId": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer"
+        },
+        "visitId": {
+          "type": [
+            "null",
+            "string"
+          ]
+        }
+      },
+      "required": [
+        "inspectionId",
+        "siteId",
+        "trailerId",
+        "visitId",
+        "templateId",
+        "templateVersion",
+        "gate",
+        "status",
+        "items",
+        "performerRef",
+        "conditionGrade",
+        "openedAt",
+        "completedAt",
+        "version"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "_meta": {
+      "com.warehouse/authority": "L1"
+    },
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Read one compliance inspection by id: the trailer, the template and version it was opened from (a snapshot), the gate, the status (OPEN, PASSED or FAILED), every item with its result, note and evidence references, the condition grade and the instants. Read-only; fails with inspection-not-found for an unknown id.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "inspectionId": {
+          "description": "the inspection id, e.g. insp-1b4e28ba-2fa1-4d3c-8f6e-0a1b2c3d4e5f",
+          "type": "string"
+        }
+      },
+      "required": [
+        "inspectionId"
+      ],
+      "type": "object"
+    },
+    "name": "get_inspection",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "completedAt": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "conditionGrade": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "gate": {
+          "type": "string"
+        },
+        "inspectionId": {
+          "type": "string"
+        },
+        "items": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "allowNotApplicable": {
+                "type": "boolean"
+              },
+              "evidenceRefs": {
+                "items": {
+                  "type": "string"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              },
+              "holdReason": {
+                "type": "string"
+              },
+              "itemCode": {
+                "type": "string"
+              },
+              "note": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "result": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "itemCode",
+              "text",
+              "required",
+              "allowNotApplicable",
+              "holdReason",
+              "result",
+              "note",
+              "evidenceRefs"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        },
+        "openedAt": {
+          "type": "string"
+        },
+        "performerRef": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "siteId": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "templateId": {
+          "type": "string"
+        },
+        "templateVersion": {
+          "type": "integer"
+        },
+        "trailerId": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer"
+        },
+        "visitId": {
+          "type": [
+            "null",
+            "string"
+          ]
+        }
+      },
+      "required": [
+        "inspectionId",
+        "siteId",
+        "trailerId",
+        "visitId",
+        "templateId",
+        "templateVersion",
+        "gate",
+        "status",
+        "items",
+        "performerRef",
+        "conditionGrade",
+        "openedAt",
+        "completedAt",
+        "version"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "_meta": {
       "com.warehouse/authority": "L1"
     },
     "annotations": {
@@ -1552,7 +1886,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
     },
-    "description": "Read the yard policy of a site: whether an appointment is required, the holding spots and parking zones, the dwell thresholds per trailer kind, the lease seconds, the seal mismatch action (FLAG or REJECT), the minimum ISO 17712 seal class (I, S or H; null = none) and the free time. A site that never declared one answers the defaults (declared false). Read-only.",
+    "description": "Read the yard policy of a site: whether an appointment is required, the holding spots and parking zones, the dwell thresholds per trailer kind, the lease seconds, the seal mismatch action (FLAG or REJECT), the minimum ISO 17712 seal class (I, S or H; null = none), the free time and the requiredInspections (the inspections a trailer needs before it docks, loads or leaves; empty = none). A site that never declared one answers the defaults (declared false). Read-only.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -1621,6 +1955,57 @@
         "requireSecuringBeforeDoorWork": {
           "type": "boolean"
         },
+        "requiredInspections": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "appliesTo": {
+                "additionalProperties": false,
+                "properties": {
+                  "purposes": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": [
+                      "null",
+                      "array"
+                    ]
+                  },
+                  "trailerKinds": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": [
+                      "null",
+                      "array"
+                    ]
+                  }
+                },
+                "required": [
+                  "purposes",
+                  "trailerKinds"
+                ],
+                "type": "object"
+              },
+              "gate": {
+                "type": "string"
+              },
+              "templateId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "gate",
+              "templateId",
+              "appliesTo"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        },
         "sealMismatchAction": {
           "type": "string"
         },
@@ -1643,6 +2028,7 @@
         "minimumSealClass",
         "requireSecuringBeforeDoorWork",
         "allowHazmatOnUnclassifiedSpots",
+        "requiredInspections",
         "version",
         "declared"
       ],
@@ -1841,6 +2227,188 @@
               "claimedAt",
               "completedAt",
               "requestedAt",
+              "version"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        },
+        "nextCursor": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "_meta": {
+      "com.warehouse/authority": "L1"
+    },
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "List the compliance inspections of one trailer, newest first, a page at a time (default 100, max 500). Use it to see whether a trailer has passed the inspection a gate asks for. Pass the returned nextCursor for the next page. Read-only; fails with trailer-not-found, or with invalid-limit or invalid-cursor for a bad page argument.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "cursor": {
+          "description": "the opaque nextCursor returned by the previous page; omitted means the first page",
+          "type": "string"
+        },
+        "limit": {
+          "description": "page size, 1..500; omitted or 0 means 100",
+          "type": "integer"
+        },
+        "trailerId": {
+          "description": "the trailer whose inspections are listed",
+          "type": "string"
+        }
+      },
+      "required": [
+        "trailerId"
+      ],
+      "type": "object"
+    },
+    "name": "list_trailer_inspections",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "completedAt": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "conditionGrade": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "gate": {
+                "type": "string"
+              },
+              "inspectionId": {
+                "type": "string"
+              },
+              "items": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "allowNotApplicable": {
+                      "type": "boolean"
+                    },
+                    "evidenceRefs": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": [
+                        "null",
+                        "array"
+                      ]
+                    },
+                    "holdReason": {
+                      "type": "string"
+                    },
+                    "itemCode": {
+                      "type": "string"
+                    },
+                    "note": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "required": {
+                      "type": "boolean"
+                    },
+                    "result": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "text": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "itemCode",
+                    "text",
+                    "required",
+                    "allowNotApplicable",
+                    "holdReason",
+                    "result",
+                    "note",
+                    "evidenceRefs"
+                  ],
+                  "type": "object"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              },
+              "openedAt": {
+                "type": "string"
+              },
+              "performerRef": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "siteId": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "templateId": {
+                "type": "string"
+              },
+              "templateVersion": {
+                "type": "integer"
+              },
+              "trailerId": {
+                "type": "string"
+              },
+              "version": {
+                "type": "integer"
+              },
+              "visitId": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              }
+            },
+            "required": [
+              "inspectionId",
+              "siteId",
+              "trailerId",
+              "visitId",
+              "templateId",
+              "templateVersion",
+              "gate",
+              "status",
+              "items",
+              "performerRef",
+              "conditionGrade",
+              "openedAt",
+              "completedAt",
               "version"
             ],
             "type": "object"
@@ -2288,6 +2856,202 @@
       "openWorldHint": false,
       "readOnlyHint": false
     },
+    "description": "Open a compliance inspection checklist for a trailer on site: a snapshot of the template (the latest version unless templateVersion is given) with every item pending, for a gate (PRE_DOCK, PRE_LOAD, PRE_DEPARTURE or ON_DEMAND). One inspection per trailer, template and gate is open at a time. Changes state (L3): call it only when a human approved, and pass proposalId, approvedBy and agentId. idempotencyKey is required. Fails with trailer-not-found, illegal-transition (the trailer left), unknown-template, inspection-already-open, visit-not-found or validation.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "agentId": {
+          "description": "optional id of the calling agent, recorded on the events it raises for attribution (max 128 characters)",
+          "type": "string"
+        },
+        "approvedBy": {
+          "description": "optional id of the human who approved the proposal, recorded on the events it raises for attribution (max 128 characters)",
+          "type": "string"
+        },
+        "gate": {
+          "description": "the yard step the inspection stands in front of: PRE_DOCK, PRE_LOAD, PRE_DEPARTURE or ON_DEMAND (an ON_DEMAND one opens no gate)",
+          "type": "string"
+        },
+        "idempotencyKey": {
+          "description": "required, 1 to 128 printable ASCII characters, unique per logical request. A retry with the same key and the same arguments returns the first answer; the same key with other arguments is refused with idempotency-key-reused",
+          "type": "string"
+        },
+        "performerRef": {
+          "description": "optional reference of the inspector (an employee id, never a driver's name; max 64 characters)",
+          "type": "string"
+        },
+        "proposalId": {
+          "description": "optional id of the proposal this call executes, recorded on the events it raises for attribution (max 128 characters)",
+          "type": "string"
+        },
+        "templateId": {
+          "description": "the checklist template, e.g. tractor-trailer-17-point, empty-container-7-point, reefer-pre-cool-and-sanitation or a template the site published",
+          "type": "string"
+        },
+        "templateVersion": {
+          "description": "optional: the template version; omitted means the latest published version. The inspection keeps a snapshot of it",
+          "type": "integer"
+        },
+        "trailerId": {
+          "description": "the trailer on site to inspect",
+          "type": "string"
+        },
+        "visitId": {
+          "description": "optional: the visit the inspection is made for; omitted means the visit the trailer came with",
+          "type": "string"
+        }
+      },
+      "required": [
+        "idempotencyKey",
+        "trailerId",
+        "templateId",
+        "gate"
+      ],
+      "type": "object"
+    },
+    "name": "open_inspection",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "completedAt": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "conditionGrade": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "gate": {
+          "type": "string"
+        },
+        "inspectionId": {
+          "type": "string"
+        },
+        "items": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "allowNotApplicable": {
+                "type": "boolean"
+              },
+              "evidenceRefs": {
+                "items": {
+                  "type": "string"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              },
+              "holdReason": {
+                "type": "string"
+              },
+              "itemCode": {
+                "type": "string"
+              },
+              "note": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "result": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "itemCode",
+              "text",
+              "required",
+              "allowNotApplicable",
+              "holdReason",
+              "result",
+              "note",
+              "evidenceRefs"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        },
+        "openedAt": {
+          "type": "string"
+        },
+        "performerRef": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "siteId": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "templateId": {
+          "type": "string"
+        },
+        "templateVersion": {
+          "type": "integer"
+        },
+        "trailerId": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer"
+        },
+        "visitId": {
+          "type": [
+            "null",
+            "string"
+          ]
+        }
+      },
+      "required": [
+        "inspectionId",
+        "siteId",
+        "trailerId",
+        "visitId",
+        "templateId",
+        "templateVersion",
+        "gate",
+        "status",
+        "items",
+        "performerRef",
+        "conditionGrade",
+        "openedAt",
+        "completedAt",
+        "version"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "_meta": {
+      "com.warehouse/authority": "L3"
+    },
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
     "description": "Open a yard check (an audit) of a site. The walk itself (observations) and the closing reconciliation are supervisor actions of the floor client. Changes state (L3): call it only when a human approved, and pass proposalId, approvedBy and agentId. idempotencyKey is required. Fails with yard-check-open when one is already open for the site, or validation.",
     "inputSchema": {
       "additionalProperties": false,
@@ -2661,6 +3425,204 @@
         "arrivedAt",
         "departedAt",
         "openMoveId",
+        "version"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "_meta": {
+      "com.warehouse/authority": "L3"
+    },
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "description": "Record what the inspector found at one item of an OPEN inspection: PASS, FAIL or NOT_APPLICABLE (only where the template allows it), with an optional note and opaque evidence references. Recording again replaces the result. Changes state (L3): call it only when a human approved, and pass proposalId, approvedBy and agentId. idempotencyKey is required. Fails with inspection-not-found, inspection-closed, unknown-item, not-applicable-not-allowed or validation.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "agentId": {
+          "description": "optional id of the calling agent, recorded on the events it raises for attribution (max 128 characters)",
+          "type": "string"
+        },
+        "approvedBy": {
+          "description": "optional id of the human who approved the proposal, recorded on the events it raises for attribution (max 128 characters)",
+          "type": "string"
+        },
+        "evidenceRefs": {
+          "description": "optional opaque references to photos or documents held elsewhere, at most 20, each at most 256 characters; strings only, never binary",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        },
+        "idempotencyKey": {
+          "description": "required, 1 to 128 printable ASCII characters, unique per logical request. A retry with the same key and the same arguments returns the first answer; the same key with other arguments is refused with idempotency-key-reused",
+          "type": "string"
+        },
+        "inspectionId": {
+          "description": "the OPEN inspection",
+          "type": "string"
+        },
+        "itemCode": {
+          "description": "the item code of the template, e.g. fifth-wheel",
+          "type": "string"
+        },
+        "note": {
+          "description": "optional note (max 500 characters)",
+          "type": "string"
+        },
+        "proposalId": {
+          "description": "optional id of the proposal this call executes, recorded on the events it raises for attribution (max 128 characters)",
+          "type": "string"
+        },
+        "result": {
+          "description": "PASS, FAIL or NOT_APPLICABLE (only where the template item allows it); recording again replaces the earlier result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "idempotencyKey",
+        "inspectionId",
+        "itemCode",
+        "result"
+      ],
+      "type": "object"
+    },
+    "name": "record_inspection_item",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "completedAt": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "conditionGrade": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "gate": {
+          "type": "string"
+        },
+        "inspectionId": {
+          "type": "string"
+        },
+        "items": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "allowNotApplicable": {
+                "type": "boolean"
+              },
+              "evidenceRefs": {
+                "items": {
+                  "type": "string"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              },
+              "holdReason": {
+                "type": "string"
+              },
+              "itemCode": {
+                "type": "string"
+              },
+              "note": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "result": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "itemCode",
+              "text",
+              "required",
+              "allowNotApplicable",
+              "holdReason",
+              "result",
+              "note",
+              "evidenceRefs"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        },
+        "openedAt": {
+          "type": "string"
+        },
+        "performerRef": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "siteId": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "templateId": {
+          "type": "string"
+        },
+        "templateVersion": {
+          "type": "integer"
+        },
+        "trailerId": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer"
+        },
+        "visitId": {
+          "type": [
+            "null",
+            "string"
+          ]
+        }
+      },
+      "required": [
+        "inspectionId",
+        "siteId",
+        "trailerId",
+        "visitId",
+        "templateId",
+        "templateVersion",
+        "gate",
+        "status",
+        "items",
+        "performerRef",
+        "conditionGrade",
+        "openedAt",
+        "completedAt",
         "version"
       ],
       "type": "object"
@@ -3415,7 +4377,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
     },
-    "description": "Ask for a trailer to be moved to a free spot or door of its site. The destination is validated now (known active slot, door open and flow-compatible, trailer not on hold; a trailer with a hazmat class or a temperature-control need only to a spot its kind allows) and RESERVED by the open move; a hostler then claims it from the floor client. Changes state (L3): call it only for a move a human approved, and pass proposalId, approvedBy and agentId so the move is attributable. idempotencyKey is required. Fails with trailer-not-found, trailer-has-open-move, location-occupied, destination-reserved, door-closed, door-flow-mismatch, trailer-on-hold, trailer-still-secured, placement-rule-violated, unknown-location or validation.",
+    "description": "Ask for a trailer to be moved to a free spot or door of its site. The destination is validated now (known active slot, door open and flow-compatible, trailer not on hold; a trailer with a hazmat class or a temperature-control need only to a spot its kind allows) and RESERVED by the open move; a hostler then claims it from the floor client. Changes state (L3): call it only for a move a human approved, and pass proposalId, approvedBy and agentId so the move is attributable. idempotencyKey is required. Fails with trailer-not-found, trailer-has-open-move, location-occupied, destination-reserved, door-closed, door-flow-mismatch, trailer-on-hold, trailer-still-secured, placement-rule-violated, inspection-required or inspection-failed (a door move of a trailer without the passed PRE_DOCK inspection the site policy requires), unknown-location or validation.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {

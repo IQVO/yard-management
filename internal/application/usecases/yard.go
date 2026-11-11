@@ -45,6 +45,8 @@ type Deps struct {
 	Moves        ports.MoveRepo
 	Checks       ports.CheckRepo
 	Policies     ports.PolicyRepo
+	Inspections  ports.InspectionRepo
+	Templates    ports.TemplateRepo
 	Locations    ports.Locations
 	Appointments ports.Appointments
 	Closures     ports.Closures

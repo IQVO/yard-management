@@ -1,0 +1,70 @@
+---
+id: open-inspection
+title: "Open an inspection (OpenInspection)"
+description: "Opens a compliance inspection of a trailer on site (ADR 0015): a SNAPSHOT of the template version (the latest unless `templateVersion` is sent) with every item pending, for a `gate` (`PRE_DOCK`, `PRE_LOAD`, `PRE_DEPARTURE`, or `ON_DEMAND`, which opens no gate). `visitId` defaults to the visit the trailer is on. One inspection per trailer, template and gate is OPEN at a time (409 `inspection-already-open`); a trailer that left is 409 `illegal-transition`; an unknown template or version is 422 `unknown-template`; an unknown visit is 404 `visit-not-found`. Raises nothing: events are raised when the inspection completes."
+sidebar_label: "Open an inspection (OpenInspection)"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: docs/api-reference/rest/yard-management-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Open an inspection (OpenInspection)"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/trailers/{trailerId}/inspections"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Opens a compliance inspection of a trailer on site (ADR 0015): a SNAPSHOT of the template version (the latest unless `templateVersion` is sent) with every item pending, for a `gate` (`PRE_DOCK`, `PRE_LOAD`, `PRE_DEPARTURE`, or `ON_DEMAND`, which opens no gate). `visitId` defaults to the visit the trailer is on. One inspection per trailer, template and gate is OPEN at a time (409 `inspection-already-open`); a trailer that left is 409 `illegal-transition`; an unknown template or version is 422 `unknown-template`; an unknown visit is 404 `visit-not-found`. Raises nothing: events are raised when the inspection completes.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./open-inspection.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./open-inspection.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./open-inspection.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

@@ -16,13 +16,13 @@ info:
     and yard checks (ADR 0001, 0002).
 
 
-    **Published.** Four aggregates (YardVisit, Trailer, YardMove, YardCheck) raise 21 event types through a transactional
+    **Published.** Five aggregates (YardVisit, Trailer, YardMove, YardCheck, Inspection) raise 23 event types through a transactional
     outbox: the aggregate row and its events are written in ONE database transaction and a relay drains them to Kafka (at-least-once;
-    the CloudEvents `id` is stored with the outbox row). Eleven types are integration events on `warehouse.yard-management.events`
+    the CloudEvents `id` is stored with the outbox row). Thirteen types are integration events on `warehouse.yard-management.events`
     (VisitCheckedIn, VisitRejected, TrailerDocked, TrailerUndocked, SealExceptionRaised, TrailerDwellExceeded, YardCheckClosed, DoorWorkCompleted, TrailerDeparted,
-    TrailerSecured, TrailerSecuringReleased)
+    TrailerSecured, TrailerSecuringReleased, InspectionCompleted, InspectionFailed)
     and are mirrored on `warehouse.yard-management.analytics` under the same id; the other ten are analytics-only and go
-    ONLY to the analytics topic. The key of every message is its aggregate root id (`visit_id`, `trailer_id`, `move_id`, `yard_check_id`).
+    ONLY to the analytics topic. The key of every message is its aggregate root id (`visit_id`, `trailer_id`, `move_id`, `yard_check_id`, `inspection_id`).
 
 
     **Consumed (ADR 0003).** dock-scheduling (appointments and door closures), facility-layout (locations and zones) and inbound-receiving
@@ -63,6 +63,10 @@ channels:
         $ref: '#/components/messages/TrailerDwellExceeded'
       YardCheckClosed:
         $ref: '#/components/messages/YardCheckClosed'
+      InspectionCompleted:
+        $ref: '#/components/messages/InspectionCompleted'
+      InspectionFailed:
+        $ref: '#/components/messages/InspectionFailed'
       DoorWorkCompleted:
         $ref: '#/components/messages/DoorWorkCompleted'
       TrailerDeparted:
@@ -73,7 +77,7 @@ channels:
         $ref: '#/components/messages/TrailerSecuringReleased'
   yardManagementAnalytics:
     address: warehouse.yard-management.analytics
-    description: 'This service''s analytics stream, written by the SAME outbox pass: the eleven integration types again (same
+    description: 'This service''s analytics stream, written by the SAME outbox pass: the thirteen integration types again (same
       id, byte-identical payload, analytics dataschema) plus the ten analytics-only types. Consumed ONLY by this service''s
       own projector.'
     messages:
@@ -119,6 +123,10 @@ channels:
         $ref: '#/components/messages/YardMoveCancelledAnalytics'
       YardCheckClosedAnalytics:
         $ref: '#/components/messages/YardCheckClosedAnalytics'
+      InspectionCompletedAnalytics:
+        $ref: '#/components/messages/InspectionCompletedAnalytics'
+      InspectionFailedAnalytics:
+        $ref: '#/components/messages/InspectionFailedAnalytics'
   dockSchedulingEvents:
     address: warehouse.dock-scheduling.events
     description: dock-scheduling's integration topic (key = appointment_id; closures key = site_id).
@@ -163,9 +171,9 @@ operations:
     channel:
       $ref: '#/channels/yardManagementEvents'
     summary: Publish the integration events of the yard.
-    description: 'Publishes the eleven integration event types. TrailerSecured and TrailerSecuringReleased (ADR 0013) have no consumer yet: they are the safety interlock facts of the yard. Consumers: outbound-shipping (TrailerDocked, DoorWorkCompleted, TrailerDeparted), dock-scheduling (VisitCheckedIn, TrailerDocked,
+    description: 'Publishes the thirteen integration event types. TrailerSecured and TrailerSecuringReleased (ADR 0013) and InspectionCompleted (ADR 0015) have no consumer yet: they are the safety interlock facts and the inspection audit record of the yard. Consumers: outbound-shipping (TrailerDocked, DoorWorkCompleted, TrailerDeparted), dock-scheduling (VisitCheckedIn, TrailerDocked,
       TrailerUndocked), inbound-receiving (TrailerDocked), dock-scheduling (VisitRejected), exception-management (VisitRejected,
-      SealExceptionRaised, TrailerDwellExceeded, YardCheckClosed).'
+      SealExceptionRaised, TrailerDwellExceeded, YardCheckClosed, InspectionFailed).'
     messages:
     - $ref: '#/channels/yardManagementEvents/messages/VisitCheckedIn'
     - $ref: '#/channels/yardManagementEvents/messages/VisitRejected'
@@ -178,6 +186,8 @@ operations:
     - $ref: '#/channels/yardManagementEvents/messages/TrailerDeparted'
     - $ref: '#/channels/yardManagementEvents/messages/TrailerSecured'
     - $ref: '#/channels/yardManagementEvents/messages/TrailerSecuringReleased'
+    - $ref: '#/channels/yardManagementEvents/messages/InspectionCompleted'
+    - $ref: '#/channels/yardManagementEvents/messages/InspectionFailed'
   publishYardManagementAnalytics:
     action: send
     channel:
@@ -206,6 +216,8 @@ operations:
     - $ref: '#/channels/yardManagementAnalytics/messages/YardMoveCompletedAnalytics'
     - $ref: '#/channels/yardManagementAnalytics/messages/YardMoveCancelledAnalytics'
     - $ref: '#/channels/yardManagementAnalytics/messages/YardCheckClosedAnalytics'
+    - $ref: '#/channels/yardManagementAnalytics/messages/InspectionCompletedAnalytics'
+    - $ref: '#/channels/yardManagementAnalytics/messages/InspectionFailedAnalytics'
     x-no-consumer-reason: Consumed only by this service's own projector (cmd/yard-projector).
   receiveDockSchedulingEvents:
     action: receive
@@ -1453,6 +1465,183 @@ components:
             version: 2
       tags:
       - name: yardmove
+    InspectionCompleted:
+      name: InspectionCompleted
+      title: InspectionCompleted
+      summary: An inspection of a trailer was completed, PASSED or FAILED (ADR 0015). The audit record of every inspection; no consumer yet.
+      description: '`type` = `com.warehouse.wms.yard-management.inspection.InspectionCompleted`; subject and key = `inspection_id`;
+        dataschema `urn:warehouse:yard-management:events:InspectionCompleted:v1`. Raised by CompleteInspection (ADR 0015); the inspection is final once completed, so the payload carries no version. A template is versioned and an inspection keeps the version it was opened from (template_version).'
+      contentType: application/cloudevents+json
+      x-no-consumer-reason: 'No consumer yet, by design: the audit record of every inspection; the actionable failure reaches exception-management as InspectionFailed.'
+      payload:
+        allOf:
+        - $ref: '#/components/schemas/CloudEventEnvelope'
+        - type: object
+          properties:
+            type:
+              const: com.warehouse.wms.yard-management.inspection.InspectionCompleted
+            dataschema:
+              const: urn:warehouse:yard-management:events:InspectionCompleted:v1
+            data:
+              $ref: '#/components/schemas/InspectionCompletedData'
+      examples:
+      - name: InspectionCompleted
+        payload:
+          specversion: '1.0'
+          id: 7f3c9a52-1b8d-4e6f-9a07-000000000022
+          source: /warehouse/yard-management
+          type: com.warehouse.wms.yard-management.inspection.InspectionCompleted
+          subject: insp-5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293
+          time: '2026-11-05T14:30:00Z'
+          datacontenttype: application/json
+          dataschema: urn:warehouse:yard-management:events:InspectionCompleted:v1
+          data:
+            inspection_id: insp-5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293
+            site_id: WH1
+            trailer_id: trl-8f7e6d5c-4b3a-4291-8071-6f5e4d3c2b1a
+            visit_id: visit-0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d
+            template_id: tractor-trailer-17-point
+            template_version: 1
+            gate: PRE_DOCK
+            outcome: FAILED
+            condition_grade: DAMAGED
+            completed_at: '2026-11-05T14:30:00Z'
+            failed_item_codes:
+            - fifth-wheel
+      tags:
+      - name: inspection
+    InspectionCompletedAnalytics:
+      name: InspectionCompleted
+      title: InspectionCompleted
+      summary: An inspection of a trailer was completed, PASSED or FAILED (ADR 0015). The audit record of every inspection; no consumer yet.
+      description: '`type` = `com.warehouse.wms.yard-management.inspection.InspectionCompleted`; subject and key = `inspection_id`;
+        dataschema `urn:warehouse:yard-management:analytics:InspectionCompleted:v1`. Raised by CompleteInspection (ADR 0015); the inspection is final once completed, so the payload carries no version. A template is versioned and an inspection keeps the version it was opened from (template_version). Byte-identical payload to the integration
+        topic.'
+      contentType: application/cloudevents+json
+      payload:
+        allOf:
+        - $ref: '#/components/schemas/CloudEventEnvelope'
+        - type: object
+          properties:
+            type:
+              const: com.warehouse.wms.yard-management.inspection.InspectionCompleted
+            dataschema:
+              const: urn:warehouse:yard-management:analytics:InspectionCompleted:v1
+            data:
+              $ref: '#/components/schemas/InspectionCompletedData'
+      examples:
+      - name: InspectionCompleted
+        payload:
+          specversion: '1.0'
+          id: 7f3c9a52-1b8d-4e6f-9a07-000000000022
+          source: /warehouse/yard-management
+          type: com.warehouse.wms.yard-management.inspection.InspectionCompleted
+          subject: insp-5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293
+          time: '2026-11-05T14:30:00Z'
+          datacontenttype: application/json
+          dataschema: urn:warehouse:yard-management:analytics:InspectionCompleted:v1
+          data:
+            inspection_id: insp-5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293
+            site_id: WH1
+            trailer_id: trl-8f7e6d5c-4b3a-4291-8071-6f5e4d3c2b1a
+            visit_id: visit-0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d
+            template_id: tractor-trailer-17-point
+            template_version: 1
+            gate: PRE_DOCK
+            outcome: FAILED
+            condition_grade: DAMAGED
+            completed_at: '2026-11-05T14:30:00Z'
+            failed_item_codes:
+            - fifth-wheel
+      tags:
+      - name: inspection
+    InspectionFailed:
+      name: InspectionFailed
+      title: InspectionFailed
+      summary: A required item of an inspection failed (ADR 0015); the trailer is held in the same step unless it already was. Consumed by exception-management.
+      description: '`type` = `com.warehouse.wms.yard-management.inspection.InspectionFailed`; subject and key = `inspection_id`;
+        dataschema `urn:warehouse:yard-management:events:InspectionFailed:v1`. Raised by CompleteInspection (ADR 0015) only for a FAILED inspection, after InspectionCompleted; hold_placed is false when the trailer already carried a hold.'
+      contentType: application/cloudevents+json
+      payload:
+        allOf:
+        - $ref: '#/components/schemas/CloudEventEnvelope'
+        - type: object
+          properties:
+            type:
+              const: com.warehouse.wms.yard-management.inspection.InspectionFailed
+            dataschema:
+              const: urn:warehouse:yard-management:events:InspectionFailed:v1
+            data:
+              $ref: '#/components/schemas/InspectionFailedData'
+      examples:
+      - name: InspectionFailed
+        payload:
+          specversion: '1.0'
+          id: 7f3c9a52-1b8d-4e6f-9a07-000000000023
+          source: /warehouse/yard-management
+          type: com.warehouse.wms.yard-management.inspection.InspectionFailed
+          subject: insp-5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293
+          time: '2026-11-05T14:30:00Z'
+          datacontenttype: application/json
+          dataschema: urn:warehouse:yard-management:events:InspectionFailed:v1
+          data:
+            inspection_id: insp-5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293
+            site_id: WH1
+            trailer_id: trl-8f7e6d5c-4b3a-4291-8071-6f5e4d3c2b1a
+            template_id: tractor-trailer-17-point
+            gate: PRE_DOCK
+            failed_items:
+            - item_code: fifth-wheel
+              note: cracked weld at the coupling plate
+              required: true
+            failed_at: '2026-11-05T14:30:00Z'
+            hold_placed: true
+      tags:
+      - name: inspection
+    InspectionFailedAnalytics:
+      name: InspectionFailed
+      title: InspectionFailed
+      summary: A required item of an inspection failed (ADR 0015); the trailer is held in the same step unless it already was. Consumed by exception-management.
+      description: '`type` = `com.warehouse.wms.yard-management.inspection.InspectionFailed`; subject and key = `inspection_id`;
+        dataschema `urn:warehouse:yard-management:analytics:InspectionFailed:v1`. Raised by CompleteInspection (ADR 0015) only for a FAILED inspection, after InspectionCompleted; hold_placed is false when the trailer already carried a hold. Byte-identical payload to the integration
+        topic.'
+      contentType: application/cloudevents+json
+      payload:
+        allOf:
+        - $ref: '#/components/schemas/CloudEventEnvelope'
+        - type: object
+          properties:
+            type:
+              const: com.warehouse.wms.yard-management.inspection.InspectionFailed
+            dataschema:
+              const: urn:warehouse:yard-management:analytics:InspectionFailed:v1
+            data:
+              $ref: '#/components/schemas/InspectionFailedData'
+      examples:
+      - name: InspectionFailed
+        payload:
+          specversion: '1.0'
+          id: 7f3c9a52-1b8d-4e6f-9a07-000000000023
+          source: /warehouse/yard-management
+          type: com.warehouse.wms.yard-management.inspection.InspectionFailed
+          subject: insp-5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293
+          time: '2026-11-05T14:30:00Z'
+          datacontenttype: application/json
+          dataschema: urn:warehouse:yard-management:analytics:InspectionFailed:v1
+          data:
+            inspection_id: insp-5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293
+            site_id: WH1
+            trailer_id: trl-8f7e6d5c-4b3a-4291-8071-6f5e4d3c2b1a
+            template_id: tractor-trailer-17-point
+            gate: PRE_DOCK
+            failed_items:
+            - item_code: fifth-wheel
+              note: cracked weld at the coupling plate
+              required: true
+            failed_at: '2026-11-05T14:30:00Z'
+            hold_placed: true
+      tags:
+      - name: inspection
     YardCheckClosed:
       name: YardCheckClosed
       title: YardCheckClosed
@@ -2813,6 +3002,118 @@ components:
         version:
           type: integer
           minimum: 2
+    InspectionCompletedData:
+      type: object
+      required:
+      - inspection_id
+      - site_id
+      - trailer_id
+      - visit_id
+      - template_id
+      - template_version
+      - gate
+      - outcome
+      - condition_grade
+      - completed_at
+      - failed_item_codes
+      properties:
+        inspection_id:
+          type: string
+        site_id:
+          type: string
+        trailer_id:
+          type: string
+        visit_id:
+          type:
+          - string
+          - 'null'
+        template_id:
+          type: string
+        template_version:
+          type: integer
+          minimum: 1
+          description: The version of the template the inspection was opened from (a snapshot; later versions never rewrite it).
+        gate:
+          type: string
+          enum:
+          - PRE_DOCK
+          - PRE_LOAD
+          - PRE_DEPARTURE
+          - ON_DEMAND
+        outcome:
+          type: string
+          enum:
+          - PASSED
+          - FAILED
+        condition_grade:
+          type:
+          - string
+          - 'null'
+          enum:
+          - CLEAN
+          - DIRTY
+          - ODOUR
+          - DAMAGED
+          - null
+        completed_at:
+          type: string
+          format: date-time
+        failed_item_codes:
+          type: array
+          items:
+            type: string
+          description: Empty for a PASSED inspection.
+    InspectionFailedData:
+      type: object
+      required:
+      - inspection_id
+      - site_id
+      - trailer_id
+      - template_id
+      - gate
+      - failed_items
+      - failed_at
+      - hold_placed
+      properties:
+        inspection_id:
+          type: string
+        site_id:
+          type: string
+        trailer_id:
+          type: string
+        template_id:
+          type: string
+        gate:
+          type: string
+          enum:
+          - PRE_DOCK
+          - PRE_LOAD
+          - PRE_DEPARTURE
+          - ON_DEMAND
+        failed_items:
+          type: array
+          description: Every item that recorded FAIL, in template order.
+          items:
+            type: object
+            required:
+            - item_code
+            - note
+            - required
+            properties:
+              item_code:
+                type: string
+              note:
+                type:
+                - string
+                - 'null'
+              required:
+                type: boolean
+        failed_at:
+          type: string
+          format: date-time
+        hold_placed:
+          type: boolean
+          description: true when this inspection placed a hold on the trailer; false when the trailer was already held.
     YardCheckClosedData:
       type: object
       required:

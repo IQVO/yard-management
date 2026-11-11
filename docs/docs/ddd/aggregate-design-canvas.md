@@ -2,18 +2,18 @@
 id: aggregate-design-canvas
 title: Aggregate Design Canvas
 sidebar_label: Aggregate Design Canvas
-description: "The ddd-crew Aggregate Design Canvas for YardVisit, Trailer, YardMove, YardCheck and YardPolicy, with states, invariants, commands, events and estimates, the cross-aggregate occupancy rule, and the context's read models."
+description: "The ddd-crew Aggregate Design Canvas for YardVisit, Trailer, YardMove, YardCheck, Inspection and YardPolicy, with states, invariants, commands, events and estimates, the cross-aggregate occupancy rule, and the context's read models."
 ---
 
 # Aggregate Design Canvas
 
 
 Following the ddd-crew [Aggregate Design Canvas v1.1](https://github.com/ddd-crew/aggregate-design-canvas).
-The model has five aggregate roots: **YardVisit**, **Trailer**, **YardMove**,
-**YardCheck** and **YardPolicy**. Go packages, as built:
-`internal/domain/yardvisit`, `trailer`, `yardmove`, `yardcheck`, `yardpolicy`, plus `shared` (ids,
+The model has six aggregate roots: **YardVisit**, **Trailer**, **YardMove**,
+**YardCheck**, **Inspection** and **YardPolicy**. Go packages, as built:
+`internal/domain/yardvisit`, `trailer`, `yardmove`, `yardcheck`, `inspection`, `yardpolicy`, plus `shared` (ids,
 `Location`, `TrailerKind`, `LoadState`, `Purpose`, `SCAC`). Ids are `<prefix>-<uuid>`: `visit-`, `trl-`, `mv-`,
-`yck-`; the policy is keyed by the site code. The aggregates are pure Go: `Snapshot()` and `Restore()` are the
+`yck-`, `insp-`; the policy is keyed by the site code. The aggregates are pure Go: `Snapshot()` and `Restore()` are the
 persistence boundary and `Restore` re-validates.
 
 Common to all: every mutable aggregate carries an optimistic-concurrency
@@ -438,6 +438,57 @@ arrive as the supervisor walks the yard.
 *Estimate* (from the model): **one per site per shift**. Up to one observation per
 location; one event per instance.
 
+## Inspection
+
+### 1. Name
+
+`Inspection` (`inspection.Inspection`), identified by `inspectionId` (`insp-<uuid>`); its checklist is an immutable
+`inspection.Template` keyed by `(templateId, version)` (ADR 0015).
+
+### 2. Description
+
+A checklist filled in for a trailer on site. Value objects: `Gate(PRE_DOCK|PRE_LOAD|PRE_DEPARTURE|ON_DEMAND)`,
+`Item{code, text, required, allow_not_applicable, hold_reason, result PASS|FAIL|NOT_APPLICABLE, note?, evidence_refs[]}`
+(a **snapshot** of the template version taken at open), `ConditionGrade(CLEAN|DIRTY|ODOUR|DAMAGED)`, `performer_ref`.
+Built-in templates: `tractor-trailer-17-point`, `empty-container-7-point`, `reefer-pre-cool-and-sanitation`.
+
+### 3. State Transitions
+
+`OPEN` to `PASSED` or `FAILED` on completion, and no further change: `FAILED` when a required item failed.
+
+### 4. Enforced Invariants
+
+| Invariant | Error |
+| --- | --- |
+| Results change only while `OPEN`; completion is final | `ErrInspectionClosed` |
+| Every required item has a result before completion | `ErrRequiredItemPending` |
+| `NOT_APPLICABLE` only where the item allows it; the item must exist | `ErrNotApplicableNotAllowed`, `ErrUnknownItem` |
+| At most one `OPEN` inspection per trailer, template and gate (partial unique index) | `ErrInspectionAlreadyOpen` |
+| A published template version is never rewritten; built-ins are read-only | `ErrTemplateVersionImmutable`, `ErrTemplateIsBuiltIn` |
+| The template (version) named must exist | `ErrUnknownTemplate` |
+
+### 5. Corrective Policies
+
+A `FAILED` completion holds the trailer in the same unit of work (reason of the most severe failed required item; a trailer
+already held or departed is left as it is). Site policy `requiredInspections` makes the next step ask for a `PASSED` one:
+`ErrInspectionRequired` / `ErrInspectionFailed` (the latest completed inspection of the template at the gate decides).
+
+### 6. Handled Commands
+
+`OpenInspection`, `RecordInspectionItem`, `CompleteInspection`, `PublishInspectionTemplate`.
+
+### 7. Created Events
+
+`InspectionCompleted` (every completion) and, after it, `InspectionFailed` (a failed one); both integration, advisory (no `version`).
+
+### 8. Throughput
+
+A handful of inspections per trailer visit; the per-trailer reads behind each gate use the `(trailer_id, completed_at)` index.
+
+### 9. Size
+
+One row per inspection; the item snapshot is JSON of at most 100 items.
+
 ## YardPolicy
 
 ### 1. Name
@@ -450,7 +501,7 @@ The per-site yard rules every gate and move decision reads. Value objects:
 `require_appointment` (bool), `holding_spot_codes[]`, `parking_zone_ids[]`;
 `dwell_threshold_minutes` per `TrailerKind`, `lease_seconds`,
 `seal_mismatch_action` (`FLAG` or `REJECT`); `free_time_minutes` (detention clock,
-optional, no default); `minimum_seal_class` (`I`, `S` or `H`, optional: a lower class at check-in or record-seal is refused); `require_securing_before_door_work` (bool, default false: door work starts only on a secured trailer, ADR 0013); `allow_hazmat_on_unclassified_spots` (bool, default false, ADR 0014). Defaults as built: `require_appointment` false, `seal_mismatch_action` `FLAG`,
+optional, no default); `minimum_seal_class` (`I`, `S` or `H`, optional: a lower class at check-in or record-seal is refused); `require_securing_before_door_work` (bool, default false: door work starts only on a secured trailer, ADR 0013); `required_inspections[]` (`{gate, template_id, purposes?, trailer_kinds?}`, default empty: a PASSED inspection before a door move, loading or check-out, ADR 0015); `allow_hazmat_on_unclassified_spots` (bool, default false, ADR 0014). Defaults as built: `require_appointment` false, `seal_mismatch_action` `FLAG`,
 `lease_seconds` 300, no free time and no dwell thresholds (a kind without a threshold is never alerted).
 
 ### 3. State Transitions
