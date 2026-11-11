@@ -46,11 +46,11 @@ func TestMigration0003KeepsExistingRowsAndGoesDown(t *testing.T) {
 		t.Fatalf("migrate to 3: %v", err)
 	}
 	// The repositories read the latest schema (0004 added the securing columns,
-	// 0005 the classification), so the rows are read after the later migrations;
-	// their own tests are migration_interlock_integration_test.go and
-	// migration_placement_integration_test.go.
-	if err := m.Migrate(5); err != nil {
-		t.Fatalf("migrate to 5: %v", err)
+	// 0005 the classification, 0006 the required inspections), so the rows are read after the later
+	// migrations; their own tests are migration_interlock_integration_test.go,
+	// migration_placement_integration_test.go and migration_inspections_integration_test.go.
+	if err := m.Migrate(6); err != nil {
+		t.Fatalf("migrate to 6: %v", err)
 	}
 
 	trailers, policies := postgres.NewTrailers(pool), postgres.NewPolicies(pool)

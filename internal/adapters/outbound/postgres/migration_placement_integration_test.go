@@ -42,6 +42,10 @@ func TestMigration0005KeepsExistingRowsAndGoesDown(t *testing.T) {
 	if err := m.Migrate(5); err != nil {
 		t.Fatalf("migrate to 5: %v", err)
 	}
+	// The repositories read the latest schema (0006 added the required inspections).
+	if err := m.Migrate(6); err != nil {
+		t.Fatalf("migrate to 6: %v", err)
+	}
 
 	ctx := context.Background()
 	tr, err := postgres.NewTrailers(pool).FindByID(ctx, "trl-old-1")
@@ -57,6 +61,9 @@ func TestMigration0005KeepsExistingRowsAndGoesDown(t *testing.T) {
 		t.Fatalf("the old policy refuses hazmat on unclassified spots: %v", err)
 	}
 
+	if err := m.Migrate(5); err != nil {
+		t.Fatalf("back to 5: %v", err)
+	}
 	if err := pgtest.Exec(pool, `UPDATE trailers SET hazmat_class = '1.4', un_number = 'UN0012', requires_temperature_control = true WHERE trailer_id = 'trl-old-1'`); err != nil {
 		t.Fatalf("a classification must be storable: %v", err)
 	}
