@@ -39,11 +39,12 @@ CloudEvents (WARN), and are idempotent on the CloudEvents `id`
 | Downstream | Protocol and topic | Types it reads (from its own code on `origin/develop`) | What it does | Failure behaviour on this side |
 | --- | --- | --- | --- | --- |
 | `dock-scheduling` | Kafka `warehouse.yard-management.events` | `VisitCheckedIn`, `VisitRejected`, `TrailerDocked`, `TrailerUndocked` | applies arrival, the actual door and door release; cancels the appointment with `TURNED_AWAY` on rejection | none: yard-management does not know or wait for consumers; unconsumed events stay in the topic |
+| `inbound-receiving` | Kafka `warehouse.yard-management.events` | `VisitCheckedIn` only (its ADR 0021; every other type is committed past) | keeps the `visit_arrivals` local copy for its dock-to-stock KPI | same |
 | `outbound-shipping` | Kafka `warehouse.yard-management.events` | `TrailerDocked`, `DoorWorkCompleted`, `TrailerDeparted` | confirms a shipment when the trailer leaves | same |
 | `exception-management` | Kafka `warehouse.yard-management.events` | `VisitRejected`, `SealExceptionRaised`, `TrailerDwellExceeded`, `YardCheckClosed` | opens problem cases (one per yard-check discrepancy) | same |
-| floor client, console, ops agent | REST `:8080` via Kong; MCP `:8090` | [API overview](/docs/api-reference), [MCP tools](/docs/mcp/tools) | gate, hostler, dock, supervisor screens; agent proposals | idempotent writes: retry with the same key; 503 `dependency-unavailable` when Postgres or Kafka is down |
+| floor client, console, ops agent | REST `:8080` via Kong; MCP `:8090` (MCP is switched off on k3s, read 2026-11-10: no pod, no route) | [API overview](/docs/api-reference), [MCP tools](/docs/mcp/tools) | gate, hostler, dock, supervisor screens; agent proposals | idempotent writes: retry with the same key; 503 `dependency-unavailable` when Postgres or Kafka is down |
 | any context | REST `GET /visits`, `/trailers`, `/moves`, `/sites/{siteId}/yard-board`, `/sites/{siteId}/yard-policy`, `/reports/*` | read-only Open Host Service | diagnostics and tools; no context needs it for a decision | n/a |
-| Kubernetes CronJobs | REST `POST /dwell-sweeps`, `/move-lease-sweeps` | the chart's two CronJobs | time-driven rules | a failed Job keeps its logs; the next run repeats safely |
+| Kubernetes CronJobs | REST `POST /dwell-sweeps`, `/move-lease-sweeps` | the chart's two CronJobs | time-driven rules | a failed Job keeps its logs; the next run repeats safely. Switched off on k3s (read 2026-11-10): no CronJob exists, call the endpoints by hand |
 
 Delivery on the producing side is at least once: the relay may republish a row
 with the same CloudEvents `id`, so every consumer must dedupe on it. Per-aggregate
@@ -52,34 +53,51 @@ later rows overtake it ([Troubleshooting](/docs/operations/troubleshooting#event
 
 ## Edge status
 
-An edge is **live** only when both ends run in the cluster. `yard-management` is registered
-in `warehouse-infra` develop but not applied (`kubectl get pods -n warehouse-systems` lists no
-`yard-management` pod, checked 2026-11-09), so **no edge below is live**. The consumer groups
-are configured in the `warehouse-infra` helm values (`helm-values/yard-management.yaml` and the
-neighbour's own file); "wired in infra" means the group is configured there. The neighbour
-column reflects the pods listed by the same command.
+Read-only on 2026-11-10 (`kubectl get pods,deploy -n warehouse-systems`, context
+`k3s-multipass`). An edge is **live** only when both ends run in the cluster **and** the
+consumer or producer code and the spec declare it. `yard-management` is applied (Argo
+application Synced and Healthy, api and relay pods Ready at `v0.1.2`; see the
+[Runbook](/docs/operations/runbook#what-runs-on-the-k3s-cluster)), so an edge is live when
+the neighbour also runs. The groups are those of the `warehouse-infra` helm values
+(`helm-values/yard-management.yaml` and the neighbour's own file) and of the running
+Deployments' environment. "Live" here means both ends run and declare the edge; it does
+**not** say events flow without lag: consumer group offsets and lag need `kubectl exec` and
+were not read.
 
-| Edge | Direction | Consumer group in `warehouse-infra` | Neighbour in the cluster | Status |
+| Edge | Direction | Consumer group | Neighbour in the cluster (image running) | Status |
 | --- | --- | --- | --- | --- |
-| `dock-scheduling` | in: `warehouse.dock-scheduling.events` | `yard-management-dock-scheduling` | no pod (registered, not applied) | wired in infra, not applied |
-| `dock-scheduling` | out: `warehouse.yard-management.events` | `dock-scheduling-yard` | no pod (registered, not applied) | wired in infra, not applied |
-| `facility-layout` | in: `warehouse.facility.events` | `yard-management-facility` | pod running | not live: this service is not applied; wired in infra |
-| `inbound-receiving` | in: `warehouse.inbound-receiving.events` | `yard-management-inbound-receiving` | pod running | not live: this service is not applied; wired in infra |
-| `exception-management` | out: `warehouse.yard-management.events` | none: `helm-values/exception-management.yaml` has no yard-management group | pod running | not live, and not wired in infra |
-| `outbound-shipping` | out: `warehouse.yard-management.events` | none: no `warehouse-infra` entry or helm values found for it | no pod | not live, not registered in infra |
-| own projector | in: `warehouse.yard-management.analytics` | `yard-management-analytics` | same service (not applied) | wired in infra, not applied |
+| `dock-scheduling` | in: `warehouse.dock-scheduling.events` | `yard-management-dock-scheduling` | `dock-scheduling` api Ready (`d5db895`, `v0.1.2`) | live |
+| `dock-scheduling` | out: `warehouse.yard-management.events` | `dock-scheduling-yard` | same pod; its `yard_consumer.go` | live |
+| `facility-layout` | in: `warehouse.facility.events` | `yard-management-facility` | `facility-layout` Ready (`1305245`) | live |
+| `inbound-receiving` | in: `warehouse.inbound-receiving.events` | `yard-management-inbound-receiving` | `inbound-receiving` Ready (`484490f`, v2.0.6) | live |
+| `inbound-receiving` | out: `warehouse.yard-management.events` (`VisitCheckedIn` only) | `inbound-receiving-visit-arrivals` | same pod; `visit_arrival_consumer.go` at `484490f`; the Deployment carries `VISIT_ARRIVAL_CONSUMER_GROUP` | live (see the spec note below) |
+| `exception-management` | out: `warehouse.yard-management.events` | `exception-management-yard-management` | `exception-management` Ready (`35bb7d9`); `yard_exceptions_consumer.go`; the Deployment carries `YARD_MANAGEMENT_EXCEPTIONS_CONSUMER_GROUP` | live |
+| `outbound-shipping` | out: `warehouse.yard-management.events` | none: no `warehouse-infra` entry or helm values found for it | no pod (`kubectl get deploy outbound-shipping`: NotFound) | not live, not registered in infra |
+| own projector | in: `warehouse.yard-management.analytics` | `yard-management-analytics` | none: `analytics.enabled: false`, no `yard-management-projector` pod | not live: the relay writes the topic, nothing consumes it |
 
-The event types a neighbour reads come from the neighbours' own code, as the tables above
-say; the "Consumer group" and "Neighbour in the cluster" columns come from `warehouse-infra`
-`origin/develop` and the cluster listing, not from their code. Each edge becomes live when
-this service and the neighbour both run, and the yard-domain topics have been pre-created
-first (see the [Runbook](/docs/operations/runbook#registration-in-warehouse-infra)).
+The event types a neighbour reads come from the neighbours' own code and specs at the
+commit each pod runs (the image tag is that commit), as the tables above say; the group
+and neighbour columns come from `warehouse-infra` `origin/develop` and the cluster
+listing. The `exception-management` row was "not wired in infra" until its group ids were
+pinned (`warehouse-infra` commit `a703971`, 2026-11-09); the running Deployment carries it.
+Spec note: this service's `apis/asyncapi.yaml` names `inbound-receiving` as a consumer of
+`TrailerDocked`, not of `VisitCheckedIn`; the `inbound-receiving` spec and code declare the
+`VisitCheckedIn` consumer (its ADR 0021). That spec cannot be edited from this page's
+change.
+
+Not verified: the offsets and lag of every group, whether the topics hold the events a
+consumer expects, and delivery from the relay. The api log of the yard pod shows
+`kafka reader error; retrying` lines with `i/o timeout` on the dock-scheduling,
+inbound-receiving and facility topics at 09:19Z to 09:43Z and 23:21Z on 2026-11-10 (quoted
+in the [Runbook](/docs/operations/runbook#what-runs-on-the-k3s-cluster)); they were not
+diagnosed.
 
 ## Edges that do not exist
 
-- **`inbound-receiving` does not consume the yard's events.** `apis/asyncapi.yaml`
-  names it as a consumer of `TrailerDocked`; no yard consumer exists in that
-  repository on `origin/develop`. The optional consumer was not built.
+- **`inbound-receiving` does not consume `TrailerDocked`.** This service's
+  `apis/asyncapi.yaml` names it as a consumer of `TrailerDocked`; its consumer reads only
+  `VisitCheckedIn` (its ADR 0021) and commits every other type on the topic past. The
+  optional door-confirm consumer was not built.
 - **No call to a sibling's REST API, in either direction.** There is no HTTP client
   in the code.
 - **No retail-network edge.** No `retailnetwork.*` topic is consumed and no
@@ -87,4 +105,5 @@ first (see the [Runbook](/docs/operations/runbook#registration-in-warehouse-infr
   `network-fulfillment`.
 - **No A2A endpoint** and **no authentication** anywhere.
 - **No consumer of the analytics topic** other than this service's own projector.
-- **Not applied to the cluster.** None of the edges above is live; see [Edge status](#edge-status).
+- **No live edge to `outbound-shipping`.** It is merged on develop but has no
+  `warehouse-infra` entry and no pod; see [Edge status](#edge-status).

@@ -15,11 +15,14 @@ the dock doors. It is a **Supporting** subdomain (see
 [Subdomain classification](/docs/ddd/subdomain-classification)) in the **WMS**
 area; CloudEvents type segment `wms`.
 
-Status: **built on develop, registered in warehouse-infra develop, not applied to
-the cluster**. The repository has the code, the Helm chart and the CI, and
+Status: **built on develop, registered in warehouse-infra develop and applied to the
+k3s cluster at `v0.1.2`**. The repository has the code, the Helm chart and the CI,
 `warehouse-infra` `origin/develop` registers it (a `terraform/apps.yaml` entry, helm
-values, dashboard and alert rules, the image pinned at v0.1.1), but no pod of it
-runs yet; see [Registration in warehouse-infra](/docs/operations/runbook#registration-in-warehouse-infra).
+values, dashboard and alert rules, the image pinned at `v0.1.2`), and read-only on
+2026-11-10 the Argo CD application is Synced and Healthy with a ready `api` pod and a
+ready `relay` pod. MCP, the analytics projector and reports, and the two sweep
+CronJobs are switched off in infra until capacity is freed; see
+[What runs on the k3s cluster](/docs/operations/runbook#what-runs-on-the-k3s-cluster).
 
 ## What it owns
 
@@ -128,7 +131,7 @@ and door release from `yard-management` events
 | Scheduler (cron) | Kubernetes CronJob | Calls `POST /dwell-sweeps` and `POST /move-lease-sweeps`. |
 | `dock-scheduling` | Sibling context (upstream and downstream) | Publishes appointments and door closures; consumes visit check-in and trailer docking and undocking. |
 | `facility-layout` | Fleet context (upstream) | Publishes the Yard and Dock slots and the zone-to-site mapping. |
-| `inbound-receiving` | Fleet context (upstream and downstream) | Publishes ASNs and receipts. It does not consume `TrailerDocked` as built; the optional consumer was not built. |
+| `inbound-receiving` | Fleet context (upstream and downstream) | Publishes ASNs and receipts. It consumes only `VisitCheckedIn` from this context (its ADR 0021, group `inbound-receiving-visit-arrivals`); it does not consume `TrailerDocked`, which its consumer commits past. |
 | `exception-management` | Fleet context (downstream) | Opens problem cases from rejected visits, seal exceptions, dwell breaches and yard-check discrepancies (merged on develop). |
 | `outbound-shipping` | Fleet context (downstream) | Confirms a shipment when the trailer leaves: reads `TrailerDocked`, `DoorWorkCompleted` and `TrailerDeparted` (merged on develop, not deployed). |
 

@@ -3,22 +3,81 @@ id: runbook
 title: Runbook
 sidebar_label: Runbook
 sidebar_position: 2
-description: "Deploying and operating yard-management: Helm chart, probes, migrations, Kafka topics and consumer groups, the outbox relay, dead letters, sweeps and routine procedures."
+description: "Deploying and operating yard-management: what runs on the k3s cluster, Helm chart, probes, migrations, Kafka topics and consumer groups, the outbox relay, dead letters, sweeps and routine procedures."
 ---
 
 # Runbook
 
-Status: **built on develop, registered in warehouse-infra develop, not applied to
-the cluster**. `warehouse-infra` `origin/develop` has a `yard-management` entry in
-`terraform/apps.yaml`, `helm-values/yard-management.yaml` and a pinned image, but
-`kubectl get pods -n warehouse-systems` lists no `yard-management` pod (checked
-2026-11-09), so no cluster runs it yet. Everything below describes what the chart
-and the binaries do once the application is applied; the packaging checklist for
-the first release is [Before the first release](/docs/operations/before-first-release).
+Status: **built on develop, registered in warehouse-infra develop and applied to the
+k3s cluster at `v0.1.2` (api and relay only)**. Read-only on 2026-11-10 (`kubectl get`
+and `kubectl logs`, context `k3s-multipass`): the Argo CD application `yard-management`
+is Synced and Healthy and the `yard-management` and `yard-management-relay` pods are
+Ready with 0 restarts. See [What runs on the k3s cluster](#what-runs-on-the-k3s-cluster)
+for the evidence and for what is **not** verified (consumer lag, topic contents). The
+sections below describe what the chart and the binaries do; on k3s the MCP server, the
+analytics projector and reports, and the sweep CronJobs are switched off. The packaging
+checklist for the first release is [Before the first release](/docs/operations/before-first-release).
 
 The platform runs on one k3s cluster with **one** Kafka broker; kind and the
 docker-compose Kafka are retired. All variables are in
 [Configuration](/docs/operations/configuration).
+
+## What runs on the k3s cluster
+
+Read-only on 2026-11-10 (about 20:55 in UTC-03:00), context `k3s-multipass`, namespace
+`warehouse-systems`. Nothing was applied, exec'd or port-forwarded from this page.
+
+| Fact | Value read |
+| --- | --- |
+| Argo CD application `yard-management` (namespace `argocd`) | Sync `Synced`, health `Healthy`; last operation `Succeeded` at 2026-11-10T03:11:50Z. Chart from this repository, `targetRevision: develop`, synced at `226de2b`; values from `warehouse-infra` develop (`helm-values/_platform.yaml`, `helm-values/yard-management.yaml`, `helm-values/kind-resources/yard-management.yaml`). |
+| Deployments and pods | `yard-management` 1/1 (pod `yard-management-7576f566cd-db8mn`) and `yard-management-relay` 1/1 (pod `yard-management-relay-55d57f45b5-drgpm`): both Running, Ready, 0 restarts, age about 20 h. The relay container runs `/app/relay`. |
+| Image running | `ghcr.io/iqvo/warehouse-infra/yard-management:da1e30e-arm64` in both pods. `da1e30e` is the commit of this repository's tag `v0.1.2` (`gh release list -R IQVO/yard-management`: `v0.1.2`, Latest, 2026-11-10; the tag ref resolves to the same commit). The pin is `terraform/targets/k3s.images.yaml` in `warehouse-infra` develop, set by commit `05fd28b` "chore(images): pin dock-scheduling and yard-management at v0.1.2" (#200). |
+| Service and route | Service `yard-management` ClusterIP, port 80 to 8080. HTTPRoute `yard-management` for `/api/yard-management` (prefix stripped) on the `warehouse-gateway`, accepted by the Kong controller. |
+| Secrets | `yard-management-db` and `yard-management-analytics-db` exist. |
+| Consumer groups in the ConfigMap | `yard-management-dock-scheduling`, `yard-management-facility`, `yard-management-inbound-receiving`. |
+
+**Components.** The api (REST and the three Kafka consumers) and the relay run. The rest
+is switched off by `warehouse-infra` commit `89c9592` ("reduced footprint on k3s",
+2026-11-09, because the agent had about three free pod slots): `mcp.enabled: false`,
+`analytics.enabled: false` (no `yard-projector`, no `yard-reports`) and
+`sweeps.enabled: false`. So on the cluster there is no `yard-management-mcp`,
+`-projector` or `-reports` pod, no `yard-management` CronJob (`sweep-dwell`,
+`sweep-move-leases`), and no Kong route for MCP or reports. The relay keeps writing both
+topics, but nothing consumes `warehouse.yard-management.analytics` while the projector is
+off, and dwell breaches and expired move leases are only handled when someone calls the
+sweeps by hand (see [Sweeps](#sweeps)). The flags go back to `true` in one
+`warehouse-infra` PR when capacity is freed.
+
+**Edges.** Both ends of every edge except `outbound-shipping` run in the cluster, and the
+own-projector edge has no consumer; see [Edge status](/docs/ecosystem/integration#edge-status).
+
+**Not verified.** Consumer group lag and committed offsets and the list of topics on the
+broker (they need `kubectl exec`, which was not used); whether the dashboard and the six
+alert rules are loaded in the observability stack. The page claims no health beyond pod
+Ready, restart count and the log lines below.
+
+**What the logs showed.** `kubectl logs --tail=50`, read 2026-11-10 about 20:54 in
+UTC-03:00 (23:54Z):
+
+- api: boot lines `consumer starting` for `dock-scheduling consumer`
+  (`warehouse.dock-scheduling.events`), `inbound-receiving consumer`
+  (`warehouse.inbound-receiving.events`) and `facility consumer`
+  (`warehouse.facility.events`), then `http server listening` (03:11:55Z).
+- api, 09:19Z to 09:43Z and 23:21Z: repeated `kafka reader error; retrying`, for example
+  `the kafka reader got an unknown error reading partition 5 of warehouse.dock-scheduling.events at offset 0: read tcp 10.42.0.61:35432->10.42.0.232:9092: i/o timeout`
+  (2026-11-10T09:19:11Z), on the dock-scheduling, inbound-receiving and facility topics.
+- api: `readiness: dependency is not ready`, dependency `kafka`: `kafka metadata: ask kafka.warehouse-systems.svc.cluster.local:9092: read tcp 10.42.0.61:51418->10.43.25.132:9092: i/o timeout`
+  (09:43:36Z) and `lookup kafka.warehouse-systems.svc.cluster.local: i/o timeout` (23:21:14Z).
+  `kubectl get events` shows matching `Readiness probe failed ... /readyz` Warning events
+  about 35 minutes before the read; the pod's Ready condition was `True` when read.
+- relay: **no log line at all** (`kubectl logs` returned 0 lines). That fits the code at
+  `da1e30e` (`cmd/relay/main.go` logs only a configuration error, a stop and the relay's
+  own error lines, nothing at boot or on a healthy pass), so it shows no relay error since
+  start, not that it publishes: the relay has no `/readyz`, and its `/healthz` is what keeps
+  it Ready ([Probes](#probes-and-what-readiness-waits-for)). Delivery was not checked.
+
+The retrying lines are the consumer loop doing its job; they are reported as found, not
+diagnosed. Whether the groups caught up afterwards was not checked.
 
 ## Registration in warehouse-infra
 
@@ -29,13 +88,13 @@ yard-management on k3s"); the image was pinned by commit `c42c475`. Read from
 | Item | State in `warehouse-infra` develop |
 | --- | --- |
 | `terraform/apps.yaml` | Entry `yard-management`: `kind: service`, `repo_owner: IQVO`, `database: true`, `analytics: true` (the default key pair `ANALYTICS_DATABASE_URL` and `ANALYTICS_READER_DATABASE_URL`, the second one read by the reports and the api), no web part. |
-| Image | `terraform/targets/k3s.images.yaml` pins `yard-management` at tag `b106934-arm64`, the commit of this repository's `v0.1.1` tag (also on `origin/main`). |
-| Helm values | `helm-values/yard-management.yaml` sets three stable consumer groups: `yard-management-dock-scheduling`, `yard-management-facility`, `yard-management-inbound-receiving`; the projector group `yard-management-analytics`; `existingSecret` wiring for `yard-management-db` and `yard-management-analytics-db`; the relay Deployment on (`relay.enabled: true`); MCP on; analytics on; sweeps on (`/dwell-sweeps` every 5 minutes and `/move-lease-sweeps` every minute, by CronJob); Kong plugins `cors`, `opentelemetry` and `prometheus` on; no A2A block. |
-| Kong routes | `/api/yard-management` (prefix stripped), `/api/mcp/yard-management` (to `/mcp`), `/api/yard-management/reports` (to `/reports`). |
+| Image | `terraform/targets/k3s.images.yaml` pins `yard-management` at tag `da1e30e-arm64`, the commit of this repository's `v0.1.2` tag (commit `05fd28b`, #200; it replaced the `v0.1.1` pin `b106934-arm64` of commit `c42c475`). |
+| Helm values | `helm-values/yard-management.yaml` sets three stable consumer groups: `yard-management-dock-scheduling`, `yard-management-facility`, `yard-management-inbound-receiving`; the projector group `yard-management-analytics`; `existingSecret` wiring for `yard-management-db` and `yard-management-analytics-db`; the relay Deployment on (`relay.enabled: true`); and, since commit `89c9592` (2026-11-09, reduced footprint), `mcp.enabled: false`, `analytics.enabled: false` and `sweeps.enabled: false` (the chart default is the two CronJobs, `/dwell-sweeps` every 5 minutes and `/move-lease-sweeps` every minute; they do not run on k3s now); Kong plugins `cors`, `opentelemetry` and `prometheus` on; no A2A block. |
+| Kong routes | The values declare `/api/yard-management` (prefix stripped), `/api/mcp/yard-management` (to `/mcp`) and `/api/yard-management/reports` (to `/reports`). Only the first exists in the cluster (`kubectl get httproute -A`, 2026-11-10): the MCP and reports routes render with their components, which are off. |
 | Observability | One dashboard and six alert rules: see [Observability](/docs/operations/observability#dashboards-and-alerts). |
 | CI | `warehouse-infra` lints the chart and runs its selector check for this service. |
-| Kafka topics | `docs/kafka-topics-yard-dock.md` in `warehouse-infra` says the yard-domain topics must be pre-created, idempotently, **before the first sync** (`scripts/tf.sh app yard-management apply`): a kafka-go group consumer started before its topic exists is never handed the partition. Topics: `warehouse.yard-management.events`, `warehouse.yard-management.analytics`, `warehouse.dock-scheduling.events`, `warehouse.dock-scheduling.analytics`, `warehouse.facility.events`, `warehouse.inbound-receiving.events`, `warehouse.process-path-management.events`. |
-| Cluster | Not applied: no `yard-management` pod exists. Until it is, no integration edge of this service is live (see [Integration](/docs/ecosystem/integration#edge-status)). |
+| Kafka topics | `docs/kafka-topics-yard-dock.md` in `warehouse-infra` says the yard-domain topics must be pre-created, idempotently, **before the first sync** (`scripts/tf.sh app yard-management apply`): a kafka-go group consumer started before its topic exists is never handed the partition. Whether the topics were pre-created, and what they hold now, was not checked (a listing needs `kubectl exec`); the api log of 2026-11-10 names partitions of `warehouse.dock-scheduling.events`, `warehouse.inbound-receiving.events` and `warehouse.facility.events`, so the broker answered for them. Topics: `warehouse.yard-management.events`, `warehouse.yard-management.analytics`, `warehouse.dock-scheduling.events`, `warehouse.dock-scheduling.analytics`, `warehouse.facility.events`, `warehouse.inbound-receiving.events`, `warehouse.process-path-management.events`. |
+| Cluster | Applied: Argo application Synced and Healthy, api and relay pods Ready (see [What runs on the k3s cluster](#what-runs-on-the-k3s-cluster)). Every integration edge except `outbound-shipping` and the own projector has both ends running (see [Integration](/docs/ecosystem/integration#edge-status)). |
 
 The ADR bodies in `docs/adr/` are not edited by this status update: any sentence in
 them about the platform state says what it said when it was written.
@@ -54,6 +113,10 @@ One image (`Dockerfile` loops over `cmd/*`) carries five binaries. The chart
 | projector | `/app/yard-projector` | **off** (`analytics.enabled`) | 8091 (no Service) | `/healthz`, `/readyz` | fixed, one consumer group |
 | reports | `/app/yard-reports` | **off** (`analytics.enabled`) | 8092 (Service port 80) | `/healthz`, `/readyz` | fixed |
 | sweeps | CronJobs using `wget` | on (`sweeps.enabled`) | n/a | n/a | n/a |
+
+On the k3s cluster (read 2026-11-10) only the api and the relay run; `mcp`, `analytics` and
+`sweeps` are switched off by `warehouse-infra`
+([What runs on the k3s cluster](#what-runs-on-the-k3s-cluster)).
 
 `cmd/api` and `cmd/mcp` only **enqueue** outbox rows. Without the relay no
 event ever leaves the service, which is why the relay is on by default.
@@ -184,6 +247,11 @@ Nothing in the service calls its sweeps on a timer; Kubernetes CronJobs do
 | `sweep-dwell` | `*/5 * * * *` | `POST /dwell-sweeps` | raises `TrailerDwellExceeded` once per trailer and threshold crossing (thresholds per trailer kind in the site's yard policy) |
 | `sweep-move-leases` | `* * * * *` | `POST /move-lease-sweeps` | returns every `CLAIMED` hostler move whose lease ran out to `REQUESTED` (default lease 300 s) |
 
+On the k3s cluster both are switched off (`warehouse-infra` commit `89c9592`; no
+`yard-management` CronJob exists, read 2026-11-10): nothing raises
+`TrailerDwellExceeded` or returns expired move leases unless the endpoints are called by
+hand.
+
 Both use the service image's `wget` with an empty JSON body, are naturally
 idempotent (the `Idempotency-Key` is optional on them), `concurrencyPolicy:
 Forbid`, `backoffLimit: 0`, and retry up to 4 times within a 120 s active
@@ -210,7 +278,7 @@ curl -X POST http://<api-host>/dwell-sweeps -H 'Content-Type: application/json' 
 
 ## What is not here
 
-`warehouse-infra` carries a dashboard and alert rules for this service (registered,
-not applied: see [Observability](/docs/operations/observability#dashboards-and-alerts)),
+`warehouse-infra` carries a dashboard and alert rules for this service (registered in
+infra; whether they are loaded in the observability stack was not checked: see [Observability](/docs/operations/observability#dashboards-and-alerts)),
 but the binaries expose no metrics of their own, so the dashboard and rules read
 Kong, kube-state-metrics and logs only.
