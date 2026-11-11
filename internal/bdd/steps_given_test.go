@@ -23,6 +23,7 @@ func initializeScenario(sc *godog.ScenarioContext) {
 	registerYardSteps(sc, w)
 	registerRequestSteps(sc, w)
 	registerThenSteps(sc, w)
+	registerIdentifierSteps(sc, w)
 }
 
 func registerGivenSteps(sc *godog.ScenarioContext, w *world) {

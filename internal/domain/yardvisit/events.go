@@ -15,6 +15,12 @@ type VisitTrailer struct {
 	CarrierSCAC *string            `json:"carrier_scac"`
 	Kind        shared.TrailerKind `json:"kind"`
 	LoadState   shared.LoadState   `json:"load_state"`
+	// UnitNumberScheme is ISO6346 when the unit number was validated as an
+	// ISO 6346 container number, null for a free-form one. SealClass is the
+	// ISO 17712 class declared for the seal, null when none. Both additive
+	// (ADR 0012).
+	UnitNumberScheme *string `json:"unit_number_scheme"`
+	SealClass        *string `json:"seal_class"`
 }
 
 // VisitCheckedIn: a visit passed the gate (integration).

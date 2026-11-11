@@ -50,7 +50,7 @@ func (d Deps) releaseHold(ctx context.Context, in releaseHoldInput) (views.Trail
 }
 
 func (d Deps) recordSeal(ctx context.Context, in recordSealInput) (views.Trailer, error) {
-	return d.Yard.RecordSeal(ctx, in.TrailerID, in.State, in.SealNumber)
+	return d.Yard.RecordSeal(ctx, in.TrailerID, in.State, in.SealNumber, in.SealClass)
 }
 
 func (d Deps) openYardCheck(ctx context.Context, in openYardCheckInput) (views.YardCheck, error) {
@@ -102,9 +102,9 @@ func (d Deps) registerWriteTools(server *mcp.Server) {
 
 	addWrite(server, d, &mcp.Tool{
 		Name: "record_seal",
-		Description: "Record the seal of a trailer: state INTACT with the sealNumber, or BROKEN (which places a SEAL_BROKEN hold). Changes " +
+		Description: "Record the seal of a trailer: state INTACT or APPLIED with the sealNumber and an optional ISO 17712 sealClass (I, S or H), or BROKEN (which places a SEAL_BROKEN hold). Changes " +
 			"state (L3): call it only when a human approved, and pass proposalId, approvedBy and agentId. idempotencyKey is required. " +
-			"Fails with trailer-not-found, illegal-transition or validation.",
+			"Fails with trailer-not-found, illegal-transition, validation, invalid-seal-class or seal-class-too-low.",
 		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &notDestructive, IdempotentHint: true, OpenWorldHint: &closedWorld},
 		Meta:        authorityMeta(authorityL3),
 	}, d.recordSeal)

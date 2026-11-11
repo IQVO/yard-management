@@ -125,7 +125,7 @@ type Policies struct{ pool *pgxpool.Pool }
 func NewPolicies(pool *pgxpool.Pool) *Policies { return &Policies{pool: pool} }
 
 const policyColumns = `site_id, require_appointment, holding_spot_codes, parking_zone_ids, dwell_threshold_minutes,
-	lease_seconds, seal_mismatch_action, free_time_minutes, declared, version`
+	lease_seconds, seal_mismatch_action, free_time_minutes, declared, version, minimum_seal_class`
 
 // Save implements ports.PolicyRepo: the first declaration is version 2 and
 // INSERTs (a stored row, or any other first version, is
@@ -143,11 +143,11 @@ func (r *Policies) Save(ctx context.Context, p *yardpolicy.Policy) error {
 	}
 	args := []any{
 		s.SiteID, s.RequireAppointment, strs(s.HoldingSpotCodes), strs(s.ParkingZoneIDs), dwellRaw,
-		s.LeaseSeconds, string(s.SealMismatchAction), s.FreeTimeMinutes, s.Declared, s.Version,
+		s.LeaseSeconds, string(s.SealMismatchAction), s.FreeTimeMinutes, s.Declared, s.Version, string(s.MinimumSealClass),
 	}
 	q := queryFor(ctx, r.pool)
 	if s.Version == 2 {
-		tag, err := q.Exec(ctx, `INSERT INTO yard_policies (`+policyColumns+`) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		tag, err := q.Exec(ctx, `INSERT INTO yard_policies (`+policyColumns+`) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 			ON CONFLICT (site_id) DO NOTHING`, args...)
 		if err != nil {
 			return fmt.Errorf("save yard policy: %w", err)
@@ -160,8 +160,8 @@ func (r *Policies) Save(ctx context.Context, p *yardpolicy.Policy) error {
 	tag, err := q.Exec(ctx, `
 		UPDATE yard_policies SET require_appointment = $2, holding_spot_codes = $3, parking_zone_ids = $4,
 			dwell_threshold_minutes = $5, lease_seconds = $6, seal_mismatch_action = $7, free_time_minutes = $8,
-			declared = $9, version = $10, updated_at = now()
-		WHERE site_id = $1 AND version = $11`, append(args, s.Version-1)...)
+			declared = $9, version = $10, minimum_seal_class = $11, updated_at = now()
+		WHERE site_id = $1 AND version = $12`, append(args, s.Version-1)...)
 	if err != nil {
 		return fmt.Errorf("save yard policy: %w", err)
 	}
@@ -180,17 +180,18 @@ func scanPolicy(row pgx.Row) (*yardpolicy.Policy, error) {
 	var (
 		s        yardpolicy.Snapshot
 		action   string
+		minClass string
 		dwellRaw []byte
 	)
 	if err := row.Scan(&s.SiteID, &s.RequireAppointment, &s.HoldingSpotCodes, &s.ParkingZoneIDs, &dwellRaw,
-		&s.LeaseSeconds, &action, &s.FreeTimeMinutes, &s.Declared, &s.Version); err != nil {
+		&s.LeaseSeconds, &action, &s.FreeTimeMinutes, &s.Declared, &s.Version, &minClass); err != nil {
 		return nil, err
 	}
 	dwell := map[string]int64{}
 	if err := json.Unmarshal(dwellRaw, &dwell); err != nil {
 		return nil, fmt.Errorf("stored yard policy %s has bad thresholds: %w", s.SiteID, err)
 	}
-	s.SealMismatchAction = yardpolicy.SealAction(action)
+	s.SealMismatchAction, s.MinimumSealClass = yardpolicy.SealAction(action), shared.SealClass(minClass)
 	s.DwellThresholdMinutes = make(map[shared.TrailerKind]int64, len(dwell))
 	for k, v := range dwell {
 		s.DwellThresholdMinutes[shared.TrailerKind(k)] = v

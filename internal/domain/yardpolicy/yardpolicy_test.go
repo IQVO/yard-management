@@ -183,3 +183,29 @@ func TestRestoreRejectsCorruptRows(t *testing.T) {
 		}
 	}
 }
+
+func TestMinimumSealClass(t *testing.T) {
+	p, _ := yardpolicy.Default("WH1")
+	if p.MinimumSealClass() != "" {
+		t.Fatal("the default policy has no minimum seal class")
+	}
+	in := declareInput()
+	in.MinimumSealClass = shared.SealClassHighSecurity
+	if err := p.Declare(in, known("H1", "H2")); err != nil {
+		t.Fatal(err)
+	}
+	if p.MinimumSealClass() != shared.SealClassHighSecurity || p.Snapshot().MinimumSealClass != shared.SealClassHighSecurity {
+		t.Fatalf("declared %+v", p.Snapshot())
+	}
+	restored, err := yardpolicy.Restore(p.Snapshot())
+	if err != nil || restored.MinimumSealClass() != shared.SealClassHighSecurity {
+		t.Fatalf("round trip: %v", err)
+	}
+	if err := p.Declare(declareInput(), known("H1", "H2")); err != nil || p.MinimumSealClass() != "" {
+		t.Fatalf("a replacement without the field clears the minimum: %v", err)
+	}
+	in.MinimumSealClass = "X"
+	if err := p.Declare(in, known("H1", "H2")); !errors.Is(err, shared.ErrInvalidSealClass) {
+		t.Errorf("unknown class: %v", err)
+	}
+}

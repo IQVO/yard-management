@@ -115,11 +115,10 @@ func TestArriveAtDoor(t *testing.T) {
 	if s.State != trailer.Docked || s.Location != door1 || s.DoorWork != trailer.WorkWaiting || s.Version != 2 {
 		t.Fatalf("snapshot %+v", s)
 	}
-	d := data(t, only(t, tr))
-	if d["door_code"] != "WH1-D1" || d["appointment_id"] != "appt-1" || d["visit_id"] != "visit-1" || d["docked_at"] != "2026-11-05T14:02:00Z" ||
-		d["version"] != float64(2) || d["trailer_id"] != "trl-1" || d["site_id"] != "WH1" || len(d["asn_numbers"].([]any)) != 2 || len(d) != 8 {
-		t.Fatalf("data %v", d)
-	}
+	eq(t, data(t, only(t, tr)), map[string]any{
+		"trailer_id": "trl-1", "site_id": "WH1", "door_code": "WH1-D1", "appointment_id": "appt-1", "asn_numbers": []any{"ASN-1", "ASN-2"},
+		"visit_id": "visit-1", "docked_at": "2026-11-05T14:02:00Z", "version": float64(2), "seal_state": nil, "seal_class": nil,
+	})
 }
 
 func TestArriveAtDoorWalkInHasNullsAndEmptyList(t *testing.T) {
@@ -241,7 +240,7 @@ func TestDepartFromSpot(t *testing.T) {
 	header(t, e, "TrailerDeparted", at(61))
 	eq(t, data(t, e), map[string]any{
 		"trailer_id": "trl-1", "site_id": "WH1", "visit_id": "visit-2", "departed_at": "2026-11-05T15:01:00Z", "dwell_minutes": float64(61),
-		"load_state": "LOADED", "seal_number": "SL-9", "version": float64(3),
+		"load_state": "LOADED", "seal_number": "SL-9", "version": float64(3), "seal_state": "INTACT", "seal_class": nil,
 	})
 }
 

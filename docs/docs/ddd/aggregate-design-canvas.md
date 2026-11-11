@@ -67,6 +67,8 @@ from-state). A refused `CheckInVisit` creates nothing; `RejectAtGate` is the com
 | When the site requires appointments, the named appointment is `BOOKED` for this site in the local copy | `ErrAppointmentRequired` |
 | Every trailer taken out is on site and released (not `DOCKED`, no open move) | `ErrTrailerNotReleased` |
 | Every `LOADED` trailer taken out on an `OUTBOUND` purpose carries a seal | `ErrSealRequired` |
+| The unit number of a `CONTAINER` (or of a unit declared `ISO6346`) is an ISO 6346 number with a correct check digit; other units stay free-form | `ErrInvalidUnitNumber` |
+| A seal class is `I`, `S` or `H`; a seal below the site's `minimumSealClass`, or with no class, is refused | `ErrInvalidSealClass`, `ErrSealClassTooLow` |
 
 The last two read `Trailer` and `YardMove` state, so they cross the aggregate
 boundary; the use case loads the trailers and checks them in one unit of work.
@@ -124,8 +126,8 @@ rejected visit).
 
 A towable unit on site (trailer, or container on a chassis): where it is, what
 it holds, its seal and hold. Value objects: `TrailerKind(DRY_VAN|REEFER|FLATBED|CONTAINER)`,
-`UnitNumber{carrier_scac, number}` (natural key on site), `LoadState(EMPTY|LOADED|PARTIAL)`,
-`Contents{asn_numbers[] inbound, outbound_ref?}`, `Seal{number, state INTACT|BROKEN|NONE}`,
+`UnitNumber{carrier_scac, number, scheme}` (natural key on site; ISO 6346 for a `CONTAINER` or a declared scheme, free-form otherwise; ADR 0012), `LoadState(EMPTY|LOADED|PARTIAL)`,
+`Contents{asn_numbers[] inbound, outbound_ref?}`, `Seal{number, state NONE|INTACT|BROKEN|APPLIED|VERIFIED|MISMATCH, class? I|S|H}`,
 `Hold{reason}`, `Location{kind SPOT|DOOR, code}`, `DoorWork(WAITING|IN_PROGRESS|DONE)`
 (only while `DOCKED`), `ArrivedAt` (the dwell clock start).
 
@@ -443,7 +445,7 @@ The per-site yard rules every gate and move decision reads. Value objects:
 `require_appointment` (bool), `holding_spot_codes[]`, `parking_zone_ids[]`;
 `dwell_threshold_minutes` per `TrailerKind`, `lease_seconds`,
 `seal_mismatch_action` (`FLAG` or `REJECT`); `free_time_minutes` (detention clock,
-optional, no default). Defaults as built: `require_appointment` false, `seal_mismatch_action` `FLAG`,
+optional, no default); `minimum_seal_class` (`I`, `S` or `H`, optional: a lower class at check-in or record-seal is refused). Defaults as built: `require_appointment` false, `seal_mismatch_action` `FLAG`,
 `lease_seconds` 300, no free time and no dwell thresholds (a kind without a threshold is never alerted).
 
 ### 3. State Transitions

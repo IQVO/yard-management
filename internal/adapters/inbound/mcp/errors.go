@@ -62,6 +62,7 @@ var errorCatalogue = []struct {
 	{trailer.ErrTrailerOnHold, problem{"trailer-on-hold", http.StatusConflict}},
 	{trailer.ErrTrailerNotOnHold, problem{"trailer-not-on-hold", http.StatusConflict}},
 	{trailer.ErrDoorWorkOpen, problem{"door-work-open", http.StatusConflict}},
+	{shared.ErrSealClassTooLow, problem{"seal-class-too-low", http.StatusConflict}},
 	{yardmove.ErrTrailerHasOpenMove, problem{"trailer-has-open-move", http.StatusConflict}},
 	{yardmove.ErrDestinationReserved, problem{"destination-reserved", http.StatusConflict}},
 	{yardcheck.ErrYardCheckOpen, problem{"yard-check-open", http.StatusConflict}},
@@ -70,6 +71,8 @@ var errorCatalogue = []struct {
 	{ports.ErrConcurrentModification, problem{"concurrent-modification", http.StatusConflict}},
 
 	{shared.ErrUnknownLocation, problem{"unknown-location", http.StatusUnprocessableEntity}},
+	{shared.ErrInvalidUnitNumber, problem{"invalid-unit-number", http.StatusUnprocessableEntity}},
+	{shared.ErrInvalidSealClass, problem{"invalid-seal-class", http.StatusUnprocessableEntity}},
 	{shared.ErrValidation, problem{"validation", http.StatusUnprocessableEntity}},
 }
 

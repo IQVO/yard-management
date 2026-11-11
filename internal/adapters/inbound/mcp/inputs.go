@@ -108,8 +108,9 @@ type releaseHoldInput struct {
 type recordSealInput struct {
 	callArgs
 	TrailerID  string `json:"trailerId" jsonschema:"the trailer whose seal was checked"`
-	State      string `json:"state" jsonschema:"INTACT records the seal number; BROKEN marks the seal broken and places a SEAL_BROKEN hold on the trailer"`
-	SealNumber string `json:"sealNumber,omitempty" jsonschema:"optional: the seal number read off the trailer; required when state is INTACT"`
+	State      string `json:"state" jsonschema:"INTACT records the seal number found on the doors; APPLIED records a seal put on at the origin or dock; BROKEN marks the seal broken and places a SEAL_BROKEN hold on the trailer"`
+	SealNumber string `json:"sealNumber,omitempty" jsonschema:"optional: the seal number read off the trailer; required when state is INTACT or APPLIED"`
+	SealClass  string `json:"sealClass,omitempty" jsonschema:"optional: the ISO 17712 class of the seal, I (indicative), S (security) or H (high security); refused when below the minimumSealClass of the site yard policy"`
 }
 
 type openYardCheckInput struct {

@@ -19,6 +19,9 @@ type trailerInRequest struct {
 	Kind        string `json:"kind"`
 	LoadState   string `json:"loadState"`
 	SealNumber  string `json:"sealNumber"`
+	// UnitNumberScheme (ISO6346) and SealClass (I, S or H) are optional.
+	UnitNumberScheme string `json:"unitNumberScheme"`
+	SealClass        string `json:"sealClass"`
 }
 
 type checkInRequest struct {
@@ -40,6 +43,7 @@ func (q checkInRequest) input() usecases.CheckInInput {
 	for _, t := range q.Trailers {
 		in.Trailers = append(in.Trailers, usecases.TrailerInput{
 			UnitNumber: t.UnitNumber, CarrierSCAC: t.CarrierSCAC, Kind: t.Kind, LoadState: t.LoadState, SealNumber: t.SealNumber,
+			UnitNumberScheme: t.UnitNumberScheme, SealClass: t.SealClass,
 		})
 	}
 	return in
@@ -129,6 +133,7 @@ func (q holdRequest) reason() trailer.HoldReason { return trailer.HoldReason(q.R
 type sealRequest struct {
 	State      string `json:"state"`
 	SealNumber string `json:"sealNumber"`
+	SealClass  string `json:"sealClass"`
 }
 
 type openYardCheckRequest struct {
@@ -148,6 +153,7 @@ type declarePolicyRequest struct {
 	LeaseSeconds          int              `json:"leaseSeconds"`
 	SealMismatchAction    string           `json:"sealMismatchAction"`
 	FreeTimeMinutes       int              `json:"freeTimeMinutes"`
+	MinimumSealClass      string           `json:"minimumSealClass"`
 }
 
 func (q declarePolicyRequest) input() yardpolicy.DeclareInput {
@@ -158,7 +164,7 @@ func (q declarePolicyRequest) input() yardpolicy.DeclareInput {
 	return yardpolicy.DeclareInput{
 		RequireAppointment: q.RequireAppointment, HoldingSpotCodes: q.HoldingSpotCodes, ParkingZoneIDs: q.ParkingZoneIDs,
 		DwellThresholdMinutes: dwell, LeaseSeconds: q.LeaseSeconds, SealMismatchAction: yardpolicy.SealAction(q.SealMismatchAction),
-		FreeTimeMinutes: q.FreeTimeMinutes,
+		FreeTimeMinutes: q.FreeTimeMinutes, MinimumSealClass: shared.SealClass(q.MinimumSealClass),
 	}
 }
 

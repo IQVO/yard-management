@@ -46,8 +46,9 @@ func trailerView(t *trailer.Trailer, openMoveID string) views.Trailer {
 	s := t.Snapshot()
 	return views.Trailer{
 		TrailerID: s.ID, SiteID: s.SiteID, UnitNumber: s.Number, CarrierSCAC: ptr(s.SCAC), Kind: s.Kind, LoadState: s.LoadState, State: string(s.State),
-		Location: s.Location.Ptr(), DoorWork: ptr(string(s.DoorWork)), Seal: views.Seal{Number: ptr(s.SealNumber), State: string(s.SealState)},
-		Hold: ptr(string(s.Hold)), ASNNumbers: strs(s.ASNNumbers), OutboundRef: ptr(s.OutboundRef), VisitID: ptr(s.VisitID),
+		Location: s.Location.Ptr(), DoorWork: ptr(string(s.DoorWork)), Seal: views.Seal{Number: ptr(s.SealNumber), State: string(s.SealState), Class: ptr(string(s.SealClass))},
+		UnitNumberScheme: ptr(string(s.UnitScheme)),
+		Hold:             ptr(string(s.Hold)), ASNNumbers: strs(s.ASNNumbers), OutboundRef: ptr(s.OutboundRef), VisitID: ptr(s.VisitID),
 		AppointmentID: ptr(s.AppointmentID), ArrivedAt: s.ArrivedAt, DepartedAt: tptr(s.DepartedAt), OpenMoveID: ptr(openMoveID), Version: s.Version,
 	}
 }
@@ -90,6 +91,6 @@ func policyView(p *yardpolicy.Policy) views.YardPolicy {
 	return views.YardPolicy{
 		SiteID: s.SiteID, RequireAppointment: s.RequireAppointment, HoldingSpotCodes: strs(s.HoldingSpotCodes), ParkingZoneIDs: strs(s.ParkingZoneIDs),
 		DwellThresholdMinutes: dwell, LeaseSeconds: s.LeaseSeconds, SealMismatchAction: string(s.SealMismatchAction), FreeTimeMinutes: free,
-		Version: s.Version, Declared: s.Declared,
+		MinimumSealClass: ptr(string(s.MinimumSealClass)), Version: s.Version, Declared: s.Declared,
 	}
 }

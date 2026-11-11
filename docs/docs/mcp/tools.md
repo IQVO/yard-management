@@ -68,7 +68,7 @@ a human approved.
 | `cancel_move` | `moveId` required; `reason` optional | cancels a `REQUESTED` or `CLAIMED` move; cancelling a claimed hostler move returns the trailer where it was |
 | `place_hold` | `trailerId`, `reason` (`DAMAGED`, `SEAL_BROKEN`, `NOT_FOUND`, `QUALITY`, `SECURITY`) required | a held trailer is not docked or moved to a door |
 | `release_hold` | `trailerId` required | releases the hold |
-| `record_seal` | `trailerId`, `state` (`INTACT`, `BROKEN`) required; `sealNumber` (required when `INTACT`) | `BROKEN` also places a `SEAL_BROKEN` hold |
+| `record_seal` | `trailerId`, `state` (`INTACT`, `APPLIED`, `BROKEN`) required; `sealNumber` (required when `INTACT` or `APPLIED`); `sealClass` (`I`, `S`, `H`, optional) | `BROKEN` also places a `SEAL_BROKEN` hold; a class below the site's `minimumSealClass` is `seal-class-too-low`, an unknown one `invalid-seal-class` (ADR 0012) |
 | `open_yard_check` | `siteId` required | opens an audit; at most one open check per site. The walk and the closing are floor actions |
 
 Errors come back as tool results with `isError: true` and a slug such as

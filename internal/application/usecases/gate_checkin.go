@@ -18,6 +18,8 @@ import (
 // TrailerInput is a trailer a visit brings (G-B).
 type TrailerInput struct {
 	UnitNumber, CarrierSCAC, Kind, LoadState, SealNumber string
+	// UnitNumberScheme (ISO6346) and SealClass (I, S or H) are optional (ADR 0012).
+	UnitNumberScheme, SealClass string
 }
 
 // CheckInInput is the body of CheckInVisit (G-B).
@@ -70,7 +72,7 @@ func (y *Yard) checkIn(ctx context.Context, in CheckInInput) (views.CheckIn, err
 	if visit.AppointmentID() == "" {
 		appt = nil
 	}
-	trailers, mismatches, err := y.arrivals(ctx, visit, in, refs, appt, now)
+	trailers, mismatches, err := y.arrivals(ctx, visit, in, refs, appt, pol, now)
 	if err != nil {
 		return views.CheckIn{}, err
 	}
@@ -112,6 +114,7 @@ func (y *Yard) unitRefs(ctx context.Context, in CheckInInput) ([]yardvisit.Trail
 		seen[key] = true
 		refs = append(refs, yardvisit.TrailerRef{
 			ID: y.d.IDs.New("trl"), UnitNumber: tr.UnitNumber, SCAC: scac, Kind: shared.TrailerKind(tr.Kind), Load: shared.LoadState(tr.LoadState),
+			UnitScheme: shared.UnitScheme(tr.UnitNumberScheme), SealClass: shared.SealClass(tr.SealClass),
 		})
 	}
 	return refs, nil
@@ -120,7 +123,7 @@ func (y *Yard) unitRefs(ctx context.Context, in CheckInInput) ([]yardvisit.Trail
 // arrivals records every trailer's arrival at the gate and runs the seal check
 // against the appointment's expected seal; it returns the trailers and the
 // found seal numbers that differ from the expected one.
-func (y *Yard) arrivals(ctx context.Context, v *yardvisit.Visit, in CheckInInput, refs []yardvisit.TrailerRef, appt *views.Appointment, now time.Time) ([]*trailer.Trailer, []string, error) {
+func (y *Yard) arrivals(ctx context.Context, v *yardvisit.Visit, in CheckInInput, refs []yardvisit.TrailerRef, appt *views.Appointment, pol *yardpolicy.Policy, now time.Time) ([]*trailer.Trailer, []string, error) {
 	var asns []string
 	var outbound string
 	if appt != nil {
@@ -139,6 +142,7 @@ func (y *Yard) arrivals(ctx context.Context, v *yardvisit.Visit, in CheckInInput
 		tr, err := trailer.RecordArrival(trailer.ArrivalInput{
 			ID: ref.ID, SiteID: v.SiteID(), SCAC: ref.SCAC, Number: ref.UnitNumber, Kind: ref.Kind, Load: ref.Load, ASNNumbers: asns, OutboundRef: outbound,
 			Purpose: v.Purpose(), SealNumber: in.Trailers[i].SealNumber, VisitID: v.ID(), AppointmentID: v.AppointmentID(), At: now,
+			UnitScheme: ref.UnitScheme, SealClass: ref.SealClass, MinimumSealClass: pol.MinimumSealClass(),
 		})
 		if err != nil {
 			return nil, nil, err

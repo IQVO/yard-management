@@ -119,7 +119,7 @@ Source: `internal/domain/trailer/trailer.go`, `internal/domain/trailer/work.go`,
 Omitted: the error variables (see
 [Aggregate Design Canvas](/docs/ddd/aggregate-design-canvas)),
 `HoldReason` (`DAMAGED`, `SEAL_BROKEN`, `NOT_FOUND`, `QUALITY`, `SECURITY`) and
-`SealState` (`INTACT`, `BROKEN`, `NONE`) enumerations, read accessors. `ArriveAt`
+`SealState` (`NONE`, `INTACT`, `BROKEN`, `APPLIED`, `VERIFIED`, `MISMATCH`; ADR 0012) enumerations, read accessors. `ArriveAt`
 receives the facts it cannot know alone (closure, door flow, active slot) from the use
 case; `Occupancy.CheckFree` runs under a per-location advisory lock, with a partial
 unique index as backstop. `RecordArrival` is drawn as a constructor; it creates the trailer `IN_MOVE`

@@ -23,3 +23,4 @@ the authority.
 | [0009](./0009-kafka-consumers.md) | Kafka consumers | Accepted (2026-11-06); refines 0003 |
 | [0010](./0010-door-work-and-departure-on-the-integration-topic.md) | DoorWorkCompleted and TrailerDeparted on the integration topic | Accepted (2026-11-09); refines 0004 and 0005 |
 | [0011](./0011-kpi-standard-reports.md) | Yard KPI standard v1: turn time, detention exposure and exception rates | Accepted (2026-11-09); refines 0006 |
+| [0012](./0012-standard-identifiers-at-the-gate.md) | Standard identifiers at the gate: ISO 6346 unit numbers, ISO 17712 seal class and a seal state vocabulary | Accepted (2026-11-10); refines 0002 and 0004 |

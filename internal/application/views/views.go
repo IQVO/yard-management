@@ -32,29 +32,34 @@ type Visit struct {
 type Seal struct {
 	Number *string `json:"number"`
 	State  string  `json:"state"`
+	// Class is the ISO 17712 class (I, S or H), null when none was declared.
+	Class *string `json:"class"`
 }
 
 // Trailer is a Trailer as the API shows it.
 type Trailer struct {
-	TrailerID     string             `json:"trailerId"`
-	SiteID        string             `json:"siteId"`
-	UnitNumber    string             `json:"unitNumber"`
-	CarrierSCAC   *string            `json:"carrierScac"`
-	Kind          shared.TrailerKind `json:"kind"`
-	LoadState     shared.LoadState   `json:"loadState"`
-	State         string             `json:"state"`
-	Location      *shared.Location   `json:"location"`
-	DoorWork      *string            `json:"doorWork"`
-	Seal          Seal               `json:"seal"`
-	Hold          *string            `json:"hold"`
-	ASNNumbers    []string           `json:"asnNumbers"`
-	OutboundRef   *string            `json:"outboundRef"`
-	VisitID       *string            `json:"visitId"`
-	AppointmentID *string            `json:"appointmentId"`
-	ArrivedAt     time.Time          `json:"arrivedAt"`
-	DepartedAt    *time.Time         `json:"departedAt"`
-	OpenMoveID    *string            `json:"openMoveId"`
-	Version       int64              `json:"version"`
+	TrailerID  string `json:"trailerId"`
+	SiteID     string `json:"siteId"`
+	UnitNumber string `json:"unitNumber"`
+	// UnitNumberScheme is ISO6346 when the number was validated as an ISO 6346
+	// container number, null for a free-form one.
+	UnitNumberScheme *string            `json:"unitNumberScheme"`
+	CarrierSCAC      *string            `json:"carrierScac"`
+	Kind             shared.TrailerKind `json:"kind"`
+	LoadState        shared.LoadState   `json:"loadState"`
+	State            string             `json:"state"`
+	Location         *shared.Location   `json:"location"`
+	DoorWork         *string            `json:"doorWork"`
+	Seal             Seal               `json:"seal"`
+	Hold             *string            `json:"hold"`
+	ASNNumbers       []string           `json:"asnNumbers"`
+	OutboundRef      *string            `json:"outboundRef"`
+	VisitID          *string            `json:"visitId"`
+	AppointmentID    *string            `json:"appointmentId"`
+	ArrivedAt        time.Time          `json:"arrivedAt"`
+	DepartedAt       *time.Time         `json:"departedAt"`
+	OpenMoveID       *string            `json:"openMoveId"`
+	Version          int64              `json:"version"`
 }
 
 // Priority is the claim order of a move.
@@ -127,8 +132,11 @@ type YardPolicy struct {
 	LeaseSeconds          int              `json:"leaseSeconds"`
 	SealMismatchAction    string           `json:"sealMismatchAction"`
 	FreeTimeMinutes       *int             `json:"freeTimeMinutes"`
-	Version               int64            `json:"version"`
-	Declared              bool             `json:"declared"`
+	// MinimumSealClass is the lowest ISO 17712 class a seal may have; null =
+	// no minimum.
+	MinimumSealClass *string `json:"minimumSealClass"`
+	Version          int64   `json:"version"`
+	Declared         bool    `json:"declared"`
 }
 
 // BoardPlace is one spot or door of the yard board.

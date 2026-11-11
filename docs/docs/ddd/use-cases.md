@@ -91,7 +91,7 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
   4. Create `YardVisit` in `CHECKED_IN`.
   5. For each trailer brought in, `RecordArrival` (below).
   6. `SealCheckAtGate`: compare a recorded seal with the appointment's
-     `expected_seal_number`; a mismatch raises `SealExceptionRaised`, and under
+     `expected_seal_number`; a match ends the seal `VERIFIED`, a mismatch ends it `MISMATCH` and raises `SealExceptionRaised`, and under
      `REJECT` the visit is recorded `REJECTED` instead, with `VisitRejected(SEAL_MISMATCH)` and a
      `SealExceptionRaised` that has no trailer (decision Y-5).
   7. `DirectOnCheckIn` and `VisitingDriverMove`: for each trailer in, create the first
@@ -107,7 +107,10 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
 | `ErrVisitAlreadyOpen` | 409 | `visit-already-open` |
 | `ErrAppointmentRequired` | 409 | `appointment-required` |
 | `ErrTrailerAlreadyOnSite` (from `RecordArrival`) | 409 | `trailer-already-on-site` |
+| `ErrSealClassTooLow` (site `minimumSealClass`; ADR 0012) | 409 | `seal-class-too-low` |
 | `ErrDestinationReserved` (first move) | 409 | `destination-reserved` |
+| `ErrInvalidUnitNumber` (ISO 6346 check; ADR 0012) | 422 | `invalid-unit-number` |
+| `ErrInvalidSealClass` (ADR 0012) | 422 | `invalid-seal-class` |
 | `ErrValidation` | 422 | `validation` |
 
 - **Events emitted:** `VisitCheckedIn`; `SealExceptionRaised` when the seal mismatches;
@@ -292,9 +295,12 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
 - **Inbound adapter:** REST `POST /trailers/{trailerId}/seals` (body: seal number).
 - **Preconditions:** the trailer is on site.
 - **Main flow:**
-  1. Set `Seal{number, INTACT}`.
-  2. If the trailer's appointment has an `expected_seal_number` that differs, raise
-     `SealExceptionRaised` (`SealCheckAtGate`; the comparison happens when the seal arrives, decision Y-13).
+  1. Set `Seal{number, INTACT}` (or `APPLIED`), with the optional ISO 17712 class; a class below the site's
+     `minimum_seal_class` is `ErrSealClassTooLow` (409 `seal-class-too-low`), an unknown one
+     `ErrInvalidSealClass` (422 `invalid-seal-class`).
+  2. At check-in, if the trailer's appointment has an `expected_seal_number`: equal ends the seal `VERIFIED`, different
+     ends it `MISMATCH` and raises `SealExceptionRaised` (`SealCheckAtGate`; the comparison happens when the seal arrives,
+     decision Y-13; ADR 0012).
   3. Save with the version check.
 
 | Error | HTTP | Problem `type` slug |
