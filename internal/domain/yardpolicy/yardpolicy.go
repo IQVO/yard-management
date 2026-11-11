@@ -38,6 +38,7 @@ type Policy struct {
 	minSealClass  shared.SealClass
 	requireSecure bool
 	allowHazmat   bool
+	inspections   []InspectionRule
 	version       int64
 	declared      bool
 }
@@ -51,7 +52,7 @@ func Default(siteID string) (*Policy, error) {
 	}
 	return &Policy{
 		site: siteID, holdingSpots: []string{}, parkingZones: []string{}, dwell: map[shared.TrailerKind]int64{},
-		leaseSeconds: DefaultLeaseSeconds, sealAction: Flag, version: 1,
+		leaseSeconds: DefaultLeaseSeconds, sealAction: Flag, inspections: []InspectionRule{}, version: 1,
 	}, nil
 }
 
@@ -79,6 +80,10 @@ type DeclareInput struct {
 	// (ADR 0014). false (the default) refuses it: a hazmat trailer needs a
 	// HAZMAT spot.
 	AllowHazmatOnUnclassifiedSpots bool
+	// RequiredInspections are the inspections a trailer needs before it docks,
+	// loads or leaves (ADR 0015). Empty (the default) asks for none: the
+	// behaviour before inspections existed.
+	RequiredInspections []InspectionRule
 }
 
 // Declare replaces the policy (DeclareYardPolicy). Holding spots must be
@@ -100,6 +105,9 @@ func (p *Policy) Declare(in DeclareInput, knownSpot func(code string) bool) erro
 	if err := checkList("parking zone id", in.ParkingZoneIDs); err != nil {
 		return err
 	}
+	if err := validateInspectionRules(in.RequiredInspections); err != nil {
+		return err
+	}
 	for _, code := range in.HoldingSpotCodes {
 		if !knownSpot(code) {
 			return fmt.Errorf("%w: holding spot %q is not a Yard slot of site %s", shared.ErrUnknownLocation, code, p.site)
@@ -107,7 +115,7 @@ func (p *Policy) Declare(in DeclareInput, knownSpot func(code string) bool) erro
 	}
 	p.requireAppt, p.leaseSeconds, p.sealAction, p.freeTimeMin = in.RequireAppointment, in.LeaseSeconds, in.SealMismatchAction, in.FreeTimeMinutes
 	p.minSealClass, p.requireSecure, p.allowHazmat = in.MinimumSealClass, in.RequireSecuringBeforeDoorWork, in.AllowHazmatOnUnclassifiedSpots
-	p.holdingSpots, p.parkingZones = slices.Clone(in.HoldingSpotCodes), slices.Clone(in.ParkingZoneIDs)
+	p.holdingSpots, p.parkingZones, p.inspections = slices.Clone(in.HoldingSpotCodes), slices.Clone(in.ParkingZoneIDs), cloneRules(in.RequiredInspections)
 	if p.holdingSpots == nil {
 		p.holdingSpots = []string{}
 	}
@@ -195,6 +203,7 @@ type Snapshot struct {
 	MinimumSealClass          shared.SealClass
 	RequireSecuring           bool
 	AllowHazmatOnUnclassified bool
+	RequiredInspections       []InspectionRule
 	Version                   int64
 	Declared                  bool
 }
@@ -208,7 +217,7 @@ func (p *Policy) Snapshot() Snapshot {
 	return Snapshot{
 		SiteID: p.site, RequireAppointment: p.requireAppt, HoldingSpotCodes: p.HoldingSpotCodes(), ParkingZoneIDs: p.ParkingZoneIDs(),
 		DwellThresholdMinutes: d, LeaseSeconds: p.leaseSeconds, SealMismatchAction: p.sealAction, FreeTimeMinutes: p.freeTimeMin,
-		MinimumSealClass: p.minSealClass, RequireSecuring: p.requireSecure, AllowHazmatOnUnclassified: p.allowHazmat, Version: p.version, Declared: p.declared,
+		MinimumSealClass: p.minSealClass, RequireSecuring: p.requireSecure, AllowHazmatOnUnclassified: p.allowHazmat, RequiredInspections: p.RequiredInspections(), Version: p.version, Declared: p.declared,
 	}
 }
 
@@ -226,6 +235,7 @@ func Restore(s Snapshot) (*Policy, error) {
 		RequireAppointment: s.RequireAppointment, HoldingSpotCodes: s.HoldingSpotCodes, ParkingZoneIDs: s.ParkingZoneIDs,
 		DwellThresholdMinutes: s.DwellThresholdMinutes, LeaseSeconds: s.LeaseSeconds, SealMismatchAction: s.SealMismatchAction, FreeTimeMinutes: s.FreeTimeMinutes,
 		MinimumSealClass: s.MinimumSealClass, RequireSecuringBeforeDoorWork: s.RequireSecuring, AllowHazmatOnUnclassifiedSpots: s.AllowHazmatOnUnclassified,
+		RequiredInspections: s.RequiredInspections,
 	}, func(string) bool { return true }); err != nil {
 		return nil, err
 	}

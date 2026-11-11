@@ -7,6 +7,12 @@ import (
 	"github.com/claudioed/yard-management/internal/domain/shared"
 )
 
+// Loading reports whether door work on the trailer is a load (ADR 0015): its
+// direction is outbound (an outbound reference, or a LIVE_LOAD or PICKUP visit,
+// Y-9) or it is empty, because an empty trailer stands at a door to be loaded.
+// A trailer that carries inbound content is being unloaded.
+func (t *Trailer) Loading() bool { return t.direction() == outbound || t.load == shared.LoadEmpty }
+
 // StartDoorWork begins unloading or loading on a DOCKED trailer (WAITING to
 // IN_PROGRESS) without the dock safety interlock: the policy-free form, used
 // by AutoCompleteUnload, which completes work that was done and starts none.

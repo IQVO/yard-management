@@ -52,7 +52,7 @@ func TestDeclare(t *testing.T) {
 	want := yardpolicy.Snapshot{
 		SiteID: "WH1", RequireAppointment: true, HoldingSpotCodes: []string{"H1", "H2"}, ParkingZoneIDs: []string{"z1"},
 		DwellThresholdMinutes: map[shared.TrailerKind]int64{shared.KindDryVan: 1440, shared.KindReefer: 720},
-		LeaseSeconds:          120, SealMismatchAction: yardpolicy.Reject, FreeTimeMinutes: 90, Version: 2, Declared: true,
+		LeaseSeconds:          120, SealMismatchAction: yardpolicy.Reject, FreeTimeMinutes: 90, RequiredInspections: []yardpolicy.InspectionRule{}, Version: 2, Declared: true,
 	}
 	if got := p.Snapshot(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("declared\n got %+v\nwant %+v", got, want)
