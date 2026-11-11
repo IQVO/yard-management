@@ -35,6 +35,7 @@ type Policy struct {
 	leaseSeconds int
 	sealAction   SealAction
 	freeTimeMin  int
+	minSealClass shared.SealClass
 	version      int64
 	declared     bool
 }
@@ -64,6 +65,9 @@ type DeclareInput struct {
 	SealMismatchAction    SealAction
 	// FreeTimeMinutes is the detention clock, optional: 0 means none.
 	FreeTimeMinutes int
+	// MinimumSealClass is the lowest ISO 17712 class a seal may have at
+	// check-in and record-seal; "" (the default) means no minimum (ADR 0012).
+	MinimumSealClass shared.SealClass
 }
 
 // Declare replaces the policy (DeclareYardPolicy). Holding spots must be
@@ -71,14 +75,8 @@ type DeclareInput struct {
 // thresholds, lease and free time must be positive (ErrValidation). The
 // version rises by one, the first declaration included.
 func (p *Policy) Declare(in DeclareInput, knownSpot func(code string) bool) error {
-	if in.LeaseSeconds < 1 {
-		return shared.Invalid("lease seconds must be positive")
-	}
-	if in.SealMismatchAction != Flag && in.SealMismatchAction != Reject {
-		return shared.Invalid("seal mismatch action must be FLAG or REJECT")
-	}
-	if in.FreeTimeMinutes < 0 {
-		return shared.Invalid("free time minutes must be positive when given")
+	if err := validateScalars(in); err != nil {
+		return err
 	}
 	for kind, minutes := range in.DwellThresholdMinutes {
 		if !kind.Valid() || minutes < 1 {
@@ -97,6 +95,7 @@ func (p *Policy) Declare(in DeclareInput, knownSpot func(code string) bool) erro
 		}
 	}
 	p.requireAppt, p.leaseSeconds, p.sealAction, p.freeTimeMin = in.RequireAppointment, in.LeaseSeconds, in.SealMismatchAction, in.FreeTimeMinutes
+	p.minSealClass = in.MinimumSealClass
 	p.holdingSpots, p.parkingZones = slices.Clone(in.HoldingSpotCodes), slices.Clone(in.ParkingZoneIDs)
 	if p.holdingSpots == nil {
 		p.holdingSpots = []string{}
@@ -110,6 +109,24 @@ func (p *Policy) Declare(in DeclareInput, knownSpot func(code string) bool) erro
 	}
 	p.declared = true
 	p.version++
+	return nil
+}
+
+// validateScalars checks the single-valued fields of a declaration: lease,
+// seal mismatch action, minimum seal class and detention free time.
+func validateScalars(in DeclareInput) error {
+	if in.LeaseSeconds < 1 {
+		return shared.Invalid("lease seconds must be positive")
+	}
+	if in.SealMismatchAction != Flag && in.SealMismatchAction != Reject {
+		return shared.Invalid("seal mismatch action must be FLAG or REJECT")
+	}
+	if _, err := shared.ParseSealClass(string(in.MinimumSealClass)); err != nil {
+		return err
+	}
+	if in.FreeTimeMinutes < 0 {
+		return shared.Invalid("free time minutes must be positive when given")
+	}
 	return nil
 }
 
@@ -164,6 +181,7 @@ type Snapshot struct {
 	LeaseSeconds          int
 	SealMismatchAction    SealAction
 	FreeTimeMinutes       int
+	MinimumSealClass      shared.SealClass
 	Version               int64
 	Declared              bool
 }
@@ -177,7 +195,7 @@ func (p *Policy) Snapshot() Snapshot {
 	return Snapshot{
 		SiteID: p.site, RequireAppointment: p.requireAppt, HoldingSpotCodes: p.HoldingSpotCodes(), ParkingZoneIDs: p.ParkingZoneIDs(),
 		DwellThresholdMinutes: d, LeaseSeconds: p.leaseSeconds, SealMismatchAction: p.sealAction, FreeTimeMinutes: p.freeTimeMin,
-		Version: p.version, Declared: p.declared,
+		MinimumSealClass: p.minSealClass, Version: p.version, Declared: p.declared,
 	}
 }
 
@@ -194,6 +212,7 @@ func Restore(s Snapshot) (*Policy, error) {
 	if err := p.Declare(DeclareInput{
 		RequireAppointment: s.RequireAppointment, HoldingSpotCodes: s.HoldingSpotCodes, ParkingZoneIDs: s.ParkingZoneIDs,
 		DwellThresholdMinutes: s.DwellThresholdMinutes, LeaseSeconds: s.LeaseSeconds, SealMismatchAction: s.SealMismatchAction, FreeTimeMinutes: s.FreeTimeMinutes,
+		MinimumSealClass: s.MinimumSealClass,
 	}, func(string) bool { return true }); err != nil {
 		return nil, err
 	}
@@ -203,3 +222,6 @@ func Restore(s Snapshot) (*Policy, error) {
 
 // FreeTimeMinutes returns the detention free time (0 = none).
 func (p *Policy) FreeTimeMinutes() int { return p.freeTimeMin }
+
+// MinimumSealClass returns the lowest seal class the site accepts ("" = none).
+func (p *Policy) MinimumSealClass() shared.SealClass { return p.minSealClass }

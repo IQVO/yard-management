@@ -63,7 +63,9 @@ erDiagram
         TEXT outbound_ref "empty string when none"
         TEXT purpose "DROP, LIVE_UNLOAD, LIVE_LOAD, PICKUP, BOBTAIL"
         TEXT seal_number "empty string when none"
-        TEXT seal_state "NONE, INTACT, BROKEN"
+        TEXT seal_state "NONE, INTACT, BROKEN, APPLIED, VERIFIED, MISMATCH"
+        TEXT seal_class "I, S, H or empty (ISO 17712)"
+        TEXT unit_number_scheme "ISO6346 or empty for a free-form number"
         TEXT hold "empty or a HoldReason"
         TEXT location_kind "SPOT or DOOR, empty while IN_MOVE"
         TEXT location_code "empty while IN_MOVE"
@@ -150,6 +152,7 @@ erDiagram
         INTEGER lease_seconds "1 or more"
         TEXT seal_mismatch_action "FLAG, REJECT"
         INTEGER free_time_minutes "0 means none"
+        TEXT minimum_seal_class "I, S, H or empty for no minimum"
         BOOLEAN declared "false for the defaults"
         BIGINT version "2 or more"
         TIMESTAMPTZ updated_at

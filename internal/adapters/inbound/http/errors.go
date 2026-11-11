@@ -95,6 +95,7 @@ var problemCatalogue = []struct {
 	{trailer.ErrTrailerNotOnHold, conflict("trailer-not-on-hold", "The trailer is not on hold")},
 	{trailer.ErrDoorWorkOpen, conflict("door-work-open", "Door work is not done")},
 	{trailer.ErrTrailerAlreadyOnSite, conflict("trailer-already-on-site", "The trailer is already on site")},
+	{shared.ErrSealClassTooLow, conflict("seal-class-too-low", "The seal class is below the minimum of the site")},
 	{yardmove.ErrTrailerHasOpenMove, conflict("trailer-has-open-move", "The trailer already has an open move")},
 	{yardmove.ErrDestinationReserved, conflict("destination-reserved", "The destination is reserved by another open move")},
 	{yardmove.ErrHostlerBusy, conflict("hostler-busy", "The hostler already holds a claimed move")},
@@ -110,6 +111,8 @@ var problemCatalogue = []struct {
 
 	{shared.ErrInvalidCarrier, unprocessable("invalid-carrier", "The carrier is invalid")},
 	{shared.ErrUnknownLocation, unprocessable("unknown-location", "Unknown location")},
+	{shared.ErrInvalidUnitNumber, unprocessable("invalid-unit-number", "The unit number is invalid")},
+	{shared.ErrInvalidSealClass, unprocessable("invalid-seal-class", "The seal class is invalid")},
 	{yardvisit.ErrUnknownAppointment, unprocessable("unknown-appointment", "Unknown appointment")},
 	{yardmove.ErrUnexplainedDestination, unprocessable("unexplained-destination", "A location other than the destination needs an explanation")},
 	{shared.ErrValidation, unprocessable("validation", "Validation failed")},

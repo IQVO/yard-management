@@ -56,34 +56,6 @@ func (t *Trailer) RecordLoadState(load shared.LoadState) error {
 	return nil
 }
 
-// RecordSeal records the seal found on the trailer's doors (INTACT).
-func (t *Trailer) RecordSeal(number string) error {
-	if t.state == Departed {
-		return t.illegal("RecordSeal")
-	}
-	if err := shared.Require("seal number", number, 64); err != nil {
-		return err
-	}
-	t.sealNumber, t.sealState = number, SealIntact
-	t.version++
-	return nil
-}
-
-// BreakSeal marks the seal BROKEN and places a SEAL_BROKEN hold (Y-6); an
-// existing hold is kept as it is. A trailer without a seal has nothing to break.
-func (t *Trailer) BreakSeal(at time.Time) error {
-	if t.state == Departed || t.sealState != SealIntact {
-		return t.illegal("BreakSeal")
-	}
-	t.sealState = SealBroken
-	t.version++
-	if t.hold == "" {
-		t.hold = HoldSealBroken
-		t.emit(t.held(at))
-	}
-	return nil
-}
-
 func (t *Trailer) held(at time.Time) TrailerHeld {
 	return TrailerHeld{Header: t.header("TrailerHeld", at), TrailerID: t.id, SiteID: t.site, Reason: t.hold, Version: t.version}
 }
@@ -115,21 +87,6 @@ func (t *Trailer) ReleaseHold(at time.Time) error {
 	t.version++
 	t.emit(TrailerHoldReleased{Header: t.header("TrailerHoldReleased", at), TrailerID: t.id, SiteID: t.site, Version: t.version})
 	return nil
-}
-
-// CheckSeal is SealCheckAtGate: when the recorded seal is INTACT and differs
-// from the appointment's expected seal it raises SealExceptionRaised and
-// reports true. No seal found, or no seal expected, raises nothing.
-func (t *Trailer) CheckSeal(expected string, at time.Time) bool {
-	if expected == "" || t.sealState != SealIntact || t.sealNumber == expected {
-		return false
-	}
-	trailerID := t.id
-	t.emit(SealExceptionRaised{
-		Header: t.header("SealExceptionRaised", at), TrailerID: &trailerID, SiteID: t.site, AppointmentID: shared.Str(t.appointmentID),
-		ExpectedSealNumber: expected, FoundSealNumber: t.sealNumber, RaisedAt: shared.Stamp(at),
-	})
-	return true
 }
 
 // DwellMinutes is the time on site so far (arrival to departure once gone).

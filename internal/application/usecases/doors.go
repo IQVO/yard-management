@@ -166,17 +166,31 @@ func (y *Yard) ReleaseHold(ctx context.Context, trailerID string) (views.Trailer
 	return y.mutateTrailer(ctx, trailerID, func(tr *trailer.Trailer) error { return tr.ReleaseHold(y.now()) })
 }
 
-// RecordSeal records an INTACT seal number, or marks the seal BROKEN (which
-// places a SEAL_BROKEN hold).
-func (y *Yard) RecordSeal(ctx context.Context, trailerID, state, number string) (views.Trailer, error) {
-	return y.mutateTrailer(ctx, trailerID, func(tr *trailer.Trailer) error {
+// RecordSeal records a seal number as INTACT (found on the doors) or APPLIED
+// (put on at the origin or dock), with an optional ISO 17712 class, or marks
+// the seal BROKEN (which places a SEAL_BROKEN hold). A class below the site's
+// minimum seal class is refused (ErrSealClassTooLow); an unknown class is
+// ErrInvalidSealClass.
+func (y *Yard) RecordSeal(ctx context.Context, trailerID, state, number, class string) (views.Trailer, error) {
+	cls, err := shared.ParseSealClass(class)
+	if err != nil {
+		return views.Trailer{}, err
+	}
+	return y.mutateTrailerWith(ctx, trailerID, func(ctx context.Context, tr *trailer.Trailer) error {
 		switch state {
-		case "INTACT":
-			return tr.RecordSeal(number)
+		case "INTACT", "APPLIED":
+			pol, err := y.policyOf(ctx, tr.SiteID())
+			if err != nil {
+				return err
+			}
+			return tr.RecordSealWith(trailer.SealRecord{Number: number, Class: cls, State: trailer.SealState(state), Minimum: pol.MinimumSealClass()})
 		case "BROKEN":
+			if cls != "" {
+				return shared.Invalid("a seal class goes with an INTACT or APPLIED seal, not a BROKEN one")
+			}
 			return tr.BreakSeal(y.now())
 		}
-		return shared.Invalid("seal state must be INTACT or BROKEN")
+		return shared.Invalid("seal state must be INTACT, APPLIED or BROKEN")
 	})
 }
 
@@ -187,13 +201,23 @@ func (y *Yard) mutateTrailer(ctx context.Context, id string, fn func(*trailer.Tr
 }
 
 func (y *Yard) mutateTrailerThen(ctx context.Context, id string, fn func(*trailer.Trailer) error, after func(context.Context, *trailer.Trailer) error) (views.Trailer, error) {
+	return y.mutateTrailerWithThen(ctx, id, func(_ context.Context, tr *trailer.Trailer) error { return fn(tr) }, after)
+}
+
+// mutateTrailerWith is mutateTrailer for a command that needs the context of
+// the unit of work (to read a policy, say).
+func (y *Yard) mutateTrailerWith(ctx context.Context, id string, fn func(context.Context, *trailer.Trailer) error) (views.Trailer, error) {
+	return y.mutateTrailerWithThen(ctx, id, fn, nil)
+}
+
+func (y *Yard) mutateTrailerWithThen(ctx context.Context, id string, fn func(context.Context, *trailer.Trailer) error, after func(context.Context, *trailer.Trailer) error) (views.Trailer, error) {
 	var out views.Trailer
 	err := y.atomically(ctx, func(ctx context.Context) error {
 		tr, err := y.loadTrailer(ctx, id)
 		if err != nil {
 			return err
 		}
-		if err := fn(tr); err != nil {
+		if err := fn(ctx, tr); err != nil {
 			return err
 		}
 		if err := y.saveTrailer(ctx, tr); err != nil {

@@ -73,7 +73,7 @@ func (t *Trailer) place(target shared.Location, work DoorWork, at time.Time) {
 		t.emit(TrailerDocked{
 			Header: t.header("TrailerDocked", at), TrailerID: t.id, SiteID: t.site, DoorCode: target.Code,
 			AppointmentID: shared.Str(t.appointmentID), ASNNumbers: shared.Strings(t.asn), VisitID: shared.Str(t.visitID),
-			DockedAt: shared.Stamp(at), Version: t.version,
+			DockedAt: shared.Stamp(at), Version: t.version, SealState: t.sealStatePtr(), SealClass: t.sealClassPtr(),
 		})
 		return
 	}
@@ -107,6 +107,7 @@ func (t *Trailer) Depart(visitID string, at time.Time) error {
 	t.emit(TrailerDeparted{
 		Header: t.header("TrailerDeparted", at), TrailerID: t.id, SiteID: t.site, VisitID: shared.Str(t.visitID),
 		DepartedAt: shared.Stamp(at), DwellMinutes: max(dwell, 0), LoadState: t.load, SealNumber: shared.Str(t.sealNumber), Version: t.version,
+		SealState: t.sealStatePtr(), SealClass: t.sealClassPtr(),
 	})
 	return nil
 }

@@ -47,16 +47,6 @@ const (
 	WorkDone       DoorWork = "DONE"
 )
 
-// SealState is INTACT, BROKEN or NONE.
-type SealState string
-
-// The seal states.
-const (
-	SealNone   SealState = "NONE"
-	SealIntact SealState = "INTACT"
-	SealBroken SealState = "BROKEN"
-)
-
 // HoldReason says why a trailer is held.
 type HoldReason string
 
@@ -89,6 +79,8 @@ type Trailer struct {
 	purpose        shared.Purpose
 	sealNumber     string
 	sealState      SealState
+	sealClass      shared.SealClass
+	unitScheme     shared.UnitScheme
 	hold           HoldReason
 	state          State
 	loc            shared.Location
@@ -117,12 +109,39 @@ type ArrivalInput struct {
 	VisitID       string
 	AppointmentID string
 	At            time.Time
+	// UnitScheme is the numbering scheme the caller declares for the unit
+	// number ("" = none declared). A CONTAINER is always ISO 6346.
+	UnitScheme shared.UnitScheme
+	// SealClass is the optional ISO 17712 class of the seal on the doors; it
+	// needs a seal number. MinimumSealClass is the site policy floor ("" =
+	// none): a seal below it refuses the arrival (ErrSealClassTooLow).
+	SealClass, MinimumSealClass shared.SealClass
 }
 
 // RecordArrival creates a trailer IN_MOVE at version 1: it just passed the
 // gate and its first move (already CLAIMED by the visiting driver) takes it
-// to its first place. A seal number makes the seal INTACT.
+// to its first place. A seal number makes the seal INTACT. The unit number
+// is checked against ISO 6346 for a CONTAINER or a declared ISO6346 scheme
+// (ErrInvalidUnitNumber), the seal class against the site minimum
+// (ErrSealClassTooLow); both are ADR 0012.
 func RecordArrival(in ArrivalInput) (*Trailer, error) {
+	unit, err := validateArrival(in)
+	if err != nil {
+		return nil, err
+	}
+	t := &Trailer{
+		id: in.ID, site: in.SiteID, scac: in.SCAC, number: unit.String(), unitScheme: unit.Scheme(), kind: in.Kind, load: in.Load,
+		asn: shared.Strings(in.ASNNumbers), outboundRef: in.OutboundRef, purpose: in.Purpose,
+		sealNumber: in.SealNumber, sealClass: in.SealClass, sealState: SealNone, state: InMove, visitID: in.VisitID,
+		appointmentID: in.AppointmentID, arrivedAt: in.At.UTC(), version: 1,
+	}
+	if in.SealNumber != "" {
+		t.sealState = SealIntact
+	}
+	return t, nil
+}
+
+func validateArrival(in ArrivalInput) (shared.UnitNumber, error) {
 	for _, c := range []struct {
 		name, v string
 		max     int
@@ -134,28 +153,38 @@ func RecordArrival(in ArrivalInput) (*Trailer, error) {
 			check = shared.Require
 		}
 		if err := check(c.name, c.v, c.max); err != nil {
-			return nil, err
+			return shared.UnitNumber{}, err
 		}
 	}
 	if err := shared.ValidateSCAC(in.SCAC); err != nil {
-		return nil, err
+		return shared.UnitNumber{}, err
 	}
 	if !in.Kind.Valid() || !in.Load.Valid() || !in.Purpose.Valid() {
-		return nil, shared.Invalid("kind, load state and purpose must be valid enumeration values")
+		return shared.UnitNumber{}, shared.Invalid("kind, load state and purpose must be valid enumeration values")
 	}
 	if in.At.IsZero() {
-		return nil, shared.Invalid("arrival time is required")
+		return shared.UnitNumber{}, shared.Invalid("arrival time is required")
 	}
-	t := &Trailer{
-		id: in.ID, site: in.SiteID, scac: in.SCAC, number: in.Number, kind: in.Kind, load: in.Load,
-		asn: shared.Strings(in.ASNNumbers), outboundRef: in.OutboundRef, purpose: in.Purpose,
-		sealNumber: in.SealNumber, sealState: SealNone, state: InMove, visitID: in.VisitID,
-		appointmentID: in.AppointmentID, arrivedAt: in.At.UTC(), version: 1,
+	unit, err := shared.NewUnitNumber(in.Number, in.Kind, in.UnitScheme)
+	if err != nil {
+		return shared.UnitNumber{}, err
 	}
-	if in.SealNumber != "" {
-		t.sealState = SealIntact
+	return unit, validateArrivalSeal(in)
+}
+
+// validateArrivalSeal checks the declared class of the seal found at the gate:
+// a known class, only with a seal number, and at least the site minimum.
+func validateArrivalSeal(in ArrivalInput) error {
+	if in.SealClass != "" && !in.SealClass.Valid() {
+		return fmt.Errorf("%w: %q is not one of I, S or H", shared.ErrInvalidSealClass, in.SealClass)
 	}
-	return t, nil
+	if in.SealNumber == "" {
+		if in.SealClass != "" {
+			return shared.Invalid("a seal class needs a seal number")
+		}
+		return nil
+	}
+	return shared.RequireSealClass(in.SealClass, in.MinimumSealClass)
 }
 
 func (t *Trailer) emit(e shared.Event) { t.events = append(t.events, e) }

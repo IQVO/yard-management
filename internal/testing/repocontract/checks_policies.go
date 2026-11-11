@@ -83,7 +83,7 @@ func PolicyRepo(t *testing.T, newStore NewStore) {
 			if !reflect.DeepEqual(got.Snapshot(), p.Snapshot()) {
 				t.Fatalf("round trip changed the state:\ngot  %+v\nwant %+v", got.Snapshot(), p.Snapshot())
 			}
-			if got.Version() != 2 || !got.Declared() || got.Lease() != 2*time.Minute || got.SealMismatchAction() != yardpolicy.Reject {
+			if got.Version() != 2 || !got.Declared() || got.Lease() != 2*time.Minute || got.SealMismatchAction() != yardpolicy.Reject || got.MinimumSealClass() != shared.SealClassHighSecurity {
 				t.Fatalf("stored %+v", got.Snapshot())
 			}
 		},

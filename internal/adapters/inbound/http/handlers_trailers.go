@@ -72,14 +72,15 @@ func (s *Server) handleReleaseHold(w http.ResponseWriter, r *http.Request) {
 	respond(w, r, http.StatusOK, t, err)
 }
 
-// handleRecordSeal backs POST /trailers/{trailerId}/seals (INTACT records the
-// number, BROKEN marks it broken and holds the trailer).
+// handleRecordSeal backs POST /trailers/{trailerId}/seals (INTACT or APPLIED
+// records the number and the optional class, BROKEN marks it broken and holds
+// the trailer).
 func (s *Server) handleRecordSeal(w http.ResponseWriter, r *http.Request) {
 	var req sealRequest
 	if err := decodeRequiredJSON(r, &req); err != nil {
 		writeError(w, r, err)
 		return
 	}
-	t, err := s.Yard.RecordSeal(r.Context(), pathParam(r, "trailerId"), req.State, req.SealNumber)
+	t, err := s.Yard.RecordSeal(r.Context(), pathParam(r, "trailerId"), req.State, req.SealNumber, req.SealClass)
 	respond(w, r, http.StatusOK, t, err)
 }

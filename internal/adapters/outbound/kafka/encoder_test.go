@@ -55,13 +55,13 @@ func goldenCases() []goldenCase {
 				CarrierSCAC: shared.Str("ACME"), Purpose: shared.PurposeLiveUnload, AppointmentID: shared.Str("appt-1"),
 				Trailers: []yardvisit.VisitTrailer{
 					{TrailerID: "trl-1", UnitNumber: "T100", CarrierSCAC: shared.Str("ACME"), Kind: shared.KindDryVan, LoadState: shared.LoadLoaded},
-					{TrailerID: "trl-2", UnitNumber: "R200", Kind: shared.KindReefer, LoadState: shared.LoadEmpty},
+					{TrailerID: "trl-2", UnitNumber: "CSQU3054383", Kind: shared.KindContainer, LoadState: shared.LoadEmpty, UnitNumberScheme: shared.Str("ISO6346"), SealClass: shared.Str("H")},
 				},
 				ArrivedAt: stamp(14, 0), Version: 1,
 			},
 			data: `{"visit_id":"visit-1","site_id":"WH1","carrier":"Acme Freight","carrier_scac":"ACME","purpose":"LIVE_UNLOAD","appointment_id":"appt-1",` +
-				`"trailers":[{"trailer_id":"trl-1","unit_number":"T100","carrier_scac":"ACME","kind":"DRY_VAN","load_state":"LOADED"},` +
-				`{"trailer_id":"trl-2","unit_number":"R200","carrier_scac":null,"kind":"REEFER","load_state":"EMPTY"}],` +
+				`"trailers":[{"trailer_id":"trl-1","unit_number":"T100","carrier_scac":"ACME","kind":"DRY_VAN","load_state":"LOADED","unit_number_scheme":null,"seal_class":null},` +
+				`{"trailer_id":"trl-2","unit_number":"CSQU3054383","carrier_scac":null,"kind":"CONTAINER","load_state":"EMPTY","unit_number_scheme":"ISO6346","seal_class":"H"}],` +
 				`"arrived_at":"2026-11-05T14:00:00Z","version":1}`,
 		},
 		{
@@ -85,9 +85,9 @@ func goldenCases() []goldenCase {
 			event: trailer.TrailerDocked{
 				Header: hdr("trailer", "TrailerDocked", "trl-1", at(14, 20)), TrailerID: "trl-1", SiteID: "WH1", DoorCode: "WH1-D1",
 				AppointmentID: shared.Str("appt-1"), ASNNumbers: []string{"ASN-1", "ASN-2"}, VisitID: shared.Str("visit-1"),
-				DockedAt: stamp(14, 20), Version: 3,
+				DockedAt: stamp(14, 20), Version: 3, SealState: shared.Str("VERIFIED"), SealClass: shared.Str("H"),
 			},
-			data: `{"trailer_id":"trl-1","site_id":"WH1","door_code":"WH1-D1","appointment_id":"appt-1","asn_numbers":["ASN-1","ASN-2"],"visit_id":"visit-1","docked_at":"2026-11-05T14:20:00Z","version":3}`,
+			data: `{"trailer_id":"trl-1","site_id":"WH1","door_code":"WH1-D1","appointment_id":"appt-1","asn_numbers":["ASN-1","ASN-2"],"visit_id":"visit-1","docked_at":"2026-11-05T14:20:00Z","version":3,"seal_state":"VERIFIED","seal_class":"H"}`,
 		},
 		{
 			name: "TrailerDockedWithoutAppointment", integration: true, subject: "trl-3",
@@ -95,7 +95,7 @@ func goldenCases() []goldenCase {
 				Header: hdr("trailer", "TrailerDocked", "trl-3", at(14, 21)), TrailerID: "trl-3", SiteID: "WH1", DoorCode: "WH1-D2",
 				ASNNumbers: []string{}, DockedAt: stamp(14, 21), Version: 2,
 			},
-			data: `{"trailer_id":"trl-3","site_id":"WH1","door_code":"WH1-D2","appointment_id":null,"asn_numbers":[],"visit_id":null,"docked_at":"2026-11-05T14:21:00Z","version":2}`,
+			data: `{"trailer_id":"trl-3","site_id":"WH1","door_code":"WH1-D2","appointment_id":null,"asn_numbers":[],"visit_id":null,"docked_at":"2026-11-05T14:21:00Z","version":2,"seal_state":null,"seal_class":null}`,
 		},
 		{
 			name: "TrailerUndocked", integration: true, subject: "trl-1",
@@ -132,9 +132,9 @@ func goldenCases() []goldenCase {
 			name: "TrailerDeparted", integration: true, subject: "trl-1",
 			event: trailer.TrailerDeparted{
 				Header: hdr("trailer", "TrailerDeparted", "trl-1", at(15, 35)), TrailerID: "trl-1", SiteID: "WH1", VisitID: shared.Str("visit-1"),
-				DepartedAt: stamp(15, 35), DwellMinutes: 95, LoadState: shared.LoadEmpty, SealNumber: shared.Str("SL-1"), Version: 7,
+				DepartedAt: stamp(15, 35), DwellMinutes: 95, LoadState: shared.LoadEmpty, SealNumber: shared.Str("SL-1"), Version: 7, SealState: shared.Str("INTACT"),
 			},
-			data: `{"trailer_id":"trl-1","site_id":"WH1","visit_id":"visit-1","departed_at":"2026-11-05T15:35:00Z","dwell_minutes":95,"load_state":"EMPTY","seal_number":"SL-1","version":7}`,
+			data: `{"trailer_id":"trl-1","site_id":"WH1","visit_id":"visit-1","departed_at":"2026-11-05T15:35:00Z","dwell_minutes":95,"load_state":"EMPTY","seal_number":"SL-1","version":7,"seal_state":"INTACT","seal_class":null}`,
 		},
 		{
 			name: "SealExceptionRaised", integration: true, subject: "trl-1",

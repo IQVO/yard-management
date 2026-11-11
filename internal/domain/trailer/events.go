@@ -30,6 +30,10 @@ type TrailerDocked struct {
 	VisitID       *string  `json:"visit_id"`
 	DockedAt      string   `json:"docked_at"`
 	Version       int64    `json:"version"`
+	// SealState and SealClass are additive (ADR 0012): null when the trailer
+	// has no seal, SealClass also when no class was declared.
+	SealState *string `json:"seal_state"`
+	SealClass *string `json:"seal_class"`
 }
 
 // TrailerUndocked: the trailer left a door (integration).
@@ -77,6 +81,10 @@ type TrailerDeparted struct {
 	LoadState     shared.LoadState `json:"load_state"`
 	SealNumber    *string          `json:"seal_number"`
 	Version       int64            `json:"version"`
+	// SealState and SealClass are additive (ADR 0012), null as on
+	// TrailerDocked.
+	SealState *string `json:"seal_state"`
+	SealClass *string `json:"seal_class"`
 }
 
 // SealExceptionRaised: the seal found at the gate differs from the expected

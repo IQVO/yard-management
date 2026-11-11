@@ -89,9 +89,13 @@ paths:
         first free spot of the site''s parking zones, and a walk-in or an arrival earlier than the appointment tolerance goes to a holding spot
         (TO_HOLDING). SealCheckAtGate compares each recorded seal with the appointment''s expected seal; a mismatch raises SealExceptionRaised
         and, under the REJECT policy, records a REJECTED visit instead (reason SEAL_MISMATCH). A refused check-in persists nothing: 409 `appointment-required`,
-        `visit-already-open`, `trailer-already-on-site`, `door-closed`, `door-flow-mismatch`, `no-free-spot`; 422 `invalid-carrier`, `unknown-appointment`
-        (also when the visit names an appointment but does not carry exactly one trailer), `validation`. The gate clerk may then record the refusal
-        with `POST /visit-rejections`.'
+        `visit-already-open`, `trailer-already-on-site`, `door-closed`, `door-flow-mismatch`, `no-free-spot`, `seal-class-too-low` (the site yard policy
+        sets `minimumSealClass` and the seal is of a lower class or has none); 422 `invalid-carrier`, `unknown-appointment`
+        (also when the visit names an appointment but does not carry exactly one trailer), `invalid-unit-number`, `invalid-seal-class`, `validation`.
+        The unit number of a `CONTAINER` trailer, and of any trailer whose `unitNumberScheme` is `ISO6346`, must be an ISO 6346 container number
+        (4 letters: a 3-letter owner code and the category U, J or Z; 6 digits; the check digit), else 422 `invalid-unit-number` whose detail names
+        the expected check digit; a domestic road trailer keeps a free-form number. A matching seal ends `VERIFIED` and a different one `MISMATCH`
+        (ADR 0012). The gate clerk may then record the refusal with `POST /visit-rejections`.'
       tags:
       - Visits
       parameters:
@@ -115,6 +119,7 @@ paths:
                 kind: DRY_VAN
                 loadState: LOADED
                 sealNumber: SL-778
+                sealClass: S
       responses:
         '201':
           description: The visit is checked in (or REJECTED under the REJECT seal policy).
@@ -415,6 +420,7 @@ paths:
                 trailerId: trl-8f7e6d5c-4b3a-4291-8071-6f5e4d3c2b1a
                 siteId: WH1
                 unitNumber: TR-1042
+                unitNumberScheme: null
                 carrierScac: ACME
                 kind: DRY_VAN
                 loadState: LOADED
@@ -426,6 +432,7 @@ paths:
                 seal:
                   number: SL-778
                   state: INTACT
+                  class: S
                 hold: null
                 asnNumbers:
                 - ASN-1001
@@ -607,7 +614,10 @@ paths:
     post:
       operationId: recordSeal
       summary: Record or break the seal (RecordSeal, BreakSeal)
-      description: '`INTACT` records the seal number; `BROKEN` marks it broken and places a SEAL_BROKEN hold.'
+      description: '`INTACT` records the seal number found on the doors; `APPLIED` records a seal put on at the origin or dock; `BROKEN` marks it broken
+        and places a SEAL_BROKEN hold. `sealClass` (I, S or H, ISO 17712) is optional with INTACT and APPLIED: an unknown class is 422 `invalid-seal-class`,
+        and when the site yard policy sets `minimumSealClass` a seal of a lower class, or with no class, is 409 `seal-class-too-low`. `VERIFIED` and
+        `MISMATCH` are never recorded by a caller: SealCheckAtGate sets them at check-in (ADR 0012).'
       tags:
       - Trailers
       parameters:
@@ -1085,6 +1095,7 @@ paths:
                 leaseSeconds: 300
                 sealMismatchAction: FLAG
                 freeTimeMinutes: 120
+                minimumSealClass: null
                 version: 1
                 declared: true
         '400':
@@ -1140,6 +1151,7 @@ paths:
                 leaseSeconds: 300
                 sealMismatchAction: FLAG
                 freeTimeMinutes: 120
+                minimumSealClass: null
                 version: 1
                 declared: true
         '400':
@@ -1573,6 +1585,13 @@ components:
                 status: 409
                 detail: location is occupied
                 instance: /trailers
+            sealClassTooLow:
+              value:
+                type: https://errors.yard-management.warehouse-systems.dev/seal-class-too-low
+                title: The seal class is below the minimum of the site
+                status: 409
+                detail: 'seal class is too low: the site requires class H and the seal is class I'
+                instance: /visits
             idempotencyKeyReused:
               value:
                 type: https://errors.yard-management.warehouse-systems.dev/idempotency-key-reused
@@ -1581,7 +1600,7 @@ components:
                 detail: the key was used with another request
                 instance: /trailers
     Unprocessable:
-      description: A value or reference rule failed (unknown location or appointment, invalid carrier, unexplained destination, validation).
+      description: A value or reference rule failed (unknown location or appointment, invalid carrier, invalid unit number or seal class, unexplained destination, validation).
       content:
         application/problem+json:
           schema:
@@ -1594,6 +1613,20 @@ components:
                 status: 422
                 detail: location is not an active slot of the site
                 instance: /trailers
+            invalidUnitNumber:
+              value:
+                type: https://errors.yard-management.warehouse-systems.dev/invalid-unit-number
+                title: The unit number is invalid
+                status: 422
+                detail: 'invalid unit number: "CSQU3054380" has check digit 0; the expected check digit is 3'
+                instance: /visits
+            invalidSealClass:
+              value:
+                type: https://errors.yard-management.warehouse-systems.dev/invalid-seal-class
+                title: The seal class is invalid
+                status: 422
+                detail: 'invalid seal class: "X" is not one of I, S or H'
+                instance: /visits
     PreconditionFailed:
       description: The If-Match version is not the current version.
       content:
@@ -1690,6 +1723,13 @@ components:
           type: string
           minLength: 1
           maxLength: 64
+          description: Free-form for a domestic road trailer. For a CONTAINER, or when `unitNumberScheme` is ISO6346, an ISO 6346 container number
+            such as CSQU3054383 (422 `invalid-unit-number` otherwise).
+        unitNumberScheme:
+          type: string
+          enum:
+          - ISO6346
+          description: Optional. Declares that the unit number is an ISO 6346 number and must pass its check digit. A CONTAINER is always checked.
         carrierScac:
           type: string
           pattern: ^[A-Z]{2,4}$
@@ -1711,6 +1751,14 @@ components:
           type: string
           maxLength: 64
           description: The seal found at the gate; compared with the appointment's expected seal.
+        sealClass:
+          type: string
+          enum:
+          - I
+          - S
+          - H
+          description: Optional ISO 17712 class of the seal (I indicative, S security, H high security); needs a sealNumber. Refused with 409
+            `seal-class-too-low` when below the `minimumSealClass` of the site yard policy.
       required:
       - unitNumber
       - kind
@@ -1877,6 +1925,21 @@ components:
           - NONE
           - INTACT
           - BROKEN
+          - APPLIED
+          - VERIFIED
+          - MISMATCH
+          description: 'INTACT: present and unbroken, not yet verified (what existing flows produce). APPLIED: recorded as applied at the origin or
+            dock. VERIFIED: checked at the gate against the expected number and equal. MISMATCH: checked and different (SealExceptionRaised was
+            raised). BROKEN: found broken. NONE: no seal.'
+        class:
+          type: string
+          enum:
+          - I
+          - S
+          - H
+          - null
+          nullable: true
+          description: The ISO 17712 class of the seal; null when none was declared.
       required:
       - number
       - state
@@ -1889,6 +1952,14 @@ components:
           type: string
         unitNumber:
           type: string
+        unitNumberScheme:
+          type: string
+          enum:
+          - ISO6346
+          - null
+          nullable: true
+          description: ISO6346 when the unit number was validated as an ISO 6346 container number; null for a free-form number (and for a trailer
+            stored before ADR 0012).
         carrierScac:
           type: string
           nullable: true
@@ -2186,11 +2257,19 @@ components:
           type: string
           enum:
           - INTACT
+          - APPLIED
           - BROKEN
         sealNumber:
           type: string
           maxLength: 64
-          description: Required for INTACT; BROKEN keeps the recorded number.
+          description: Required for INTACT and APPLIED; BROKEN keeps the recorded number.
+        sealClass:
+          type: string
+          enum:
+          - I
+          - S
+          - H
+          description: Optional ISO 17712 class, for INTACT and APPLIED only.
       required:
       - state
     YardCheck:
@@ -2309,6 +2388,15 @@ components:
           type: integer
           minimum: 1
           nullable: true
+        minimumSealClass:
+          type: string
+          enum:
+          - I
+          - S
+          - H
+          - null
+          nullable: true
+          description: The lowest ISO 17712 class a seal may have at check-in and record-seal (I below S below H); null = no minimum, today's behaviour.
         version:
           type: integer
           minimum: 1
@@ -2354,6 +2442,13 @@ components:
         freeTimeMinutes:
           type: integer
           minimum: 1
+        minimumSealClass:
+          type: string
+          enum:
+          - I
+          - S
+          - H
+          description: Optional. Seals of a lower class, or with no class, are refused with 409 `seal-class-too-low`. Left out = no minimum.
       required:
       - requireAppointment
       - sealMismatchAction

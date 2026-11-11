@@ -146,7 +146,7 @@ func Declared(t *testing.T, site string) *yardpolicy.Policy {
 	err = p.Declare(yardpolicy.DeclareInput{
 		RequireAppointment: true, HoldingSpotCodes: []string{"WH1-H1", "WH1-H2"}, ParkingZoneIDs: []string{"z-yard"},
 		DwellThresholdMinutes: map[shared.TrailerKind]int64{shared.KindDryVan: 240, shared.KindReefer: 60},
-		LeaseSeconds:          120, SealMismatchAction: yardpolicy.Reject, FreeTimeMinutes: 90,
+		LeaseSeconds:          120, SealMismatchAction: yardpolicy.Reject, FreeTimeMinutes: 90, MinimumSealClass: shared.SealClassHighSecurity,
 	}, func(string) bool { return true })
 	if err != nil {
 		t.Fatal(err)
@@ -159,3 +159,18 @@ func Spot(code string) shared.Location { return spot(code) }
 
 // Door is the dock door location with the given code.
 func Door(code string) shared.Location { return door(code) }
+
+// Container creates a CONTAINER trailer IN_MOVE at version 1 carrying an ISO
+// 6346 unit number and a class H seal (ADR 0012).
+func Container(t *testing.T, id, site, unit string, offset time.Duration) *trailer.Trailer {
+	t.Helper()
+	tr, err := trailer.RecordArrival(trailer.ArrivalInput{
+		ID: id, SiteID: site, SCAC: "ACME", Number: unit, Kind: shared.KindContainer, Load: shared.LoadLoaded,
+		Purpose: shared.PurposeLiveUnload, SealNumber: "SL-1", SealClass: shared.SealClassHighSecurity,
+		VisitID: "visit-1", At: T0.Add(offset),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return tr
+}

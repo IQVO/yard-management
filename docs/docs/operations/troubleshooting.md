@@ -76,6 +76,9 @@ Errors are `application/problem+json`; the slug is the last segment of `type`
 | 404 `no-claimable-move` | `POST /moves/claims` found no `REQUESTED` hostler move at the site | expected when idle |
 | a `CLAIMED` move is not released after the lease | the lease sweep did not run (the CronJob is the only scheduler) | `kubectl get cronjob`; run `POST /move-lease-sweeps` by hand; the default lease is 300 s |
 | no `TrailerDwellExceeded` events | the dwell sweep did not run, or the site's policy has no `dwellThresholdMinutes` for that trailer kind | the CronJob, `GET /sites/{siteId}/yard-policy` |
+| 409 `seal-class-too-low` | the site yard policy has `minimumSealClass` and the seal at check-in or record-seal is of a lower class or has none | send a `sealClass` at or above the minimum, or change the policy |
+| 422 `invalid-unit-number` | a `CONTAINER` (or a unit declared `unitNumberScheme: ISO6346`) whose number is not a valid ISO 6346 number; the detail names the expected check digit | correct the number, or the kind if it is not a container |
+| 422 `invalid-seal-class` | a seal class (or the policy's `minimumSealClass`) that is not `I`, `S` or `H` | use one of the three |
 | 422 `unknown-location`, `unknown-appointment`, `invalid-carrier`, `validation`, `unexplained-destination` | a value or reference the model refuses; locations and appointments are event-fed copies | fix the body; check the copies are loaded |
 | 400 on a body containing a NUL character | U+0000 in the path, query or body is refused uniformly (it would be a Postgres error otherwise) | remove it |
 | 500 `internal-error` | an unexpected error; the cause is only in the log (`request failed`, `method`, `path`, `error`) | find the ERROR line |

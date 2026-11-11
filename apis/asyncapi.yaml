@@ -272,6 +272,8 @@ components:
               carrier_scac: ACME
               kind: DRY_VAN
               load_state: LOADED
+              unit_number_scheme: null
+              seal_class: S
             arrived_at: '2026-11-05T14:02:11Z'
             version: 1
       tags:
@@ -318,6 +320,8 @@ components:
               carrier_scac: ACME
               kind: DRY_VAN
               load_state: LOADED
+              unit_number_scheme: null
+              seal_class: S
             arrived_at: '2026-11-05T14:02:11Z'
             version: 1
       tags:
@@ -477,6 +481,8 @@ components:
             visit_id: visit-5b1f0c3e-7a24-4d1e-9c55-0e7d3f2a9b10
             docked_at: '2026-11-05T14:10:00Z'
             version: 3
+            seal_state: VERIFIED
+            seal_class: S
       tags:
       - name: trailer
     TrailerDockedAnalytics:
@@ -518,6 +524,8 @@ components:
             visit_id: visit-5b1f0c3e-7a24-4d1e-9c55-0e7d3f2a9b10
             docked_at: '2026-11-05T14:10:00Z'
             version: 3
+            seal_state: VERIFIED
+            seal_class: S
       tags:
       - name: trailer
     TrailerUndocked:
@@ -788,6 +796,8 @@ components:
             load_state: EMPTY
             seal_number: null
             version: 8
+            seal_state: null
+            seal_class: null
       tags:
       - name: trailer
     TrailerDepartedAnalytics:
@@ -828,6 +838,8 @@ components:
             load_state: EMPTY
             seal_number: null
             version: 8
+            seal_state: null
+            seal_class: null
       tags:
       - name: trailer
     SealExceptionRaised:
@@ -1922,6 +1934,26 @@ components:
                 - EMPTY
                 - LOADED
                 - PARTIAL
+              unit_number_scheme:
+                type:
+                - string
+                - 'null'
+                enum:
+                - ISO6346
+                - null
+                description: Additive, optional. ISO6346 when the unit number was validated as an ISO 6346 container number
+                  (a CONTAINER kind always is, any other kind when the caller declared the scheme); null for a free-form number.
+              seal_class:
+                type:
+                - string
+                - 'null'
+                enum:
+                - I
+                - S
+                - H
+                - null
+                description: Additive, optional. The ISO 17712 class declared for the seal (I indicative, S security, H high
+                  security); null when none was declared. A seal number is not part of this event.
         arrived_at:
           type: string
           format: date-time
@@ -2026,6 +2058,30 @@ components:
         version:
           type: integer
           minimum: 1
+        seal_state:
+          type:
+          - string
+          - 'null'
+          enum:
+          - INTACT
+          - BROKEN
+          - APPLIED
+          - VERIFIED
+          - MISMATCH
+          - null
+          description: Additive, optional. The state of the seal on the trailer, null when it has none. INTACT is present and
+            unbroken, not yet verified; APPLIED was recorded as applied at the origin or dock; VERIFIED matched the expected
+            seal at the gate; MISMATCH differed from it; BROKEN was found broken.
+        seal_class:
+          type:
+          - string
+          - 'null'
+          enum:
+          - I
+          - S
+          - H
+          - null
+          description: Additive, optional. The ISO 17712 class of the seal (I, S or H); null when none was declared.
     TrailerUndockedData:
       type: object
       required:
@@ -2167,6 +2223,30 @@ components:
         version:
           type: integer
           minimum: 1
+        seal_state:
+          type:
+          - string
+          - 'null'
+          enum:
+          - INTACT
+          - BROKEN
+          - APPLIED
+          - VERIFIED
+          - MISMATCH
+          - null
+          description: Additive, optional. The state of the seal on the trailer, null when it has none. INTACT is present and
+            unbroken, not yet verified; APPLIED was recorded as applied at the origin or dock; VERIFIED matched the expected
+            seal at the gate; MISMATCH differed from it; BROKEN was found broken.
+        seal_class:
+          type:
+          - string
+          - 'null'
+          enum:
+          - I
+          - S
+          - H
+          - null
+          description: Additive, optional. The ISO 17712 class of the seal (I, S or H); null when none was declared.
     SealExceptionRaisedData:
       type: object
       required:

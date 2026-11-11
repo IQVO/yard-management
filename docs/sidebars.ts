@@ -137,6 +137,11 @@ const sidebars: SidebarsConfig = {
           label: '0011 Yard KPI standard v1: turn time, detention exposure and exce',
           href: '/docs/adr/0011-kpi-standard-reports',
         },
+        {
+          type: 'link',
+          label: '0012 Standard identifiers at the gate: ISO 6346, ISO 17712, seal state',
+          href: '/docs/adr/0012-standard-identifiers-at-the-gate',
+        },
       ],
     },
   ],
