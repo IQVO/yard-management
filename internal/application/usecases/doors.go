@@ -150,6 +150,27 @@ func (y *Yard) SecureTrailer(ctx context.Context, trailerID, method, performerRe
 	})
 }
 
+// ClassifyTrailer sets what a trailer carries: the US DOT hazard class (1 to 9
+// or a division such as 1.4), the UN number (UN and four digits) and whether
+// it needs temperature control. It replaces the classification: a field left
+// out is cleared, and the same facts again change nothing. An unknown class is
+// ErrInvalidHazmatClass, a malformed UN number ErrInvalidUNNumber (ADR 0014).
+// Classifying a parked trailer does not move it; the placement rules judge a
+// placement.
+func (y *Yard) ClassifyTrailer(ctx context.Context, trailerID, hazmatClass, unNumber string, requiresTemperatureControl bool) (views.Trailer, error) {
+	c, err := trailer.NewClassification(hazmatClass, unNumber, requiresTemperatureControl)
+	if err != nil {
+		return views.Trailer{}, err
+	}
+	return y.mutateTrailerWith(ctx, trailerID, func(_ context.Context, tr *trailer.Trailer) error {
+		changed, err := tr.Classify(c)
+		if err == nil && !changed {
+			return errUnchanged
+		}
+		return err
+	})
+}
+
 // ReleaseTrailerSecuring ends the securing (ADR 0013); it is required before a
 // trailer leaves its door. A DROP trailer whose door work is done then gets its
 // FROM_DOOR move, which ClearDoorAfterWork withheld while it was secured.
@@ -183,7 +204,9 @@ func (y *Yard) clearDoorAfterWork(ctx context.Context, tr *trailer.Trailer) erro
 		return err
 	}
 	spot, err := y.firstFreeSpot(ctx, tr, nil, pol.ParkingZoneIDs())
-	if errors.Is(err, ErrNoFreeSpot) {
+	// No spot to send it to is not a failure of the door work that just completed: the supervisor places the
+	// trailer by hand (also when its hazard class has no spot at this site, ADR 0014).
+	if errors.Is(err, ErrNoFreeSpot) || errors.Is(err, trailer.ErrPlacementRuleViolated) {
 		return nil
 	}
 	if err != nil {

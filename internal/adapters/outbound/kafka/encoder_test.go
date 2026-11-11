@@ -54,14 +54,14 @@ func goldenCases() []goldenCase {
 				Header: hdr("yardvisit", "VisitCheckedIn", "visit-1", at(14, 0)), VisitID: "visit-1", SiteID: "WH1", Carrier: "Acme Freight",
 				CarrierSCAC: shared.Str("ACME"), Purpose: shared.PurposeLiveUnload, AppointmentID: shared.Str("appt-1"),
 				Trailers: []yardvisit.VisitTrailer{
-					{TrailerID: "trl-1", UnitNumber: "T100", CarrierSCAC: shared.Str("ACME"), Kind: shared.KindDryVan, LoadState: shared.LoadLoaded},
-					{TrailerID: "trl-2", UnitNumber: "CSQU3054383", Kind: shared.KindContainer, LoadState: shared.LoadEmpty, UnitNumberScheme: shared.Str("ISO6346"), SealClass: shared.Str("H")},
+					{TrailerID: "trl-1", UnitNumber: "T100", CarrierSCAC: shared.Str("ACME"), Kind: shared.KindDryVan, LoadState: shared.LoadLoaded, RequiresTemperatureControl: true},
+					{TrailerID: "trl-2", UnitNumber: "CSQU3054383", Kind: shared.KindContainer, LoadState: shared.LoadEmpty, UnitNumberScheme: shared.Str("ISO6346"), SealClass: shared.Str("H"), HazmatClass: shared.Str("3"), UNNumber: shared.Str("UN1203")},
 				},
 				ArrivedAt: stamp(14, 0), Version: 1,
 			},
 			data: `{"visit_id":"visit-1","site_id":"WH1","carrier":"Acme Freight","carrier_scac":"ACME","purpose":"LIVE_UNLOAD","appointment_id":"appt-1",` +
-				`"trailers":[{"trailer_id":"trl-1","unit_number":"T100","carrier_scac":"ACME","kind":"DRY_VAN","load_state":"LOADED","unit_number_scheme":null,"seal_class":null},` +
-				`{"trailer_id":"trl-2","unit_number":"CSQU3054383","carrier_scac":null,"kind":"CONTAINER","load_state":"EMPTY","unit_number_scheme":"ISO6346","seal_class":"H"}],` +
+				`"trailers":[{"trailer_id":"trl-1","unit_number":"T100","carrier_scac":"ACME","kind":"DRY_VAN","load_state":"LOADED","unit_number_scheme":null,"seal_class":null,"hazmat_class":null,"un_number":null,"requires_temperature_control":true},` +
+				`{"trailer_id":"trl-2","unit_number":"CSQU3054383","carrier_scac":null,"kind":"CONTAINER","load_state":"EMPTY","unit_number_scheme":"ISO6346","seal_class":"H","hazmat_class":"3","un_number":"UN1203","requires_temperature_control":false}],` +
 				`"arrived_at":"2026-11-05T14:00:00Z","version":1}`,
 		},
 		{
@@ -85,17 +85,17 @@ func goldenCases() []goldenCase {
 			event: trailer.TrailerDocked{
 				Header: hdr("trailer", "TrailerDocked", "trl-1", at(14, 20)), TrailerID: "trl-1", SiteID: "WH1", DoorCode: "WH1-D1",
 				AppointmentID: shared.Str("appt-1"), ASNNumbers: []string{"ASN-1", "ASN-2"}, VisitID: shared.Str("visit-1"),
-				DockedAt: stamp(14, 20), Version: 3, SealState: shared.Str("VERIFIED"), SealClass: shared.Str("H"),
+				DockedAt: stamp(14, 20), Version: 3, SealState: shared.Str("VERIFIED"), SealClass: shared.Str("H"), HazmatClass: shared.Str("2.1"), UNNumber: shared.Str("UN1075"),
 			},
-			data: `{"trailer_id":"trl-1","site_id":"WH1","door_code":"WH1-D1","appointment_id":"appt-1","asn_numbers":["ASN-1","ASN-2"],"visit_id":"visit-1","docked_at":"2026-11-05T14:20:00Z","version":3,"seal_state":"VERIFIED","seal_class":"H"}`,
+			data: `{"trailer_id":"trl-1","site_id":"WH1","door_code":"WH1-D1","appointment_id":"appt-1","asn_numbers":["ASN-1","ASN-2"],"visit_id":"visit-1","docked_at":"2026-11-05T14:20:00Z","version":3,"seal_state":"VERIFIED","seal_class":"H","hazmat_class":"2.1","un_number":"UN1075","requires_temperature_control":false}`,
 		},
 		{
 			name: "TrailerDockedWithoutAppointment", integration: true, subject: "trl-3",
 			event: trailer.TrailerDocked{
 				Header: hdr("trailer", "TrailerDocked", "trl-3", at(14, 21)), TrailerID: "trl-3", SiteID: "WH1", DoorCode: "WH1-D2",
-				ASNNumbers: []string{}, DockedAt: stamp(14, 21), Version: 2,
+				ASNNumbers: []string{}, DockedAt: stamp(14, 21), Version: 2, RequiresTemperatureControl: true,
 			},
-			data: `{"trailer_id":"trl-3","site_id":"WH1","door_code":"WH1-D2","appointment_id":null,"asn_numbers":[],"visit_id":null,"docked_at":"2026-11-05T14:21:00Z","version":2,"seal_state":null,"seal_class":null}`,
+			data: `{"trailer_id":"trl-3","site_id":"WH1","door_code":"WH1-D2","appointment_id":null,"asn_numbers":[],"visit_id":null,"docked_at":"2026-11-05T14:21:00Z","version":2,"seal_state":null,"seal_class":null,"hazmat_class":null,"un_number":null,"requires_temperature_control":true}`,
 		},
 		{
 			name: "TrailerUndocked", integration: true, subject: "trl-1",

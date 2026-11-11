@@ -89,6 +89,11 @@ type TrailerRef struct {
 	// ("" = none). Both are optional and additive (ADR 0012).
 	UnitScheme shared.UnitScheme
 	SealClass  shared.SealClass
+	// HazmatClass, UNNumber and RequiresTemperatureControl are what the
+	// trailer carries (optional, ADR 0014): "" and false declare nothing.
+	HazmatClass                shared.HazmatClass
+	UNNumber                   shared.UNNumber
+	RequiresTemperatureControl bool
 }
 
 // Gate is what the local copies say about the site and the named appointment.
@@ -147,6 +152,7 @@ func CheckIn(in CheckInInput) (*Visit, error) {
 		refs = append(refs, VisitTrailer{
 			TrailerID: tr.ID, UnitNumber: tr.UnitNumber, CarrierSCAC: shared.Str(tr.SCAC), Kind: tr.Kind, LoadState: tr.Load,
 			UnitNumberScheme: shared.Str(string(schemes[i])), SealClass: shared.Str(string(tr.SealClass)),
+			HazmatClass: shared.Str(string(tr.HazmatClass)), UNNumber: shared.Str(string(tr.UNNumber)), RequiresTemperatureControl: tr.RequiresTemperatureControl,
 		})
 	}
 	v.emit(VisitCheckedIn{
@@ -241,7 +247,26 @@ func validateTrailer(tr TrailerRef) (shared.UnitScheme, error) {
 	if _, err := shared.ParseSealClass(string(tr.SealClass)); err != nil {
 		return "", err
 	}
+	if err := validateContents(tr); err != nil {
+		return "", err
+	}
 	return unit.Scheme(), nil
+}
+
+// validateContents checks the optional classification of a trailer at the
+// gate: a known hazard class, a well-formed UN number, and a UN number only
+// with a hazard class (ADR 0014).
+func validateContents(tr TrailerRef) error {
+	if _, err := shared.ParseHazmatClass(string(tr.HazmatClass)); err != nil {
+		return err
+	}
+	if _, err := shared.ParseUNNumber(string(tr.UNNumber)); err != nil {
+		return err
+	}
+	if tr.UNNumber != "" && tr.HazmatClass == "" {
+		return shared.Invalid("trailer %s: a UN number %s needs a hazmat class", tr.ID, tr.UNNumber)
+	}
+	return nil
 }
 
 // RejectInput is everything RejectAtGate needs.

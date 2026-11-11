@@ -287,6 +287,9 @@ components:
               load_state: LOADED
               unit_number_scheme: null
               seal_class: S
+              hazmat_class: null
+              un_number: null
+              requires_temperature_control: false
             arrived_at: '2026-11-05T14:02:11Z'
             version: 1
       tags:
@@ -335,6 +338,9 @@ components:
               load_state: LOADED
               unit_number_scheme: null
               seal_class: S
+              hazmat_class: null
+              un_number: null
+              requires_temperature_control: false
             arrived_at: '2026-11-05T14:02:11Z'
             version: 1
       tags:
@@ -496,6 +502,9 @@ components:
             version: 3
             seal_state: VERIFIED
             seal_class: S
+            hazmat_class: null
+            un_number: null
+            requires_temperature_control: false
       tags:
       - name: trailer
     TrailerDockedAnalytics:
@@ -539,6 +548,9 @@ components:
             version: 3
             seal_state: VERIFIED
             seal_class: S
+            hazmat_class: null
+            un_number: null
+            requires_temperature_control: false
       tags:
       - name: trailer
     TrailerUndocked:
@@ -2119,6 +2131,47 @@ components:
                 - null
                 description: Additive, optional. The ISO 17712 class declared for the seal (I indicative, S security, H high
                   security); null when none was declared. A seal number is not part of this event.
+              hazmat_class:
+                type:
+                - string
+                - 'null'
+                enum:
+                - '1'
+                - '1.1'
+                - '1.2'
+                - '1.3'
+                - '1.4'
+                - '1.5'
+                - '1.6'
+                - '2'
+                - '2.1'
+                - '2.2'
+                - '2.3'
+                - '3'
+                - '4'
+                - '4.1'
+                - '4.2'
+                - '4.3'
+                - '5'
+                - '5.1'
+                - '5.2'
+                - '6'
+                - '6.1'
+                - '6.2'
+                - '7'
+                - '8'
+                - '9'
+                - null
+                description: Additive, optional. The US DOT hazard class or division the shipper declared for the trailer (ADR 0014); null when none.
+              un_number:
+                type:
+                - string
+                - 'null'
+                pattern: ^UN[0-9]{4}$
+                description: Additive, optional. The UN number of the material, `UN` and four digits; null when none was declared.
+              requires_temperature_control:
+                type: boolean
+                description: Additive, optional. True for a load that needs a refrigeration plug; false when not declared.
         arrived_at:
           type: string
           format: date-time
@@ -2247,6 +2300,47 @@ components:
           - H
           - null
           description: Additive, optional. The ISO 17712 class of the seal (I, S or H); null when none was declared.
+        hazmat_class:
+          type:
+          - string
+          - 'null'
+          enum:
+          - '1'
+          - '1.1'
+          - '1.2'
+          - '1.3'
+          - '1.4'
+          - '1.5'
+          - '1.6'
+          - '2'
+          - '2.1'
+          - '2.2'
+          - '2.3'
+          - '3'
+          - '4'
+          - '4.1'
+          - '4.2'
+          - '4.3'
+          - '5'
+          - '5.1'
+          - '5.2'
+          - '6'
+          - '6.1'
+          - '6.2'
+          - '7'
+          - '8'
+          - '9'
+          - null
+          description: Additive, optional. The US DOT hazard class or division the shipper declared for the trailer (ADR 0014); null when none.
+        un_number:
+          type:
+          - string
+          - 'null'
+          pattern: ^UN[0-9]{4}$
+          description: Additive, optional. The UN number of the material, `UN` and four digits; null when none was declared.
+        requires_temperature_control:
+          type: boolean
+          description: Additive, optional. True for a load that needs a refrigeration plug; false when not declared.
     TrailerUndockedData:
       type: object
       required:
@@ -2983,6 +3077,25 @@ components:
         dockFlow:
           type: string
           description: Inbound, Outbound or Both; present only for role Dock.
+        spotKind:
+          type:
+          - string
+          - 'null'
+          enum:
+          - PARKING
+          - HOLDING
+          - REEFER_PLUG
+          - HAZMAT
+          - STAGING_LANE
+          - null
+          description: Optional (facility-layout ADR 0045), on a Yard slot only. What the spot is for; the yard stores it and judges the placement
+            of a trailer that declares a hazard class or a temperature-control need by it (ADR 0014). Absent or null, and any value this
+            service does not know, are read as an unclassified spot, judged exactly as before.
+        gln:
+          type:
+          - string
+          - 'null'
+          description: Optional (facility-layout ADR 0045). The GS1 Global Location Number of the slot; the yard ignores it.
     ConsumedLocationSlotDecommissionedData:
       type: object
       required:

@@ -23,19 +23,26 @@ func (y *Yard) policyOf(ctx context.Context, siteID string) (*yardpolicy.Policy,
 	return p, err
 }
 
-// placementFor gathers the facts CanPlaceAt judges: the slot copy (it must be
-// of the requested kind), the closure of a door and the current occupant.
-func (y *Yard) placementFor(ctx context.Context, target shared.Location, now time.Time) (trailer.Placement, error) {
+// placementFor gathers the facts CanPlaceAt judges for tr: the slot copy (it
+// must be of the requested kind), the closure of a door, the current occupant
+// and, for a classified trailer on a yard spot, the spots of its site (ADR
+// 0014). A trailer with no classification costs no extra read.
+func (y *Yard) placementFor(ctx context.Context, tr *trailer.Trailer, target shared.Location, now time.Time) (trailer.Placement, error) {
 	p := trailer.Placement{Target: target}
 	info, ok, err := y.d.Locations.Get(ctx, target.Code)
 	if err != nil {
 		return p, err
 	}
 	if ok && info.Kind == target.Kind {
-		p.Slot = trailer.Slot{Location: target, Site: info.SiteCode, Active: info.Active, DockFlow: trailer.DockFlow(info.DockFlow)}
+		p.Slot = trailer.Slot{Location: target, Site: info.SiteCode, Active: info.Active, DockFlow: trailer.DockFlow(info.DockFlow), SpotKind: info.SpotKind}
 	}
 	if target.Kind == shared.Door {
 		if p.Closed, err = y.d.Closures.Closed(ctx, target.Code, now); err != nil {
+			return p, err
+		}
+	}
+	if target.Kind == shared.Spot && tr.Classification().Declared() {
+		if p.Spots, err = y.siteSpots(ctx, tr.SiteID()); err != nil {
 			return p, err
 		}
 	}
@@ -49,6 +56,51 @@ func (y *Yard) placementFor(ctx context.Context, target shared.Location, now tim
 	return p, nil
 }
 
+// siteSpots reads what the classification rules need to know about the spots
+// of a site: whether it has any active HAZMAT or REEFER_PLUG spot (from the
+// location copy) and the policy allowHazmatOnUnclassifiedSpots.
+func (y *Yard) siteSpots(ctx context.Context, siteID string) (trailer.SiteSpots, error) {
+	slots, err := y.d.Locations.ListBySite(ctx, siteID)
+	if err != nil {
+		return trailer.SiteSpots{}, err
+	}
+	pol, err := y.policyOf(ctx, siteID)
+	if err != nil {
+		return trailer.SiteSpots{}, err
+	}
+	f := trailer.SiteSpots{AllowHazmatOnUnclassified: pol.AllowHazmatOnUnclassifiedSpots()}
+	for _, s := range slots {
+		if s.Kind != shared.Spot {
+			continue
+		}
+		f.HasHazmat = f.HasHazmat || s.SpotKind == shared.SpotKindHazmat
+		f.HasReeferPlug = f.HasReeferPlug || s.SpotKind == shared.SpotKindReeferPlug
+	}
+	return f, nil
+}
+
+// spotKindsFor says which kinds of spot a search for a free one is limited to
+// for tr: nil for a trailer the rules leave alone (no classification, or no
+// rule at its site), the allowed kinds otherwise, and the rule's refusal when
+// the site offers no spot the trailer may take at all (ADR 0014).
+func (y *Yard) spotKindsFor(ctx context.Context, tr *trailer.Trailer) ([]shared.SpotKind, error) {
+	if !tr.Classification().Declared() {
+		return nil, nil
+	}
+	facts, err := y.siteSpots(ctx, tr.SiteID())
+	if err != nil {
+		return nil, err
+	}
+	rule := tr.SpotRule(facts)
+	switch {
+	case !rule.Restricted:
+		return nil, nil
+	case len(rule.Allowed) == 0:
+		return nil, rule.Refusal()
+	}
+	return rule.Allowed, nil
+}
+
 // canTake takes the location lock and judges putting tr at loc: the placement
 // rules of the Trailer and the reservation rule of the moves (no two open
 // moves share a destination). exceptMove is a move allowed to hold the
@@ -57,7 +109,7 @@ func (y *Yard) canTake(ctx context.Context, tr *trailer.Trailer, loc shared.Loca
 	if err := y.d.Locks.Lock(ctx, loc.Code); err != nil {
 		return err
 	}
-	p, err := y.placementFor(ctx, loc, y.now())
+	p, err := y.placementFor(ctx, tr, loc, y.now())
 	if err != nil {
 		return err
 	}
@@ -77,9 +129,16 @@ func (y *Yard) canTake(ctx context.Context, tr *trailer.Trailer, loc shared.Loca
 }
 
 // firstFreeSpot returns the first spot tr can take: the preferred codes in
-// order, then the free Yard slots of the site's parking zones by code.
+// order, then the free Yard slots of the site's parking zones by code. A
+// classified trailer is offered only the spots its rule allows; when the site
+// has none at all the refusal is ErrPlacementRuleViolated, and when they are
+// all taken it is ErrNoFreeSpot (ADR 0014).
 func (y *Yard) firstFreeSpot(ctx context.Context, tr *trailer.Trailer, preferred, zones []string) (shared.Location, error) {
-	free, err := y.d.Locations.FreeSpots(ctx, tr.SiteID(), zones, 25)
+	kinds, err := y.spotKindsFor(ctx, tr)
+	if err != nil {
+		return shared.Location{}, err
+	}
+	free, err := y.d.Locations.FreeSpots(ctx, tr.SiteID(), zones, kinds, 25)
 	if err != nil {
 		return shared.Location{}, err
 	}
@@ -97,7 +156,7 @@ func (y *Yard) firstFreeSpot(ctx context.Context, tr *trailer.Trailer, preferred
 
 // isPlacementRefusal reports the refusals that only mean "not this place".
 func isPlacementRefusal(err error) bool {
-	for _, target := range []error{trailer.ErrLocationOccupied, trailer.ErrUnknownLocation, trailer.ErrDoorClosed, trailer.ErrDoorFlowMismatch, trailer.ErrTrailerOnHold, yardmove.ErrDestinationReserved} {
+	for _, target := range []error{trailer.ErrLocationOccupied, trailer.ErrUnknownLocation, trailer.ErrDoorClosed, trailer.ErrDoorFlowMismatch, trailer.ErrTrailerOnHold, trailer.ErrPlacementRuleViolated, yardmove.ErrDestinationReserved} {
 		if errors.Is(err, target) {
 			return true
 		}

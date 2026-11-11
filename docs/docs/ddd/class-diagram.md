@@ -117,6 +117,13 @@ classDiagram
     Trailer *-- Seal
     Trailer *-- Hold
     Trailer *-- Securing
+    class Classification {
+        <<ValueObject>>
+        hazmatClass string
+        unNumber string
+        requiresTemperatureControl bool
+    }
+    Trailer *-- Classification
     Trailer *-- Location
     Trailer ..> Occupancy : uses at ArriveAt
 ```

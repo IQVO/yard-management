@@ -67,7 +67,7 @@ Topic `warehouse.yard-management.events` (each message also goes, as a twin, to 
 | `TrailerSecured` | `com.warehouse.wms.yard-management.trailer.TrailerSecured` | `trailer_id`, `site_id`, `door_code`, `method`, `secured_at`, `version` | `SecureTrailer` (not raised again for the same method) | none yet |
 | `TrailerSecuringReleased` | `com.warehouse.wms.yard-management.trailer.TrailerSecuringReleased` | `trailer_id`, `site_id`, `door_code`, `released_at`, `version` | `ReleaseTrailerSecuring` | none yet |
 
-`method` in `TrailerSecured` is `RESTRAINT` (a vehicle restraint engaged) or `WHEEL_CHOCKS` (ADR 0013). `kind` in `TrailerDwellExceeded` is the `TrailerKind` whose threshold was crossed. `DoorWorkCompleted` and
+`TrailerDocked` and each `trailers` entry of `VisitCheckedIn` carry the optional `hazmat_class`, `un_number` (null when not declared) and `requires_temperature_control` (false when not declared), additive since ADR 0014; no new type. `method` in `TrailerSecured` is `RESTRAINT` (a vehicle restraint engaged) or `WHEEL_CHOCKS` (ADR 0013). `kind` in `TrailerDwellExceeded` is the `TrailerKind` whose threshold was crossed. `DoorWorkCompleted` and
 `TrailerDeparted` reached this topic on 2026-11-09 (service ADR 0010) because `outbound-shipping` confirms a shipment
 when the trailer physically leaves; messages raised before that stayed on the analytics topic. `SealExceptionRaised.trailer_id`
 is null when the visit was rejected at the gate (the CloudEvents subject is then the visit id).

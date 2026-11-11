@@ -73,10 +73,10 @@ func (d Deps) registerWriteTools(server *mcp.Server) {
 	addWrite(server, d, &mcp.Tool{
 		Name: "request_move",
 		Description: "Ask for a trailer to be moved to a free spot or door of its site. The destination is validated now (known active " +
-			"slot, door open and flow-compatible, trailer not on hold) and RESERVED by the open move; a hostler then claims it from the " +
+			"slot, door open and flow-compatible, trailer not on hold; a trailer with a hazmat class or a temperature-control need only to a spot its kind allows) and RESERVED by the open move; a hostler then claims it from the " +
 			"floor client. Changes state (L3): call it only for a move a human approved, and pass proposalId, approvedBy and agentId so " +
 			"the move is attributable. idempotencyKey is required. Fails with trailer-not-found, trailer-has-open-move, " +
-			"location-occupied, destination-reserved, door-closed, door-flow-mismatch, trailer-on-hold, unknown-location or validation.",
+			"location-occupied, destination-reserved, door-closed, door-flow-mismatch, trailer-on-hold, trailer-still-secured, placement-rule-violated, unknown-location or validation.",
 		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: &notDestructive, IdempotentHint: true, OpenWorldHint: &closedWorld},
 		Meta:        authorityMeta(authorityL3),
 	}, d.requestMove)

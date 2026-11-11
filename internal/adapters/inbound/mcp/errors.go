@@ -62,6 +62,7 @@ var errorCatalogue = []struct {
 	{trailer.ErrTrailerOnHold, problem{"trailer-on-hold", http.StatusConflict}},
 	{trailer.ErrTrailerNotOnHold, problem{"trailer-not-on-hold", http.StatusConflict}},
 	{trailer.ErrDoorWorkOpen, problem{"door-work-open", http.StatusConflict}},
+	{trailer.ErrPlacementRuleViolated, problem{"placement-rule-violated", http.StatusConflict}},
 	{trailer.ErrTrailerNotSecured, problem{"trailer-not-secured", http.StatusConflict}},
 	{trailer.ErrTrailerStillSecured, problem{"trailer-still-secured", http.StatusConflict}},
 	{shared.ErrSealClassTooLow, problem{"seal-class-too-low", http.StatusConflict}},
@@ -75,6 +76,8 @@ var errorCatalogue = []struct {
 	{shared.ErrUnknownLocation, problem{"unknown-location", http.StatusUnprocessableEntity}},
 	{shared.ErrInvalidUnitNumber, problem{"invalid-unit-number", http.StatusUnprocessableEntity}},
 	{shared.ErrInvalidSealClass, problem{"invalid-seal-class", http.StatusUnprocessableEntity}},
+	{shared.ErrInvalidHazmatClass, problem{"invalid-hazmat-class", http.StatusUnprocessableEntity}},
+	{shared.ErrInvalidUNNumber, problem{"invalid-un-number", http.StatusUnprocessableEntity}},
 	{shared.ErrValidation, problem{"validation", http.StatusUnprocessableEntity}},
 }
 

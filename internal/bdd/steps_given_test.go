@@ -25,6 +25,7 @@ func initializeScenario(sc *godog.ScenarioContext) {
 	registerThenSteps(sc, w)
 	registerIdentifierSteps(sc, w)
 	registerInterlockSteps(sc, w)
+	registerPlacementSteps(sc, w)
 }
 
 func registerGivenSteps(sc *godog.ScenarioContext, w *world) {

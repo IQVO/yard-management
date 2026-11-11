@@ -3,7 +3,6 @@
 package postgres_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/claudioed/yard-management/internal/adapters/outbound/postgres"
@@ -35,17 +34,21 @@ func TestMigration0004KeepsExistingRowsAndGoesDown(t *testing.T) {
 		t.Fatalf("migrate to 4: %v", err)
 	}
 
-	ctx := context.Background()
-	tr, err := postgres.NewTrailers(pool).FindByID(ctx, "trl-old-1")
-	if err != nil {
-		t.Fatalf("the old trailer must load after the migration: %v", err)
+	// The repositories read the latest schema, so the old rows are read with SQL.
+	var secured string
+	var at, ref any
+	pgtest.Scan(t, pool, `SELECT secured_by FROM trailers WHERE trailer_id = 'trl-old-1'`, nil, &secured)
+	if secured != "" {
+		t.Fatalf("an old trailer is not secured: %q", secured)
 	}
-	if s := tr.Snapshot(); s.SecuredBy != "" || !s.SecuredAt.IsZero() || s.SecurerRef != "" {
-		t.Fatalf("an old trailer is not secured: %+v", s)
+	pgtest.Scan(t, pool, `SELECT secured_at, secured_by_ref FROM trailers WHERE trailer_id = 'trl-old-1'`, nil, &at, &ref)
+	if at != nil || ref != "" {
+		t.Fatalf("an old trailer has no instant and no performer: %v %v", at, ref)
 	}
-	p, err := postgres.NewPolicies(pool).Find(ctx, "WH1")
-	if err != nil || p.RequireSecuringBeforeDoorWork() {
-		t.Fatalf("the old policy has the interlock off: %v", err)
+	var on bool
+	pgtest.Scan(t, pool, `SELECT require_securing_before_door_work FROM yard_policies WHERE site_id = 'WH1'`, nil, &on)
+	if on {
+		t.Fatal("the old policy has the interlock off")
 	}
 
 	if err := pgtest.Exec(pool, `UPDATE trailers SET secured_by = 'RESTRAINT', secured_at = now() WHERE trailer_id = 'trl-old-1'`); err != nil {
@@ -73,5 +76,8 @@ func TestMigration0004KeepsExistingRowsAndGoesDown(t *testing.T) {
 	}
 	if err := m.Migrate(4); err != nil {
 		t.Fatalf("up again: %v", err)
+	}
+	if err := m.Migrate(5); err != nil {
+		t.Fatalf("on to the latest: %v", err)
 	}
 }

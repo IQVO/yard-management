@@ -147,7 +147,7 @@ func Declared(t *testing.T, site string) *yardpolicy.Policy {
 		RequireAppointment: true, HoldingSpotCodes: []string{"WH1-H1", "WH1-H2"}, ParkingZoneIDs: []string{"z-yard"},
 		DwellThresholdMinutes: map[shared.TrailerKind]int64{shared.KindDryVan: 240, shared.KindReefer: 60},
 		LeaseSeconds:          120, SealMismatchAction: yardpolicy.Reject, FreeTimeMinutes: 90, MinimumSealClass: shared.SealClassHighSecurity,
-		RequireSecuringBeforeDoorWork: true,
+		RequireSecuringBeforeDoorWork: true, AllowHazmatOnUnclassifiedSpots: true,
 	}, func(string) bool { return true })
 	if err != nil {
 		t.Fatal(err)

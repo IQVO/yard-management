@@ -1,0 +1,70 @@
+---
+id: classify-trailer
+title: "Set what a trailer carries (ClassifyTrailer)"
+description: "Sets the hazard class, the UN number and the temperature-control need of a trailer that is on site (ADR 0014): a full replacement, so a field left out is cleared and `{}` declares nothing. The same facts again change nothing and answer 200. Classifying a parked trailer does not move it; the placement rules judge the next placement (`POST /moves`, check-in, and the spot where a move is completed). An unknown hazard class is 422 `invalid-hazmat-class`, a malformed UN number 422 `invalid-un-number`, a UN number without a class 422 `validation`; a departed trailer is 409 `illegal-transition`."
+sidebar_label: "Set what a trailer carries (ClassifyTrailer)"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: docs/api-reference/rest/yard-management-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Set what a trailer carries (ClassifyTrailer)"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/trailers/{trailerId}/classifications"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Sets the hazard class, the UN number and the temperature-control need of a trailer that is on site (ADR 0014): a full replacement, so a field left out is cleared and `{}` declares nothing. The same facts again change nothing and answer 200. Classifying a parked trailer does not move it; the placement rules judge the next placement (`POST /moves`, check-in, and the spot where a move is completed). An unknown hazard class is 422 `invalid-hazmat-class`, a malformed UN number 422 `invalid-un-number`, a UN number without a class 422 `validation`; a departed trailer is 409 `illegal-transition`.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./classify-trailer.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./classify-trailer.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./classify-trailer.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

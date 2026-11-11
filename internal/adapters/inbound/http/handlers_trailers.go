@@ -102,3 +102,16 @@ func (s *Server) handleReleaseTrailerSecuring(w http.ResponseWriter, r *http.Req
 	t, err := s.Yard.ReleaseTrailerSecuring(r.Context(), pathParam(r, "trailerId"))
 	respond(w, r, http.StatusOK, t, err)
 }
+
+// handleClassifyTrailer backs POST /trailers/{trailerId}/classifications: what
+// the trailer carries (hazard class, UN number, temperature control), a full
+// replacement (ADR 0014).
+func (s *Server) handleClassifyTrailer(w http.ResponseWriter, r *http.Request) {
+	var req classificationRequest
+	if err := decodeRequiredJSON(r, &req); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	t, err := s.Yard.ClassifyTrailer(r.Context(), pathParam(r, "trailerId"), req.HazmatClass, req.UNNumber, req.RequiresTemperatureControl)
+	respond(w, r, http.StatusOK, t, err)
+}

@@ -27,6 +27,7 @@ func TrailerRepo(t *testing.T, newStore NewStore) {
 		},
 		"the seal class, the unit number scheme and every seal state round trip": trailerIdentifiers,
 		"a securing round trips, and releasing it clears it":                     trailerSecuring,
+		"a classification round trips, and clearing it empties every column":     trailerClassification,
 		"save then find round trips a trailer in every state":                    trailerRoundTrip,
 		"a spot or door holds at most one trailer":                               trailerOneAtALocation,
 		"a trailer in a move or departed holds no location":                      trailerFreesLocation,
@@ -309,5 +310,29 @@ func trailerSecuring(t *testing.T, s Store) {
 	must(t, err)
 	if sn := got.Snapshot(); got.Secured() || sn.SecuredBy != "" || !sn.SecuredAt.IsZero() || sn.SecurerRef != "" || sn.Version != tr.Snapshot().Version {
 		t.Fatalf("a released trailer is not secured: %+v", sn)
+	}
+}
+
+// trailerClassification: the hazard class, the UN number and the temperature
+// control need survive the store, and classifying again with nothing clears
+// them (ADR 0014).
+func trailerClassification(t *testing.T, s Store) {
+	tr := Arrived(t, "trl-cls", "WH1", "CLS-1", 0)
+	must(t, s.Trailers.Save(bg, tr))
+	_, err := tr.Classify(trailer.Classification{HazmatClass: "2.1", UNNumber: "UN1075", RequiresTemperatureControl: true})
+	must(t, err)
+	must(t, s.Trailers.Save(bg, tr))
+	got, err := s.Trailers.FindByID(bg, "trl-cls")
+	must(t, err)
+	if c := got.Classification(); c.HazmatClass != "2.1" || c.UNNumber != "UN1075" || !c.RequiresTemperatureControl || !reflect.DeepEqual(got.Snapshot(), tr.Snapshot()) {
+		t.Fatalf("round trip changed the classification:\ngot  %+v\nwant %+v", got.Snapshot(), tr.Snapshot())
+	}
+	_, err = got.Classify(trailer.Classification{})
+	must(t, err)
+	must(t, s.Trailers.Save(bg, got))
+	again, err := s.Trailers.FindByID(bg, "trl-cls")
+	must(t, err)
+	if again.Classification().Declared() {
+		t.Fatalf("a cleared classification stays cleared: %+v", again.Classification())
 	}
 }

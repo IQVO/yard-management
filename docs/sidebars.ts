@@ -147,6 +147,11 @@ const sidebars: SidebarsConfig = {
           label: '0013 Dock safety interlock: secured before door work, released before leaving',
           href: '/docs/adr/0013-dock-safety-interlock',
         },
+        {
+          type: 'link',
+          label: '0014 Hazmat and reefer placement: spot kind, hazard class, temperature control',
+          href: '/docs/adr/0014-hazmat-and-reefer-placement',
+        },
       ],
     },
   ],

@@ -98,6 +98,12 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
+          id: "api-reference/rest/classify-trailer",
+          label: "Set what a trailer carries (ClassifyTrailer)",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
           id: "api-reference/rest/secure-trailer",
           label: "Secure a docked trailer (SecureTrailer)",
           className: "api-method post",

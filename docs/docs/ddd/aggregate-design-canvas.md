@@ -69,6 +69,8 @@ from-state). A refused `CheckInVisit` creates nothing; `RejectAtGate` is the com
 | Every `LOADED` trailer taken out on an `OUTBOUND` purpose carries a seal | `ErrSealRequired` |
 | The unit number of a `CONTAINER` (or of a unit declared `ISO6346`) is an ISO 6346 number with a correct check digit; other units stay free-form | `ErrInvalidUnitNumber` |
 | A seal class is `I`, `S` or `H`; a seal below the site's `minimumSealClass`, or with no class, is refused | `ErrInvalidSealClass`, `ErrSealClassTooLow` |
+| A hazard class is a US DOT class or division, a UN number is `UN` and four digits and needs a hazard class (ADR 0014) | `ErrInvalidHazmatClass`, `ErrInvalidUNNumber`, `ErrValidation` |
+| A trailer with a hazard class is placed on a HAZMAT yard spot only (or, with no HAZMAT spot at the site and the policy `allowHazmatOnUnclassifiedSpots`, on a spot of unknown kind); a trailer that requires temperature control on a REEFER_PLUG spot where the site has any; doors are exempt (ADR 0014) | `ErrPlacementRuleViolated` |
 
 The last two read `Trailer` and `YardMove` state, so they cross the aggregate
 boundary; the use case loads the trailers and checks them in one unit of work.
@@ -130,7 +132,7 @@ it holds, its seal and hold. Value objects: `TrailerKind(DRY_VAN|REEFER|FLATBED|
 `Contents{asn_numbers[] inbound, outbound_ref?}`, `Seal{number, state NONE|INTACT|BROKEN|APPLIED|VERIFIED|MISMATCH, class? I|S|H}`,
 `Hold{reason}`, `Location{kind SPOT|DOOR, code}`, `DoorWork(WAITING|IN_PROGRESS|DONE)`
 (only while `DOCKED`), `Securing{method RESTRAINT|WHEEL_CHOCKS, secured_at, securer_ref?}` (only while `DOCKED`; the dock safety
-interlock, ADR 0013), `ArrivedAt` (the dwell clock start).
+interlock, ADR 0013), `Classification{hazmat_class?, un_number?, requires_temperature_control}` (what the trailer carries, ADR 0014), `ArrivedAt` (the dwell clock start).
 
 `StartMoving` and `ArriveAt` are invoked only by the `YardMove` use cases (claim
 and complete), in the same unit of work as the move, the fleet precedent of
@@ -448,7 +450,7 @@ The per-site yard rules every gate and move decision reads. Value objects:
 `require_appointment` (bool), `holding_spot_codes[]`, `parking_zone_ids[]`;
 `dwell_threshold_minutes` per `TrailerKind`, `lease_seconds`,
 `seal_mismatch_action` (`FLAG` or `REJECT`); `free_time_minutes` (detention clock,
-optional, no default); `minimum_seal_class` (`I`, `S` or `H`, optional: a lower class at check-in or record-seal is refused); `require_securing_before_door_work` (bool, default false: door work starts only on a secured trailer, ADR 0013). Defaults as built: `require_appointment` false, `seal_mismatch_action` `FLAG`,
+optional, no default); `minimum_seal_class` (`I`, `S` or `H`, optional: a lower class at check-in or record-seal is refused); `require_securing_before_door_work` (bool, default false: door work starts only on a secured trailer, ADR 0013); `allow_hazmat_on_unclassified_spots` (bool, default false, ADR 0014). Defaults as built: `require_appointment` false, `seal_mismatch_action` `FLAG`,
 `lease_seconds` 300, no free time and no dwell thresholds (a kind without a threshold is never alerted).
 
 ### 3. State Transitions

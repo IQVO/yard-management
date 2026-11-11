@@ -52,19 +52,24 @@ type Trailer struct {
 	DoorWork         *string            `json:"doorWork"`
 	// SecuredAt, SecuredBy (RESTRAINT or WHEEL_CHOCKS) and SecurerRef are the
 	// dock safety interlock (ADR 0013); null while the trailer is not secured.
-	SecuredAt     *time.Time `json:"securedAt"`
-	SecuredBy     *string    `json:"securedBy"`
-	SecurerRef    *string    `json:"securerRef"`
-	Seal          Seal       `json:"seal"`
-	Hold          *string    `json:"hold"`
-	ASNNumbers    []string   `json:"asnNumbers"`
-	OutboundRef   *string    `json:"outboundRef"`
-	VisitID       *string    `json:"visitId"`
-	AppointmentID *string    `json:"appointmentId"`
-	ArrivedAt     time.Time  `json:"arrivedAt"`
-	DepartedAt    *time.Time `json:"departedAt"`
-	OpenMoveID    *string    `json:"openMoveId"`
-	Version       int64      `json:"version"`
+	SecuredAt  *time.Time `json:"securedAt"`
+	SecuredBy  *string    `json:"securedBy"`
+	SecurerRef *string    `json:"securerRef"`
+	// HazmatClass, UNNumber and RequiresTemperatureControl are what the trailer
+	// carries (ADR 0014); null (false) when it declares none.
+	HazmatClass                *string    `json:"hazmatClass"`
+	UNNumber                   *string    `json:"unNumber"`
+	RequiresTemperatureControl bool       `json:"requiresTemperatureControl"`
+	Seal                       Seal       `json:"seal"`
+	Hold                       *string    `json:"hold"`
+	ASNNumbers                 []string   `json:"asnNumbers"`
+	OutboundRef                *string    `json:"outboundRef"`
+	VisitID                    *string    `json:"visitId"`
+	AppointmentID              *string    `json:"appointmentId"`
+	ArrivedAt                  time.Time  `json:"arrivedAt"`
+	DepartedAt                 *time.Time `json:"departedAt"`
+	OpenMoveID                 *string    `json:"openMoveId"`
+	Version                    int64      `json:"version"`
 }
 
 // Priority is the claim order of a move.
@@ -142,9 +147,12 @@ type YardPolicy struct {
 	MinimumSealClass *string `json:"minimumSealClass"`
 	// RequireSecuringBeforeDoorWork: door work starts only on a secured
 	// trailer (ADR 0013); false = the behaviour before the interlock.
-	RequireSecuringBeforeDoorWork bool  `json:"requireSecuringBeforeDoorWork"`
-	Version                       int64 `json:"version"`
-	Declared                      bool  `json:"declared"`
+	RequireSecuringBeforeDoorWork bool `json:"requireSecuringBeforeDoorWork"`
+	// AllowHazmatOnUnclassifiedSpots: a hazmat trailer may take a spot with no
+	// spotKind at a site with no HAZMAT spot (ADR 0014); false = refused.
+	AllowHazmatOnUnclassifiedSpots bool  `json:"allowHazmatOnUnclassifiedSpots"`
+	Version                        int64 `json:"version"`
+	Declared                       bool  `json:"declared"`
 }
 
 // BoardPlace is one spot or door of the yard board.
@@ -202,6 +210,9 @@ type LocationInfo struct {
 	SiteCode string // "" until the zone is known
 	Kind     shared.LocationKind
 	DockFlow string
+	// SpotKind is the facility-layout spotKind of a yard spot; empty when the
+	// slot was registered without one (ADR 0014).
+	SpotKind shared.SpotKind
 	Active   bool
 }
 

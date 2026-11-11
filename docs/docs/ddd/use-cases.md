@@ -31,6 +31,7 @@ repositories and views and raise nothing.
 | ExpireLease | `SweepMoveLeases` (`moves.go`) | `POST /move-lease-sweeps` (CronJob) |
 | OpenYardCheck, RecordObservation, CloseYardCheck | `OpenYardCheck`, `RecordObservation`, `CloseYardCheck` (`checks_policy.go`) | `POST /yard-checks`, `…/observations`, `…/closures` |
 | DeclareYardPolicy | `DeclareYardPolicy` (`checks_policy.go`) | `PUT /sites/{siteId}/yard-policy` |
+| ClassifyTrailer | `ClassifyTrailer` (`doors.go`) | `POST /trailers/{trailerId}/classifications` |
 | Event-driven reactions | `ApplyZone`, `ApplySlot`, `DecommissionSlot`, `ApplyAppointment`, `ScheduleClosure`, `LiftClosure`, `RegisterAsn`, `CancelAsn`, `OpenReceipt`, `CloseReceipt` (`consumers.go`) | the three Kafka consumers |
 
 Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/server.go`, `internal/adapters/inbound/mcp/tools_write.go`.
@@ -99,7 +100,9 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
      move, `CLAIMED`, performer `VISITING_DRIVER`, no lease. Destination: a door when the
      appointment's door is free, not closed and flow-compatible (reason `TO_DOOR`); the
      holding spot when it is a walk-in or the arrival is earlier than the tolerance
-     (`TO_HOLDING`); otherwise the first free spot of the parking zones by location code.
+     (`TO_HOLDING`); otherwise the first free spot of the parking zones by location code. A trailer that
+     declares a hazard class or a temperature-control need is offered only the spots its rule allows (ADR 0014):
+     a HAZMAT spot, or a REEFER_PLUG spot where the site has any.
   8. Save and write `VisitCheckedIn` to the outbox, one transaction.
 
 | Error | HTTP | Problem `type` slug |
@@ -112,6 +115,9 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
 | `ErrDestinationReserved` (first move) | 409 | `destination-reserved` |
 | `ErrInvalidUnitNumber` (ISO 6346 check; ADR 0012) | 422 | `invalid-unit-number` |
 | `ErrInvalidSealClass` (ADR 0012) | 422 | `invalid-seal-class` |
+| `ErrInvalidHazmatClass` (ADR 0014) | 422 | `invalid-hazmat-class` |
+| `ErrInvalidUNNumber` (ADR 0014) | 422 | `invalid-un-number` |
+| `ErrPlacementRuleViolated` (a trailer with a hazard class at a site with no HAZMAT spot; ADR 0014) | 409 | `placement-rule-violated` |
 | `ErrValidation` | 422 | `validation` |
 
 - **Events emitted:** `VisitCheckedIn`; `SealExceptionRaised` when the seal mismatches;
@@ -470,6 +476,8 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
   2. Refuse if the trailer has another `REQUESTED` or `CLAIMED` move.
   3. Under the destination's advisory lock: the destination is free
      (`Occupancy.CheckFree`) and no other open move names it; reserve it.
+  3a. For a yard spot, a trailer that carries a hazard class or needs temperature control must meet its
+     placement rule (`ErrPlacementRuleViolated`, 409 `placement-rule-violated`, ADR 0014); a door is exempt.
   4. Create `YardMove` in `REQUESTED`, performer `HOSTLER`.
   5. Save and write `YardMoveRequested` to the outbox.
 
@@ -478,6 +486,7 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
 | `ErrTrailerHasOpenMove` | 409 | `trailer-has-open-move` |
 | `ErrTrailerStillSecured` (the trailer is secured at its door; ADR 0013) | 409 | `trailer-still-secured` |
 | `ErrDestinationReserved` | 409 | `destination-reserved` |
+| `ErrPlacementRuleViolated` (ADR 0014) | 409 | `placement-rule-violated` |
 | `ErrNotFound` (trailer) | 404 | `not-found` |
 | `ErrValidation` | 422 | `validation` |
 
@@ -660,7 +669,8 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
   2. Replace the policy of the site: `require_appointment`, `holding_spot_codes`,
      `parking_zone_ids`, `dwell_threshold_minutes` per kind, `lease_seconds`,
      `seal_mismatch_action`, optional `free_time_minutes`, optional `minimum_seal_class`, optional
-     `require_securing_before_door_work` (default false, ADR 0013).
+     `require_securing_before_door_work` (default false, ADR 0013), optional
+     `allow_hazmat_on_unclassified_spots` (default false, ADR 0014).
   3. Save.
 
 | Error | HTTP | Problem `type` slug |

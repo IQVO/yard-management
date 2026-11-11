@@ -34,6 +34,11 @@ type TrailerDocked struct {
 	// has no seal, SealClass also when no class was declared.
 	SealState *string `json:"seal_state"`
 	SealClass *string `json:"seal_class"`
+	// HazmatClass, UNNumber and RequiresTemperatureControl are additive
+	// (ADR 0014): null (false) when the trailer declares none.
+	HazmatClass                *string `json:"hazmat_class"`
+	UNNumber                   *string `json:"un_number"`
+	RequiresTemperatureControl bool    `json:"requires_temperature_control"`
 }
 
 // TrailerUndocked: the trailer left a door (integration).

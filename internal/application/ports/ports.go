@@ -107,14 +107,17 @@ type Locations interface {
 	// ListBySite returns the active slots of the site, ordered by code.
 	ListBySite(ctx context.Context, siteID string) ([]views.LocationInfo, error)
 	// FreeSpots returns up to limit active Yard slots of the site, ordered by code, that hold no trailer and
-	// are reserved by no open move; zoneIDs, when not empty, restricts them to those zones.
-	FreeSpots(ctx context.Context, siteID string, zoneIDs []string, limit int) ([]string, error)
+	// are reserved by no open move; zoneIDs, when not empty, restricts them to those zones and kinds, when
+	// not empty, to spots of those kinds (shared.SpotKindUnknown selects the spots with no kind, ADR 0014).
+	FreeSpots(ctx context.Context, siteID string, zoneIDs []string, kinds []shared.SpotKind, limit int) ([]string, error)
 }
 
 // LocationFeed is the write side of the LocationView.
 type LocationFeed interface {
 	ApplyZone(ctx context.Context, zoneID, siteCode string) error
-	ApplySlot(ctx context.Context, code, zoneID string, kind shared.LocationKind, dockFlow string) error
+	// ApplySlot (re)registers a slot active; spotKind is the facility-layout spotKind of a Yard slot, empty when
+	// none was published (ADR 0014).
+	ApplySlot(ctx context.Context, code, zoneID string, kind shared.LocationKind, dockFlow string, spotKind shared.SpotKind) error
 	Decommission(ctx context.Context, code string) error
 }
 

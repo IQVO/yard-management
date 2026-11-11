@@ -23,7 +23,7 @@ func NewTrailers(pool *pgxpool.Pool) *Trailers { return &Trailers{pool: pool} }
 const trailerColumns = `trailer_id, site_id, scac, unit_number, kind, load_state, asn_numbers, outbound_ref, purpose,
 	seal_number, seal_state, hold, state, location_kind, location_code, door_work, origin_kind, origin_code, origin_work,
 	visit_id, appointment_id, arrived_at, departed_at, dwell_alerted_at, version, seal_class, unit_number_scheme,
-	secured_at, secured_by, secured_by_ref`
+	secured_at, secured_by, secured_by_ref, hazmat_class, un_number, requires_temperature_control`
 
 // Names of the unique indexes the trailer table keeps (migration 0001).
 const (
@@ -45,11 +45,12 @@ func (r *Trailers) Save(ctx context.Context, t *trailer.Trailer) error {
 		originKind, originCode, string(s.OriginWork), s.VisitID, s.AppointmentID,
 		s.ArrivedAt.UTC(), nullTime(s.DepartedAt), nullTime(s.DwellAlertedAt), s.Version,
 		string(s.SealClass), string(s.UnitScheme), nullTime(s.SecuredAt), string(s.SecuredBy), s.SecurerRef,
+		string(s.Classification.HazmatClass), string(s.Classification.UNNumber), s.Classification.RequiresTemperatureControl,
 	}
 	byConstraint := map[string]error{indexTrailerLocation: trailer.ErrLocationOccupied, indexTrailerUnit: trailer.ErrTrailerAlreadyOnSite}
 	if s.Version == 1 {
 		_, err := q.Exec(ctx, `INSERT INTO trailers (`+trailerColumns+`)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)`, args...)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33)`, args...)
 		return saveError("trailer", err, byConstraint)
 	}
 	tag, err := q.Exec(ctx, `
@@ -58,8 +59,9 @@ func (r *Trailers) Save(ctx context.Context, t *trailer.Trailer) error {
 			location_kind = $14, location_code = $15, door_work = $16, origin_kind = $17, origin_code = $18,
 			origin_work = $19, visit_id = $20, appointment_id = $21, arrived_at = $22, departed_at = $23,
 			dwell_alerted_at = $24, version = $25, seal_class = $26, unit_number_scheme = $27,
-			secured_at = $28, secured_by = $29, secured_by_ref = $30, updated_at = now()
-		WHERE trailer_id = $1 AND version = $31`, append(args, s.Version-1)...)
+			secured_at = $28, secured_by = $29, secured_by_ref = $30,
+			hazmat_class = $31, un_number = $32, requires_temperature_control = $33, updated_at = now()
+		WHERE trailer_id = $1 AND version = $34`, append(args, s.Version-1)...)
 	if err != nil {
 		return saveError("trailer", err, byConstraint)
 	}
@@ -163,17 +165,18 @@ func scanTrailer(row pgx.Row) (*trailer.Trailer, error) {
 		kind, load, purpose, sealState, hold, state, door, originWork, sealClass, unitScheme string
 		locKind, originKind                                                                  string
 		departed, alerted, secured                                                           *time.Time
-		securedBy                                                                            string
+		securedBy, hazmatClass, unNumber                                                     string
 	)
 	if err := row.Scan(&s.ID, &s.SiteID, &s.SCAC, &s.Number, &kind, &load, &s.ASNNumbers, &s.OutboundRef, &purpose,
 		&s.SealNumber, &sealState, &hold, &state, &locKind, &s.Location.Code, &door, &originKind, &s.Origin.Code, &originWork,
-		&s.VisitID, &s.AppointmentID, &s.ArrivedAt, &departed, &alerted, &s.Version, &sealClass, &unitScheme, &secured, &securedBy, &s.SecurerRef); err != nil {
+		&s.VisitID, &s.AppointmentID, &s.ArrivedAt, &departed, &alerted, &s.Version, &sealClass, &unitScheme, &secured, &securedBy, &s.SecurerRef, &hazmatClass, &unNumber, &s.Classification.RequiresTemperatureControl); err != nil {
 		return nil, err
 	}
 	s.Kind, s.LoadState, s.Purpose = shared.TrailerKind(kind), shared.LoadState(load), shared.Purpose(purpose)
 	s.SealState, s.Hold, s.State, s.DoorWork, s.OriginWork = trailer.SealState(sealState), trailer.HoldReason(hold), trailer.State(state), trailer.DoorWork(door), trailer.DoorWork(originWork)
 	s.SealClass, s.UnitScheme = shared.SealClass(sealClass), shared.UnitScheme(unitScheme)
 	s.SecuredBy, s.SecuredAt = trailer.SecuringMethod(securedBy), timeOrZero(secured)
+	s.Classification.HazmatClass, s.Classification.UNNumber = shared.HazmatClass(hazmatClass), shared.UNNumber(unNumber)
 	s.Location.Kind, s.Origin.Kind = shared.LocationKind(locKind), shared.LocationKind(originKind)
 	s.ArrivedAt, s.DepartedAt, s.DwellAlertedAt = s.ArrivedAt.UTC(), timeOrZero(departed), timeOrZero(alerted)
 	t, err := trailer.Restore(s)

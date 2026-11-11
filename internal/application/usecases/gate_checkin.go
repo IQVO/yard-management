@@ -20,6 +20,10 @@ type TrailerInput struct {
 	UnitNumber, CarrierSCAC, Kind, LoadState, SealNumber string
 	// UnitNumberScheme (ISO6346) and SealClass (I, S or H) are optional (ADR 0012).
 	UnitNumberScheme, SealClass string
+	// HazmatClass (US DOT class or division), UNNumber and
+	// RequiresTemperatureControl are optional (ADR 0014).
+	HazmatClass, UNNumber      string
+	RequiresTemperatureControl bool
 }
 
 // CheckInInput is the body of CheckInVisit (G-B).
@@ -115,6 +119,7 @@ func (y *Yard) unitRefs(ctx context.Context, in CheckInInput) ([]yardvisit.Trail
 		refs = append(refs, yardvisit.TrailerRef{
 			ID: y.d.IDs.New("trl"), UnitNumber: tr.UnitNumber, SCAC: scac, Kind: shared.TrailerKind(tr.Kind), Load: shared.LoadState(tr.LoadState),
 			UnitScheme: shared.UnitScheme(tr.UnitNumberScheme), SealClass: shared.SealClass(tr.SealClass),
+			HazmatClass: shared.HazmatClass(tr.HazmatClass), UNNumber: shared.UNNumber(tr.UNNumber), RequiresTemperatureControl: tr.RequiresTemperatureControl,
 		})
 	}
 	return refs, nil
@@ -143,6 +148,7 @@ func (y *Yard) arrivals(ctx context.Context, v *yardvisit.Visit, in CheckInInput
 			ID: ref.ID, SiteID: v.SiteID(), SCAC: ref.SCAC, Number: ref.UnitNumber, Kind: ref.Kind, Load: ref.Load, ASNNumbers: asns, OutboundRef: outbound,
 			Purpose: v.Purpose(), SealNumber: in.Trailers[i].SealNumber, VisitID: v.ID(), AppointmentID: v.AppointmentID(), At: now,
 			UnitScheme: ref.UnitScheme, SealClass: ref.SealClass, MinimumSealClass: pol.MinimumSealClass(),
+			Classification: trailer.Classification{HazmatClass: ref.HazmatClass, UNNumber: ref.UNNumber, RequiresTemperatureControl: ref.RequiresTemperatureControl},
 		})
 		if err != nil {
 			return nil, nil, err

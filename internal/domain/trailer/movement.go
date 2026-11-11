@@ -78,6 +78,8 @@ func (t *Trailer) place(target shared.Location, work DoorWork, at time.Time) {
 			Header: t.header("TrailerDocked", at), TrailerID: t.id, SiteID: t.site, DoorCode: target.Code,
 			AppointmentID: shared.Str(t.appointmentID), ASNNumbers: shared.Strings(t.asn), VisitID: shared.Str(t.visitID),
 			DockedAt: shared.Stamp(at), Version: t.version, SealState: t.sealStatePtr(), SealClass: t.sealClassPtr(),
+			HazmatClass: shared.Str(string(t.class.HazmatClass)), UNNumber: shared.Str(string(t.class.UNNumber)),
+			RequiresTemperatureControl: t.class.RequiresTemperatureControl,
 		})
 		return
 	}

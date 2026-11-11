@@ -22,6 +22,10 @@ var (
 	// ErrTrailerOnHold: a held trailer is not docked and its door work does
 	// not start.
 	ErrTrailerOnHold = errors.New("trailer is on hold")
+	// ErrPlacementRuleViolated: the spot is of a kind the trailer's hazmat
+	// class or temperature control does not allow (409, slug
+	// placement-rule-violated; ADR 0014).
+	ErrPlacementRuleViolated = errors.New("placement rule violated")
 )
 
 // DockFlow is the facility-layout dockFlow of a Dock slot.
@@ -41,6 +45,9 @@ type Slot struct {
 	Site     string
 	Active   bool
 	DockFlow DockFlow
+	// SpotKind is the facility-layout spotKind of a yard spot, SpotKindUnknown
+	// when none was published (ADR 0014).
+	SpotKind shared.SpotKind
 }
 
 // Placement is everything the placement rules need to judge putting a
@@ -51,6 +58,9 @@ type Placement struct {
 	Slot       Slot
 	Closed     bool
 	OccupiedBy string
+	// Spots are the site facts the classification rules need; the use case
+	// loads them only for a trailer that carries a classification.
+	Spots SiteSpots
 }
 
 // Occupancy is the domain service of the rule "a spot or a door holds at
@@ -102,7 +112,9 @@ func flowAllows(f DockFlow, d direction) bool {
 // CanPlaceAt judges putting the trailer at p.Target: the location must be a
 // known, active slot of the trailer's site (ErrUnknownLocation), free
 // (ErrLocationOccupied) and, for a door, open (ErrDoorClosed), flow-compatible
-// (ErrDoorFlowMismatch) and the trailer must not be on hold (ErrTrailerOnHold).
+// (ErrDoorFlowMismatch) and the trailer must not be on hold (ErrTrailerOnHold);
+// for a yard spot a trailer with a classification must meet the spot rule
+// (ErrPlacementRuleViolated, ADR 0014). Doors are exempt from that rule.
 // ArriveAt runs it at completion and RequestMove at request time.
 func (t *Trailer) CanPlaceAt(p Placement) error {
 	if p.Target.IsZero() || p.Slot.Location != p.Target || !p.Slot.Active || p.Slot.Site != t.site {
@@ -112,7 +124,7 @@ func (t *Trailer) CanPlaceAt(p Placement) error {
 		return err
 	}
 	if p.Target.Kind != shared.Door {
-		return nil
+		return t.SpotRuleViolation(p.Target.Code, p.Slot.SpotKind, p.Spots)
 	}
 	if p.Closed {
 		return fmt.Errorf("%w: %s", ErrDoorClosed, p.Target.Code)

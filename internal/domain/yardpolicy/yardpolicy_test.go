@@ -231,3 +231,25 @@ func TestRequireSecuringBeforeDoorWork(t *testing.T) {
 		t.Fatalf("a replacement without the field turns the interlock off: %v", err)
 	}
 }
+
+func TestAllowHazmatOnUnclassifiedSpots(t *testing.T) {
+	p, _ := yardpolicy.Default("WH1")
+	if p.AllowHazmatOnUnclassifiedSpots() {
+		t.Fatal("the default policy refuses a hazmat trailer on a spot with no kind")
+	}
+	in := declareInput()
+	in.AllowHazmatOnUnclassifiedSpots = true
+	if err := p.Declare(in, known("H1", "H2")); err != nil {
+		t.Fatal(err)
+	}
+	if !p.AllowHazmatOnUnclassifiedSpots() || !p.Snapshot().AllowHazmatOnUnclassified {
+		t.Fatalf("declared %+v", p.Snapshot())
+	}
+	restored, err := yardpolicy.Restore(p.Snapshot())
+	if err != nil || !restored.AllowHazmatOnUnclassifiedSpots() {
+		t.Fatalf("round trip: %v", err)
+	}
+	if err := p.Declare(declareInput(), known("H1", "H2")); err != nil || p.AllowHazmatOnUnclassifiedSpots() {
+		t.Fatalf("a replacement without the field turns it off: %v", err)
+	}
+}

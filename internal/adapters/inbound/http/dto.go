@@ -22,6 +22,10 @@ type trailerInRequest struct {
 	// UnitNumberScheme (ISO6346) and SealClass (I, S or H) are optional.
 	UnitNumberScheme string `json:"unitNumberScheme"`
 	SealClass        string `json:"sealClass"`
+	// HazmatClass, UNNumber and RequiresTemperatureControl are optional (ADR 0014).
+	HazmatClass                string `json:"hazmatClass"`
+	UNNumber                   string `json:"unNumber"`
+	RequiresTemperatureControl bool   `json:"requiresTemperatureControl"`
 }
 
 type checkInRequest struct {
@@ -44,6 +48,7 @@ func (q checkInRequest) input() usecases.CheckInInput {
 		in.Trailers = append(in.Trailers, usecases.TrailerInput{
 			UnitNumber: t.UnitNumber, CarrierSCAC: t.CarrierSCAC, Kind: t.Kind, LoadState: t.LoadState, SealNumber: t.SealNumber,
 			UnitNumberScheme: t.UnitNumberScheme, SealClass: t.SealClass,
+			HazmatClass: t.HazmatClass, UNNumber: t.UNNumber, RequiresTemperatureControl: t.RequiresTemperatureControl,
 		})
 	}
 	return in
@@ -143,6 +148,14 @@ type securingRequest struct {
 	SecurerRef string `json:"securerRef"`
 }
 
+// classificationRequest is the body of POST /trailers/{trailerId}/classifications:
+// what the trailer carries, a full replacement (ADR 0014).
+type classificationRequest struct {
+	HazmatClass                string `json:"hazmatClass"`
+	UNNumber                   string `json:"unNumber"`
+	RequiresTemperatureControl bool   `json:"requiresTemperatureControl"`
+}
+
 type openYardCheckRequest struct {
 	SiteID string `json:"siteId"`
 }
@@ -163,6 +176,8 @@ type declarePolicyRequest struct {
 	MinimumSealClass      string           `json:"minimumSealClass"`
 	// RequireSecuringBeforeDoorWork is optional and false when left out (ADR 0013).
 	RequireSecuringBeforeDoorWork bool `json:"requireSecuringBeforeDoorWork"`
+	// AllowHazmatOnUnclassifiedSpots is optional and false when left out (ADR 0014).
+	AllowHazmatOnUnclassifiedSpots bool `json:"allowHazmatOnUnclassifiedSpots"`
 }
 
 func (q declarePolicyRequest) input() yardpolicy.DeclareInput {
@@ -174,7 +189,7 @@ func (q declarePolicyRequest) input() yardpolicy.DeclareInput {
 		RequireAppointment: q.RequireAppointment, HoldingSpotCodes: q.HoldingSpotCodes, ParkingZoneIDs: q.ParkingZoneIDs,
 		DwellThresholdMinutes: dwell, LeaseSeconds: q.LeaseSeconds, SealMismatchAction: yardpolicy.SealAction(q.SealMismatchAction),
 		FreeTimeMinutes: q.FreeTimeMinutes, MinimumSealClass: shared.SealClass(q.MinimumSealClass),
-		RequireSecuringBeforeDoorWork: q.RequireSecuringBeforeDoorWork,
+		RequireSecuringBeforeDoorWork: q.RequireSecuringBeforeDoorWork, AllowHazmatOnUnclassifiedSpots: q.AllowHazmatOnUnclassifiedSpots,
 	}
 }
 

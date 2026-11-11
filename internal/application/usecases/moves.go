@@ -199,7 +199,7 @@ func (y *Yard) arrive(ctx context.Context, tr *trailer.Trailer, mv *yardmove.Mov
 	if err := y.d.Locks.Lock(ctx, actual.Code); err != nil {
 		return err
 	}
-	p, err := y.placementFor(ctx, actual, now)
+	p, err := y.placementFor(ctx, tr, actual, now)
 	if err != nil {
 		return err
 	}
