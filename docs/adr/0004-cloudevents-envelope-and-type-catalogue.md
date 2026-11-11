@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (2026-11-05); stream split refined by ADR 0010 (DoorWorkCompleted and TrailerDeparted also on the integration topic) and ADR 0013 (TrailerSecured and TrailerSecuringReleased, both integration).
+Accepted (2026-11-05); stream split refined by ADR 0010 (DoorWorkCompleted and TrailerDeparted also on the integration topic) and ADR 0013 (TrailerSecured and TrailerSecuringReleased, both integration) and ADR 0015 (InspectionCompleted and InspectionFailed, both integration).
 
 ## Context
 
@@ -26,14 +26,14 @@ Every Kafka message in the fleet is a CloudEvents 1.0 event in structured mode (
 
 ### Streams
 
-Eleven types are integration events on `warehouse.yard-management.events` (the original seven plus DoorWorkCompleted and TrailerDeparted, ADR 0010, and TrailerSecured and TrailerSecuringReleased, ADR 0013) and are mirrored on
+Thirteen types are integration events on `warehouse.yard-management.events` (the original seven plus DoorWorkCompleted and TrailerDeparted, ADR 0010, TrailerSecured and TrailerSecuringReleased, ADR 0013, and InspectionCompleted and InspectionFailed, ADR 0015) and are mirrored on
 `warehouse.yard-management.analytics` (same `id`, same `type`, byte-identical `data`, analytics `dataschema`). The other
 ten are analytics-only: they go ONLY to `warehouse.yard-management.analytics`. A row the encoder cannot encode is written
 verbatim to `warehouse.yard-management.events.dlq`. Both topics have 8 partitions.
 
 ### Published
 
-`<entity>` is the raising aggregate, lowercase: `yardvisit`, `trailer`, `yardmove` or `yardcheck`.
+`<entity>` is the raising aggregate, lowercase: `yardvisit`, `trailer`, `yardmove`, `yardcheck` or `inspection` (ADR 0015).
 
 | type | stream | raised when | key |
 |---|---|---|---|
@@ -52,6 +52,8 @@ verbatim to `warehouse.yard-management.events.dlq`. Both topics have 8 partition
 | `com.warehouse.wms.yard-management.trailer.TrailerDwellExceeded` | events + analytics | dwell crossed the kind's threshold (exception-management) | `trailer_id` |
 | `com.warehouse.wms.yard-management.trailer.TrailerHeld` | analytics | a hold is placed | `trailer_id` |
 | `com.warehouse.wms.yard-management.trailer.TrailerHoldReleased` | analytics | a hold is released | `trailer_id` |
+| `com.warehouse.wms.yard-management.inspection.InspectionCompleted` | events + analytics | a compliance inspection ends, PASSED or FAILED (no consumer yet: the audit record, ADR 0015) | `inspection_id` |
+| `com.warehouse.wms.yard-management.inspection.InspectionFailed` | events + analytics | an inspection ends FAILED on a required item (exception-management, ADR 0015) | `inspection_id` |
 | `com.warehouse.wms.yard-management.yardmove.YardMoveRequested` | analytics | a move is requested | `move_id` |
 | `com.warehouse.wms.yard-management.yardmove.YardMoveClaimed` | analytics | a hostler claims a move | `move_id` |
 | `com.warehouse.wms.yard-management.yardmove.YardMoveLeaseExpired` | analytics | a lease ran out | `move_id` |

@@ -291,8 +291,8 @@ Source: `migrations/0001_yard-management.up.sql`, `migrations/0002_idempotency_k
 
 **All three are infrastructure, not domain.** `outbox` is written in the same transaction as the aggregate and
 drained by the `relay` binary to Kafka; `attempts`, `next_attempt_at` and `last_error` track the retries. The table
-has no topic column; which topic an event goes to is decided by the relay, not by the schema (21 types on the
-analytics topic, 9 of them also on the events topic). `processed_events` is the inbox: one row per consumed
+has no topic column; which topic an event goes to is decided by the relay, not by the schema (23 types on the
+analytics topic, 13 of them also on the events topic). `processed_events` is the inbox: one row per consumed
 CloudEvents `id`, written in the same transaction as the effect. `idempotency_keys` stores the first response to a
 REST `Idempotency-Key`, with a request fingerprint. The migration tool's own bookkeeping table is not part of the SQL.
 

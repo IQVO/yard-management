@@ -31,6 +31,8 @@ tags:
   description: Gate check-in, rejection and check-out.
 - name: Trailers
   description: Trailers on site, door work, holds and seals.
+- name: Inspections
+  description: Compliance inspection checklists that gate docking, loading and leaving (ADR 0015).
 - name: Moves
   description: 'Yard moves: request, claim-next, complete, cancel.'
 - name: Yard checks
@@ -805,6 +807,90 @@ paths:
           $ref: '#/components/responses/Conflict'
         '500':
           $ref: '#/components/responses/InternalError'
+  /trailers/{trailerId}/inspections:
+    post:
+      operationId: openInspection
+      summary: Open an inspection (OpenInspection)
+      description: 'Opens a compliance inspection of a trailer on site (ADR 0015): a SNAPSHOT of the template version (the latest unless `templateVersion` is sent) with every item pending,
+        for a `gate` (`PRE_DOCK`, `PRE_LOAD`, `PRE_DEPARTURE`, or `ON_DEMAND`, which opens no gate). `visitId` defaults to the visit the trailer is on. One inspection per trailer,
+        template and gate is OPEN at a time (409 `inspection-already-open`); a trailer that left is 409 `illegal-transition`; an unknown template or version is 422 `unknown-template`;
+        an unknown visit is 404 `visit-not-found`. Raises nothing: events are raised when the inspection completes.'
+      tags:
+      - Inspections
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - name: trailerId
+        in: path
+        required: true
+        description: The trailer id.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpenInspectionRequest'
+            example:
+              templateId: tractor-trailer-17-point
+              gate: PRE_DOCK
+              performerRef: emp-7
+      responses:
+        '201':
+          description: The inspection, every item pending.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+            Location:
+              description: Path of the inspection, `/inspections/{inspectionId}`.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Inspection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    get:
+      operationId: listTrailerInspections
+      summary: List the inspections of a trailer
+      description: 'Lists the inspections of one trailer, newest first, one keyset page at a time (ADR 0015). 404 `trailer-not-found` for an unknown trailer.'
+      tags:
+      - Inspections
+      parameters:
+      - name: trailerId
+        in: path
+        required: true
+        description: The trailer id.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: A page of inspections.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InspectionPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /moves:
     post:
       operationId: requestMove
@@ -1047,6 +1133,306 @@ paths:
           $ref: '#/components/responses/Unprocessable'
         '500':
           $ref: '#/components/responses/InternalError'
+  /inspections/{inspectionId}:
+    get:
+      operationId: getInspection
+      summary: Get an inspection
+      description: Returns the inspection with an `ETag` of its version (404 `inspection-not-found`).
+      tags:
+      - Inspections
+      parameters:
+      - name: inspectionId
+        in: path
+        required: true
+        description: The inspection id.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      responses:
+        '200':
+          description: The inspection.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Inspection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /inspections/{inspectionId}/items/{itemCode}:
+    put:
+      operationId: recordInspectionItem
+      summary: Record an inspection item (RecordInspectionItem)
+      description: 'Records what the inspector found at one item of an OPEN inspection: `PASS`, `FAIL` or `NOT_APPLICABLE` (only where the template item has `allowNotApplicable`, else 422
+        `not-applicable-not-allowed`), with an optional note (500 characters) and opaque evidence references (strings that point at photos or documents held elsewhere; at most 20, each at most 256
+        characters, no binary). Recording again replaces the earlier result. A completed inspection is final: 409 `inspection-closed`; an item the snapshot does not have is 422 `unknown-item`.
+        Raises nothing.'
+      tags:
+      - Inspections
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - name: inspectionId
+        in: path
+        required: true
+        description: The inspection id.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      - name: itemCode
+        in: path
+        required: true
+        description: The item code of the template snapshot.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordInspectionItemRequest'
+            example:
+              result: FAIL
+              note: bolt cut at the hinge
+              evidenceRefs:
+              - photo:2026-11-05/abc
+      responses:
+        '200':
+          description: The inspection.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Inspection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /inspections/{inspectionId}/completions:
+    post:
+      operationId: completeInspection
+      summary: Complete an inspection (CompleteInspection)
+      description: 'Completes an OPEN inspection, once and for good. Every REQUIRED item needs a result first (409 `required-item-pending`). The outcome is `FAILED` when any required item failed,
+        `PASSED` otherwise. A FAILED inspection places a hold on the trailer in the SAME transaction, with the reason of its most severe failed item (the template item says which: `SECURITY`, `SEAL_BROKEN`,
+        `DAMAGED`, `NOT_FOUND` or `QUALITY`, the default), unless the trailer already carries a hold; releasing it stays the existing human action (`POST /trailers/{trailerId}/hold-releases`), and a
+        re-inspection can then be opened. `conditionGrade` is an optional record of the equipment, never the verdict. Raises InspectionCompleted and, for a FAILED inspection, InspectionFailed (and TrailerHeld
+        when it held the trailer). Completing again is 409 `inspection-closed`.'
+      tags:
+      - Inspections
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - name: inspectionId
+        in: path
+        required: true
+        description: The inspection id.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompleteInspectionRequest'
+            example:
+              conditionGrade: CLEAN
+      responses:
+        '200':
+          description: The completed inspection, PASSED or FAILED.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Inspection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /inspection-templates:
+    get:
+      operationId: listInspectionTemplates
+      summary: List the inspection templates
+      description: 'Lists the LATEST version of every template, by id, one keyset page at a time: the built-in ones (`tractor-trailer-17-point`, `empty-container-7-point`, `reefer-pre-cool-and-sanitation`,
+        read-only, `builtIn` true) and the ones a site published (ADR 0015).'
+      tags:
+      - Inspections
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: A page of templates.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InspectionTemplatePage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /inspection-templates/{templateId}:
+    get:
+      operationId: getInspectionTemplate
+      summary: Get the latest version of an inspection template
+      description: Returns the highest published version of the template (404 `template-not-found`).
+      tags:
+      - Inspections
+      parameters:
+      - name: templateId
+        in: path
+        required: true
+        description: The template id, lowercase letters, digits and hyphens.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      x-pagination-exempt: view
+      responses:
+        '200':
+          description: The template.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InspectionTemplate'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /inspection-templates/{templateId}/versions/{version}:
+    get:
+      operationId: getInspectionTemplateVersion
+      summary: Get one version of an inspection template
+      description: Returns that version, exactly as published (404 `template-not-found`).
+      tags:
+      - Inspections
+      parameters:
+      - name: templateId
+        in: path
+        required: true
+        description: The template id.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      - name: version
+        in: path
+        required: true
+        description: The template version.
+        schema:
+          type: integer
+          minimum: 1
+      x-pagination-exempt: view
+      responses:
+        '200':
+          description: The template version.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InspectionTemplate'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    put:
+      operationId: publishInspectionTemplate
+      summary: Publish an inspection template version (PublishInspectionTemplate)
+      description: 'Publishes version N of a custom checklist (ADR 0015). A published version is IMMUTABLE: the same content again answers 200 and changes nothing, other content under a published
+        version is 409 `template-version-immutable`; a new version is a new number. An inspection keeps a snapshot of the version it was opened from, so a later version never rewrites history.
+        The built-in template ids are read-only (409 `template-is-built-in`). Item codes are lowercase letters, digits and hyphens, unique in the template; at most 100 items; an item without a
+        `holdReason` holds a failed trailer for `QUALITY`. A malformed template is 422 `validation`. Raises nothing.'
+      tags:
+      - Inspections
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - name: templateId
+        in: path
+        required: true
+        description: The template id.
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      - name: version
+        in: path
+        required: true
+        description: The version to publish, 1 or more.
+        schema:
+          type: integer
+          minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublishInspectionTemplateRequest'
+            example:
+              title: Yard entry check
+              items:
+              - itemCode: lights
+                text: Lights and reflectors work.
+                required: true
+              - itemCode: seal-intact
+                text: The seal is intact and matches the paperwork.
+                required: true
+                holdReason: SEAL_BROKEN
+      responses:
+        '200':
+          description: The same version was already published with this content.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InspectionTemplate'
+        '201':
+          description: The version is published.
+          headers:
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InspectionTemplate'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /yard-checks:
     post:
       operationId: openYardCheck
@@ -1247,6 +1633,13 @@ paths:
                 minimumSealClass: null
                 requireSecuringBeforeDoorWork: false
                 allowHazmatOnUnclassifiedSpots: false
+                requiredInspections:
+                - gate: PRE_DOCK
+                  templateId: tractor-trailer-17-point
+                  appliesTo:
+                    purposes: []
+                    trailerKinds:
+                    - REEFER
                 version: 1
                 declared: true
         '400':
@@ -1305,6 +1698,13 @@ paths:
                 minimumSealClass: null
                 requireSecuringBeforeDoorWork: false
                 allowHazmatOnUnclassifiedSpots: false
+                requiredInspections:
+                - gate: PRE_DOCK
+                  templateId: tractor-trailer-17-point
+                  appliesTo:
+                    purposes: []
+                    trailerKinds:
+                    - REEFER
                 version: 1
                 declared: true
         '400':
@@ -1696,6 +2096,20 @@ components:
                 status: 404
                 detail: visit not found
                 instance: /visits
+            inspectionNotFound:
+              value:
+                type: https://errors.yard-management.warehouse-systems.dev/inspection-not-found
+                title: Inspection not found
+                status: 404
+                detail: inspection not found
+                instance: /inspections/insp-nope
+            templateNotFound:
+              value:
+                type: https://errors.yard-management.warehouse-systems.dev/template-not-found
+                title: Inspection template not found
+                status: 404
+                detail: inspection template not found
+                instance: /inspection-templates/nope
             moveNotFound:
               value:
                 type: https://errors.yard-management.warehouse-systems.dev/move-not-found
@@ -1766,6 +2180,27 @@ components:
                 status: 409
                 detail: 'trailer is still secured: secured by WHEEL_CHOCKS at door WH1-D02'
                 instance: /moves
+            inspectionRequired:
+              value:
+                type: https://errors.yard-management.warehouse-systems.dev/inspection-required
+                title: A passed inspection is required first
+                status: 409
+                detail: 'inspection required: no passed PRE_DOCK inspection of yard-entry for this visit'
+                instance: /moves
+            inspectionFailed:
+              value:
+                type: https://errors.yard-management.warehouse-systems.dev/inspection-failed
+                title: The latest inspection failed
+                status: 409
+                detail: 'inspection failed: the latest PRE_DOCK inspection of yard-entry failed; inspect again'
+                instance: /moves
+            requiredItemPending:
+              value:
+                type: https://errors.yard-management.warehouse-systems.dev/required-item-pending
+                title: A required item has no result yet
+                status: 409
+                detail: 'required item pending: lights'
+                instance: /inspections/insp-5b6c7d8e-9f01-4a2b-8c3d-4e5f60718293/completions
             idempotencyKeyReused:
               value:
                 type: https://errors.yard-management.warehouse-systems.dev/idempotency-key-reused
@@ -1774,12 +2209,19 @@ components:
                 detail: the key was used with another request
                 instance: /trailers
     Unprocessable:
-      description: A value or reference rule failed (unknown location or appointment, invalid carrier, invalid unit number, seal class, hazmat class or UN number, unexplained destination, validation).
+      description: A value or reference rule failed (unknown location, appointment or inspection template, unknown inspection item, invalid carrier, invalid unit number, seal class, hazmat class or UN number, unexplained destination, validation).
       content:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
           examples:
+            unknownTemplate:
+              value:
+                type: https://errors.yard-management.warehouse-systems.dev/unknown-template
+                title: Unknown inspection template
+                status: 422
+                detail: 'unknown inspection template: ghost'
+                instance: /trailers/trl-8f7e6d5c-4b3a-4291-8071-6f5e4d3c2b1a/inspections
             unknownLocation:
               value:
                 type: https://errors.yard-management.warehouse-systems.dev/unknown-location
@@ -2743,6 +3185,11 @@ components:
           description: When true, a trailer with a hazard class may take a spot whose kind is unknown at a site that has no HAZMAT spot (ADR 0014).
             false (the default) refuses it with 409 `placement-rule-violated`. Never lets a hazmat trailer onto a spot of another kind, nor
             onto an unclassified one where the site has a HAZMAT spot.
+        requiredInspections:
+          type: array
+          items:
+            $ref: '#/components/schemas/InspectionRule'
+          description: The inspections a trailer needs before it docks, loads or leaves (ADR 0015); empty = none, the behaviour before them.
         version:
           type: integer
           minimum: 1
@@ -2803,10 +3250,332 @@ components:
           type: boolean
           default: false
           description: Optional. When true, a trailer with a hazard class may take a spot of unknown kind at a site with no HAZMAT spot (ADR 0014). Left out = false.
+        requiredInspections:
+          type: array
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/InspectionRule'
+          description: Optional. The inspections a trailer must have PASSED, for its current visit, before the gated step (ADR 0015). A template nobody published is 422 `unknown-template`. Left out = none.
       required:
       - requireAppointment
       - sealMismatchAction
       - leaseSeconds
+    InspectionRule:
+      type: object
+      properties:
+        gate:
+          type: string
+          enum:
+          - PRE_DOCK
+          - PRE_LOAD
+          - PRE_DEPARTURE
+          description: The step that is refused (409 `inspection-required`, or `inspection-failed`) until a PASSED inspection of the template exists for the trailer's current visit. PRE_DOCK gates the move to a door,
+            PRE_LOAD the start of door work on a trailer that is being loaded, PRE_DEPARTURE the check-out that takes the trailer. ON_DEMAND is never required.
+        templateId:
+          type: string
+        appliesTo:
+          type: object
+          properties:
+            purposes:
+              type: array
+              items:
+                type: string
+                enum:
+                - DROP
+                - LIVE_UNLOAD
+                - LIVE_LOAD
+                - PICKUP
+                - BOBTAIL
+              description: Only visits with one of these purposes; empty = every purpose.
+            trailerKinds:
+              type: array
+              items:
+                type: string
+                enum:
+                - DRY_VAN
+                - REEFER
+                - FLATBED
+                - CONTAINER
+              description: Only trailers of one of these kinds; empty = every kind.
+      required:
+      - gate
+      - templateId
+    OpenInspectionRequest:
+      type: object
+      properties:
+        templateId:
+          type: string
+        templateVersion:
+          type: integer
+          minimum: 1
+          description: Optional. The template version; left out = the latest published version.
+        gate:
+          type: string
+          enum:
+          - PRE_DOCK
+          - PRE_LOAD
+          - PRE_DEPARTURE
+          - ON_DEMAND
+        visitId:
+          type: string
+          description: Optional. The visit the inspection is made for; left out = the visit the trailer is on.
+        performerRef:
+          type: string
+          maxLength: 64
+          description: Optional reference of the inspector (an employee id, never a driver's name).
+      required:
+      - templateId
+      - gate
+    RecordInspectionItemRequest:
+      type: object
+      properties:
+        result:
+          type: string
+          enum:
+          - PASS
+          - FAIL
+          - NOT_APPLICABLE
+        note:
+          type: string
+          maxLength: 500
+        evidenceRefs:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            maxLength: 256
+          description: Opaque references to photos or documents held elsewhere; strings only.
+      required:
+      - result
+    CompleteInspectionRequest:
+      type: object
+      properties:
+        conditionGrade:
+          type: string
+          enum:
+          - CLEAN
+          - DIRTY
+          - ODOUR
+          - DAMAGED
+          description: Optional record of the equipment; never the verdict.
+    TemplateItem:
+      type: object
+      properties:
+        itemCode:
+          type: string
+          maxLength: 64
+          pattern: '^[a-z0-9][a-z0-9-]*$'
+        text:
+          type: string
+          maxLength: 300
+        required:
+          type: boolean
+        allowNotApplicable:
+          type: boolean
+          description: Whether NOT_APPLICABLE may be recorded on the item. Left out = false.
+        holdReason:
+          type: string
+          enum:
+          - DAMAGED
+          - SEAL_BROKEN
+          - NOT_FOUND
+          - QUALITY
+          - SECURITY
+          description: The hold a failed REQUIRED item places; left out when publishing = QUALITY.
+      required:
+      - itemCode
+      - text
+      - required
+    PublishInspectionTemplateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 120
+        items:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/TemplateItem'
+      required:
+      - title
+      - items
+    InspectionTemplate:
+      type: object
+      properties:
+        templateId:
+          type: string
+        version:
+          type: integer
+          minimum: 1
+        latestVersion:
+          type: integer
+          minimum: 1
+          description: The highest published version of the same template id.
+        title:
+          type: string
+        builtIn:
+          type: boolean
+          description: A built-in template ships with the service, is read-only, and has no `publishedAt`.
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TemplateItem'
+        publishedAt:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - templateId
+      - version
+      - latestVersion
+      - title
+      - builtIn
+      - items
+      - publishedAt
+    InspectionTemplatePage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/InspectionTemplate'
+        nextCursor:
+          type: string
+          nullable: true
+          description: Absent on the last page.
+      required:
+      - items
+    InspectionItem:
+      type: object
+      properties:
+        itemCode:
+          type: string
+        text:
+          type: string
+        required:
+          type: boolean
+        allowNotApplicable:
+          type: boolean
+        holdReason:
+          type: string
+          enum:
+          - DAMAGED
+          - SEAL_BROKEN
+          - NOT_FOUND
+          - QUALITY
+          - SECURITY
+        result:
+          type: string
+          enum:
+          - PASS
+          - FAIL
+          - NOT_APPLICABLE
+          - null
+          nullable: true
+          description: null while the item is pending.
+        note:
+          type: string
+          nullable: true
+        evidenceRefs:
+          type: array
+          items:
+            type: string
+      required:
+      - itemCode
+      - text
+      - required
+      - allowNotApplicable
+      - holdReason
+      - result
+      - note
+      - evidenceRefs
+    Inspection:
+      type: object
+      properties:
+        inspectionId:
+          type: string
+        siteId:
+          type: string
+        trailerId:
+          type: string
+        visitId:
+          type: string
+          nullable: true
+        templateId:
+          type: string
+        templateVersion:
+          type: integer
+          minimum: 1
+          description: The version the inspection was opened from; the items below are that version's snapshot.
+        gate:
+          type: string
+          enum:
+          - PRE_DOCK
+          - PRE_LOAD
+          - PRE_DEPARTURE
+          - ON_DEMAND
+        status:
+          type: string
+          enum:
+          - OPEN
+          - PASSED
+          - FAILED
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/InspectionItem'
+        performerRef:
+          type: string
+          nullable: true
+        conditionGrade:
+          type: string
+          enum:
+          - CLEAN
+          - DIRTY
+          - ODOUR
+          - DAMAGED
+          - null
+          nullable: true
+        openedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        version:
+          type: integer
+          minimum: 1
+      required:
+      - inspectionId
+      - siteId
+      - trailerId
+      - visitId
+      - templateId
+      - templateVersion
+      - gate
+      - status
+      - items
+      - performerRef
+      - conditionGrade
+      - openedAt
+      - completedAt
+      - version
+    InspectionPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Inspection'
+        nextCursor:
+          type: string
+          nullable: true
+          description: Absent on the last page.
+      required:
+      - items
     YardBoard:
       type: object
       properties:

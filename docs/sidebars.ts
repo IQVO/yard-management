@@ -152,6 +152,11 @@ const sidebars: SidebarsConfig = {
           label: '0014 Hazmat and reefer placement: spot kind, hazard class, temperature control',
           href: '/docs/adr/0014-hazmat-and-reefer-placement',
         },
+        {
+          type: 'link',
+          label: '0015 Compliance inspections: checklist templates, gate on dock, load and departure',
+          href: '/docs/adr/0015-compliance-inspections',
+        },
       ],
     },
   ],

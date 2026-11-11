@@ -11,9 +11,9 @@ description: "Every event Yard Management publishes and consumes, with full Clou
 Every event this context publishes and consumes, from
 `contexts[yard-management].publishes` and `.consumes`. The envelope follows the
 yard [CloudEvents standard](https://iqvo.github.io/warehouse-docs/yard/strategic-design/event-standard-cloudevents).
-There are **twenty-one published events** (eleven integration, ten analytics only)
+There are **twenty-three published events** (thirteen integration, ten analytics only)
 and **thirteen consumed events**. The split is as built (service ADR 0004, refined by ADR 0010 on
-2026-11-09, which moved `DoorWorkCompleted` and `TrailerDeparted` to the integration topic; ADR 0013 added `TrailerSecured` and `TrailerSecuringReleased`); the AsyncAPI is
+2026-11-09, which moved `DoorWorkCompleted` and `TrailerDeparted` to the integration topic; ADR 0013 added `TrailerSecured` and `TrailerSecuringReleased`; ADR 0015 added `InspectionCompleted` and `InspectionFailed`); the AsyncAPI is
 version 3.0.0 and the topic of each channel is in its `address`.
 
 ## Envelope
@@ -23,8 +23,8 @@ version 3.0.0 and the topic of each channel is in its `address`.
 | `specversion` | `1.0` (structured JSON mode, mandatory on every Kafka message) |
 | `id` | unique per event; a redelivery carries the same `id` (the inbox dedupes on it) |
 | `source` | `/warehouse/yard-management` |
-| `type` | `com.warehouse.wms.yard-management.<entity>.<EventName>`; entity is the lower-case aggregate that raises it: `yardvisit`, `trailer`, `yardmove`, `yardcheck` |
-| `subject` | the aggregate root id: `visitId` for `yardvisit`, `trailerId` for `trailer`, `moveId` for `yardmove`, `yardCheckId` for `yardcheck` |
+| `type` | `com.warehouse.wms.yard-management.<entity>.<EventName>`; entity is the lower-case aggregate that raises it: `yardvisit`, `trailer`, `yardmove`, `yardcheck`, `inspection` |
+| `subject` | the aggregate root id: `visitId` for `yardvisit`, `trailerId` for `trailer`, `moveId` for `yardmove`, `yardCheckId` for `yardcheck`, `inspectionId` for `inspection` |
 | `time` | the instant the fact happened |
 | `datacontenttype` | `application/json`, payload fields in `snake_case` |
 | `dataschema` | `urn:warehouse:yard-management:events:<EventName>:v1` on the integration topic, `urn:warehouse:yard-management:analytics:<EventName>:v1` on its analytics twin |
@@ -71,6 +71,15 @@ Topic `warehouse.yard-management.events` (each message also goes, as a twin, to 
 `TrailerDeparted` reached this topic on 2026-11-09 (service ADR 0010) because `outbound-shipping` confirms a shipment
 when the trailer physically leaves; messages raised before that stayed on the analytics topic. `SealExceptionRaised.trailer_id`
 is null when the visit was rejected at the gate (the CloudEvents subject is then the visit id).
+
+### Inspection events (key `inspectionId`)
+
+| Event | Full `type` | `data` fields | Producing command / use case | Consumers |
+| --- | --- | --- | --- | --- |
+| `InspectionCompleted` | `com.warehouse.wms.yard-management.inspection.InspectionCompleted` | `inspection_id`, `site_id`, `trailer_id`, `visit_id`, `template_id`, `template_version`, `gate`, `outcome`, `condition_grade`, `completed_at`, `failed_item_codes` | `CompleteInspection` | none yet (the audit record, ADR 0015) |
+| `InspectionFailed` | `com.warehouse.wms.yard-management.inspection.InspectionFailed` | `inspection_id`, `site_id`, `trailer_id`, `template_id`, `gate`, `failed_items`, `failed_at`, `hold_placed` | `CompleteInspection` ending FAILED (the `TrailerHeld` of its hold follows) | `exception-management` (planned) |
+
+Both are advisory (no `version`): an inspection is final once completed. `visit_id`, `condition_grade` and `failed_items[].note` are null when absent.
 
 ### Yard check events (key `yardCheckId`)
 

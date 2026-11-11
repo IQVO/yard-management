@@ -1,0 +1,70 @@
+---
+id: complete-inspection
+title: "Complete an inspection (CompleteInspection)"
+description: "Completes an OPEN inspection, once and for good. Every REQUIRED item needs a result first (409 `required-item-pending`). The outcome is `FAILED` when any required item failed, `PASSED` otherwise. A FAILED inspection places a hold on the trailer in the SAME transaction, with the reason of its most severe failed item (the template item says which: `SECURITY`, `SEAL_BROKEN`, `DAMAGED`, `NOT_FOUND` or `QUALITY`, the default), unless the trailer already carries a hold; releasing it stays the existing human action (`POST /trailers/{trailerId}/hold-releases`), and a re-inspection can then be opened. `conditionGrade` is an optional record of the equipment, never the verdict. Raises InspectionCompleted and, for a FAILED inspection, InspectionFailed (and TrailerHeld when it held the trailer). Completing again is 409 `inspection-closed`."
+sidebar_label: "Complete an inspection (CompleteInspection)"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: docs/api-reference/rest/yard-management-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Complete an inspection (CompleteInspection)"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/inspections/{inspectionId}/completions"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Completes an OPEN inspection, once and for good. Every REQUIRED item needs a result first (409 `required-item-pending`). The outcome is `FAILED` when any required item failed, `PASSED` otherwise. A FAILED inspection places a hold on the trailer in the SAME transaction, with the reason of its most severe failed item (the template item says which: `SECURITY`, `SEAL_BROKEN`, `DAMAGED`, `NOT_FOUND` or `QUALITY`, the default), unless the trailer already carries a hold; releasing it stays the existing human action (`POST /trailers/{trailerId}/hold-releases`), and a re-inspection can then be opened. `conditionGrade` is an optional record of the equipment, never the verdict. Raises InspectionCompleted and, for a FAILED inspection, InspectionFailed (and TrailerHeld when it held the trailer). Completing again is 409 `inspection-closed`.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./complete-inspection.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./complete-inspection.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./complete-inspection.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

@@ -25,6 +25,7 @@ repositories and views and raise nothing.
 | CheckOutVisit | `CheckOutVisit` (`gate_checkout.go`) | `POST /visits/{visitId}/check-outs` |
 | StartDoorWork, CompleteDoorWork | `StartDoorWork`, `CompleteDoorWork` (`doors.go`) | `POST /trailers/{trailerId}/door-work-starts`, `…/door-work-completions`; `CompleteDoorWork` also from `ReceiptClosed` |
 | SecureTrailer, ReleaseTrailerSecuring | `SecureTrailer`, `ReleaseTrailerSecuring` (`doors.go`) | `POST /trailers/{trailerId}/securings`, `…/securing-releases` (ADR 0013) |
+| OpenInspection, RecordInspectionItem, CompleteInspection | `OpenInspection`, `RecordInspectionItem`, `CompleteInspection` (`inspections.go`) | `POST /trailers/{trailerId}/inspections`, `PUT /inspections/{inspectionId}/items/{itemCode}`, `POST /inspections/{inspectionId}/completions` (ADR 0015) |
 | RecordSeal, PlaceHold, ReleaseHold | `RecordSeal`, `PlaceHold`, `ReleaseHold` (`doors.go`) | `POST /trailers/{trailerId}/seals`, `…/holds`, `…/hold-releases` |
 | DwellSweep | `SweepDwell` (`checks_policy.go`) | `POST /dwell-sweeps` (CronJob) |
 | RequestMove, ClaimNextMove, CompleteMove, CancelMove | `RequestMove`, `ClaimNextMove`, `CompleteMove`, `CancelMove` (`moves.go`) | `POST /moves`, `/moves/claims`, `/moves/{moveId}/completions`, `/moves/{moveId}/cancellations` |
@@ -310,6 +311,30 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
 
 - **Events emitted:** `TrailerSecuringReleased` (integration, ADR 0013).
 - **Idempotency:** `Idempotency-Key`.
+
+### OpenInspection, RecordInspectionItem, CompleteInspection
+
+- **Actor / trigger:** inspector (floor client); MCP `open_inspection`, `record_inspection_item`, `complete_inspection` behind an approval.
+- **Inbound adapter:** REST `POST /trailers/{trailerId}/inspections` (`templateId`, `gate`, optional `templateVersion`, `visitId`,
+  `performerRef`), `PUT /inspections/{inspectionId}/items/{itemCode}` (`result`, `note?`, `evidenceRefs?`),
+  `POST /inspections/{inspectionId}/completions` (`conditionGrade?`). Templates: `GET /inspection-templates[/{id}[/versions/{n}]]`,
+  `PUT /inspection-templates/{id}/versions/{n}`.
+- **Main flow:** open snapshots the template version into a new `OPEN` inspection (one open per trailer, template and gate); each record
+  replaces one item's result; completion needs every required item answered, ends `PASSED` or `FAILED` and, in the same unit of work,
+  holds the trailer when it failed and the trailer carries no hold.
+- **Gates:** `RequestMove` to a door and the move of a check-in (`PRE_DOCK`), `StartDoorWork` on a trailer that is being loaded
+  (`PRE_LOAD`) and `CheckOutVisit` taking a trailer (`PRE_DEPARTURE`) ask the site policy `requiredInspections`; `AutoCompleteUnload`
+  asks nothing.
+
+| Error | HTTP | Problem `type` slug |
+| --- | --- | --- |
+| `ErrInspectionRequired` / `ErrInspectionFailed` (at a gate) | 409 | `inspection-required` / `inspection-failed` |
+| `ErrInspectionClosed`, `ErrRequiredItemPending`, `ErrInspectionAlreadyOpen` | 409 | `inspection-closed`, `required-item-pending`, `inspection-already-open` |
+| `ErrUnknownItem`, `ErrNotApplicableNotAllowed`, `ErrUnknownTemplate` | 422 | `unknown-item`, `not-applicable-not-allowed`, `unknown-template` |
+| `ErrTemplateVersionImmutable`, `ErrTemplateIsBuiltIn` | 409 | `template-version-immutable`, `template-is-built-in` |
+
+- **Events emitted:** `InspectionCompleted` and, when failed, `InspectionFailed` then `TrailerHeld` (ADR 0015).
+- **Idempotency:** `Idempotency-Key`; the version of the inspection is the ETag.
 
 ### CompleteDoorWork
 

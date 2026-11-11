@@ -1,0 +1,1 @@
+{"parameters":[{"name":"limit","in":"query","required":false,"description":"Page size, 1-500, default 100.","schema":{"type":"integer","minimum":1,"maximum":500,"default":100}},{"name":"cursor","in":"query","required":false,"description":"The opaque `nextCursor` of the previous page.","schema":{"type":"string"}}]}

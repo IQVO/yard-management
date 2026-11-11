@@ -1,0 +1,70 @@
+---
+id: publish-inspection-template
+title: "Publish an inspection template version (PublishInspectionTemplate)"
+description: "Publishes version N of a custom checklist (ADR 0015). A published version is IMMUTABLE: the same content again answers 200 and changes nothing, other content under a published version is 409 `template-version-immutable`; a new version is a new number. An inspection keeps a snapshot of the version it was opened from, so a later version never rewrites history. The built-in template ids are read-only (409 `template-is-built-in`). Item codes are lowercase letters, digits and hyphens, unique in the template; at most 100 items; an item without a `holdReason` holds a failed trailer for `QUALITY`. A malformed template is 422 `validation`. Raises nothing."
+sidebar_label: "Publish an inspection template version (PublishInspectionTemplate)"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "put api-method"
+info_path: docs/api-reference/rest/yard-management-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Publish an inspection template version (PublishInspectionTemplate)"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"put"}
+  path={"/inspection-templates/{templateId}/versions/{version}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Publishes version N of a custom checklist (ADR 0015). A published version is IMMUTABLE: the same content again answers 200 and changes nothing, other content under a published version is 409 `template-version-immutable`; a new version is a new number. An inspection keeps a snapshot of the version it was opened from, so a later version never rewrites history. The built-in template ids are read-only (409 `template-is-built-in`). Item codes are lowercase letters, digits and hyphens, unique in the template; at most 100 items; an item without a `holdReason` holds a failed trailer for `QUALITY`. A malformed template is 422 `validation`. Raises nothing.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./publish-inspection-template.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./publish-inspection-template.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./publish-inspection-template.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

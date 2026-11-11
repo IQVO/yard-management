@@ -19,6 +19,9 @@ touches a domain aggregate. Keep this list in sync with the spec by hand (it is 
 - `POST /moves` -> `RequestMove`; `GET /moves` -> `ListMoves`; `POST /moves/claims` -> `ClaimNextMove`;
   `POST /moves/{moveId}/completions` -> `CompleteMove`; `POST /moves/{moveId}/cancellations` -> `CancelMove`
 - `POST /yard-checks` -> `OpenYardCheck`; `.../observations` -> `RecordObservation`; `.../closures` -> `CloseYardCheck`
+- `POST /trailers/{trailerId}/inspections` -> `OpenInspection`; `GET /trailers/{trailerId}/inspections`; `GET /inspections/{inspectionId}`;
+  `PUT /inspections/{inspectionId}/items/{itemCode}` -> `RecordInspectionItem`; `POST .../completions` -> `CompleteInspection`;
+  `GET /inspection-templates[/{id}[/versions/{n}]]`, `PUT /inspection-templates/{id}/versions/{n}` (ADR 0015)
 - `GET /sites/{siteId}/yard-board` -> `GetYardBoard`; `GET`/`PUT /sites/{siteId}/yard-policy` -> `GetYardPolicy`, `DeclareYardPolicy`
 - `POST /dwell-sweeps` -> `SweepDwell`; `POST /move-lease-sweeps` -> `SweepMoveLeases`
 - `GET /reports/*` (yard-dwell, door-utilisation, hostler-productivity, turn-time, detention-exposure, exceptions,

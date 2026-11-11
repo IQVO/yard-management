@@ -24,6 +24,10 @@ numbered assumptions). This file is the skimmable summary; when they differ, the
   (MISSING, WRONG_LOCATION, UNEXPECTED).
 - **YardPolicy** (`siteId`): appointment requirement, seal-mismatch action (FLAG or REJECT), lease seconds,
   holding spots, dwell thresholds, detention free time.
+- **Inspection** (`insp-<uuid>`, ADR 0015): `OPEN`, `PASSED`, `FAILED`. A checklist of a trailer from an immutable
+  template version (snapshot at open; built-ins `tractor-trailer-17-point`, `empty-container-7-point`,
+  `reefer-pre-cool-and-sanitation`), gate `PRE_DOCK`/`PRE_LOAD`/`PRE_DEPARTURE`/`ON_DEMAND`. A failed required item
+  holds the trailer in the same unit of work. Site policy `requiredInspections` (default empty) gates the steps.
 - **Location**: a facility-layout location slot (`locationCode`), a Yard spot or a Dock door; event-fed local
   copy, never looked up live.
 
@@ -32,7 +36,7 @@ numbered assumptions). This file is the skimmable summary; when they differ, the
 Pure Go: clock and ids are passed in, `Snapshot()`/`Restore()` are the persistence boundary, `version` starts at
 1 and grows by one per accepted change; the use case pulls the events and hands them to the outbox in the
 same unit of work. Packages: `internal/domain/yardvisit`, `trailer` (with the domain service `Occupancy`),
-`yardmove`, `yardcheck`, `yardpolicy`, `shared`.
+`yardmove`, `yardcheck`, `yardpolicy`, `inspection`, `shared`.
 
 Key errors: `ErrLocationOccupied` (409, `Occupancy.CheckFree` under a per-location advisory lock plus a
 partial unique index), `ErrDoorClosed`, `ErrDoorFlowMismatch`, `ErrTrailerOnHold`, `ErrDoorWorkOpen`,
@@ -42,16 +46,18 @@ without `Err`.
 
 ## Domain events
 
-Eleven integration events on `warehouse.yard-management.events` (VisitCheckedIn, VisitRejected, TrailerDocked,
+Thirteen integration events on `warehouse.yard-management.events` (VisitCheckedIn, VisitRejected, TrailerDocked,
 TrailerUndocked, DoorWorkCompleted, TrailerDeparted, SealExceptionRaised, TrailerDwellExceeded,
-YardCheckClosed, TrailerSecured, TrailerSecuringReleased), mirrored on `.analytics`; ten more are analytics-only. Catalogue:
-`docs/adr/0004-cloudevents-envelope-and-type-catalogue.md`, refined by ADR 0010 and ADR 0013.
+YardCheckClosed, TrailerSecured, TrailerSecuringReleased, InspectionCompleted, InspectionFailed), mirrored on `.analytics`; ten more are analytics-only. Catalogue:
+`docs/adr/0004-cloudevents-envelope-and-type-catalogue.md`, refined by ADR 0010, ADR 0013 and ADR 0015.
 
 ## Key use cases (`internal/application/usecases`, type `Yard`)
 
 - Gate: `CheckInVisit` (seal check, direct-on-check-in placement), `RejectAtGate`, `CheckOutVisit`.
 - Door: `StartDoorWork`, `CompleteDoorWork`; holds and seals: `PlaceHold`, `ReleaseHold`, `RecordSeal`.
 - Moves: `RequestMove`, `ClaimNextMove`, `CompleteMove`, `CancelMove`, `SweepMoveLeases`.
+- Inspections (ADR 0015): `OpenInspection`, `RecordInspectionItem`, `CompleteInspection` (a failure holds the trailer),
+  `PublishInspectionTemplate`; the gates `requireInspections` / `judgeInspections` before a door move, loading and check-out.
 - Audit and policy: `OpenYardCheck`, `RecordObservation`, `CloseYardCheck`, `DeclareYardPolicy`, `SweepDwell`.
 - Local copies from consumers: `ApplyAppointment`, `ApplySlot`, `ApplyZone`, `DecommissionSlot`, `ScheduleClosure`,
   `LiftClosure`, `RegisterAsn`, `CancelAsn`, `OpenReceipt`, `CloseReceipt`.

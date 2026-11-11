@@ -34,7 +34,7 @@ the produced catalogue to `apis/asyncapi.yaml`.
 
 ## Godog features
 
-Seven files, 53 scenarios (`grep -c Scenario features/*.feature`), tagged
+Eleven files, 144 scenarios (`grep -c Scenario features/*.feature`), tagged
 `@bdd`, running the REST handlers on the in-memory store
 (`internal/adapters/outbound/memory`) behind the real HTTP handlers (`httptest`), with the events the use cases
 publish captured for the `the event "X" was published` steps:
@@ -42,11 +42,15 @@ publish captured for the `the event "X" was published` steps:
 | Feature | Scenarios | Covers |
 | --- | ---: | --- |
 | `checkout.feature` | 7 | a visit leaves only with released trailers (no open move; parked, or docked with door work done); seal on a loaded pickup; a visit checks out once |
+| `compliance_inspections.feature` | 37 | built-in and custom checklist templates (versions never change), an inspection from open to PASSED or FAILED, the hold a failure places, and the site policy gates before a door move, loading and check-out (ADR 0015) |
+| `dock_safety_interlock.feature` | 16 | securing before door work and release before leaving the door, `trailer-still-secured` (ADR 0013) |
 | `drop.feature` | 3 | drop trailer: hold, door, work, clear door, tractor leaves |
 | `floor_client.feature` | 12 | what the gate kiosk, dock tablet and hostler phone rely on: optional trailers, deviation note, filters, no lease renewal, sweeps without key, idempotent replay, ETag of the policy, report shape before analytics |
+| `hazmat_reefer_placement.feature` | 19 | hazmat and reefer placement by spot kind (ADR 0014) |
 | `lease.feature` | 7 | claim leases, the expiry sweep, lease ownership, one move per hostler, claim order (lowest band, earliest due) |
 | `live_unload.feature` | 4 | live unload from gate in to gate out, receipt-close auto-completes the unload, ASNs carried by the trailer |
 | `occupancy.feature` | 11 | one trailer per spot or door, reservations, one open move per trailer, races end in 409, closed doors, flow mismatch, holds |
+| `standard_identifiers.feature` | 19 | ISO 6346 unit numbers, seal class and seal state vocabulary (ADR 0012) |
 | `rejection.feature` | 9 | gate turn-away, appointment required, seal mismatch under FLAG and REJECT, one open visit per plate, unknown appointment |
 
 Steps are in `internal/bdd/steps_*_test.go`. Run one feature with

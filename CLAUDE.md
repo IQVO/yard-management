@@ -10,7 +10,7 @@ and visiting drivers make, door work at the door, and yard checks. It is the
 source of dwell, door occupancy and yard-truck productivity facts.
 Dock-scheduling owns door TIME (appointments); this context owns the physical
 present. Aggregates `YardVisit`, `Trailer`, `YardMove`, `YardCheck`,
-`YardPolicy`. Five binaries in one image: `cmd/api` (REST `:8080` and the three
+`YardPolicy`, `Inspection`. Five binaries in one image: `cmd/api` (REST `:8080` and the three
 Kafka consumers), `cmd/mcp` (MCP `:8090`), `cmd/relay` (transactional outbox to
 Kafka, health on `:8081`), `cmd/yard-projector` (`:8091`, writer of the
 analytical database) and `cmd/yard-reports` (`:8092`, read-only `/reports/*`).
@@ -26,11 +26,11 @@ Design source: warehouse-docs `yard/model/model.yaml`.
    consumed (structured mode, no flat envelope, no envelope toggle). Build and
    decode ONLY through `internal/adapters/kafka/cloudevents/`; `type` is
    `com.warehouse.wms.yard-management.<entity>.<EventName>` (`<entity>` one of
-   `yardvisit`, `trailer`, `yardmove`, `yardcheck`). A breaking payload change
-   is a new `.v2` type. Eleven integration types on
+   `yardvisit`, `trailer`, `yardmove`, `yardcheck`, `inspection`). A breaking payload change
+   is a new `.v2` type. Thirteen integration types on
    `warehouse.yard-management.events`, mirrored with the same `id` on
    `warehouse.yard-management.analytics`; ten more are analytics-only (ADR
-   0004, ADR 0010, ADR 0013). Payloads: `apis/asyncapi.yaml`
+   0004, ADR 0010, ADR 0013, ADR 0015). Payloads: `apis/asyncapi.yaml`
    (`TestCloudEventsOnly`, `TestEventCatalogueMatchesContract`).
 3. **Events leave through the transactional outbox only** (ADR 0005): the
    aggregate save and its outbox row commit in one unit of work; `cmd/relay`
@@ -61,7 +61,7 @@ Design source: warehouse-docs `yard/model/model.yaml`.
    imports (`TestRuntimeBinaryHasNoInMemoryAdapters`).
 10. **No auth layer on REST or MCP** (fleet rule): never add bearer/JWT/API-key
     middleware (`TestNoAuthMiddlewareReintroduced`).
-11. **MCP authority** (ADR 0007): eight read tools at L1, eight write tools at L3;
+11. **MCP authority** (ADR 0007): ten read tools at L1, eleven write tools at L3 (ADR 0015);
     MCP writes stamp `initiated_by` into the event data, REST writes carry
     none (`TestEveryMCPToolDeclaresAuthority`, `TestMCPWriteToolsAreAtLeastL3`).
 12. **An ADR comes first** for a new cross-context contract, a new consumed or
