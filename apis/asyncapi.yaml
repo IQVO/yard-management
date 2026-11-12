@@ -1572,6 +1572,7 @@ components:
       name: InspectionFailed
       title: InspectionFailed
       summary: A required item of an inspection failed (ADR 0015); the trailer is held in the same step unless it already was. Consumed by exception-management.
+      x-no-consumer-reason: 'No consumer yet, by design: the failed check holds the trailer in the same instant (ADR 0015), so enforcement is local; this event is the audit fact of that failure.'
       description: '`type` = `com.warehouse.wms.yard-management.inspection.InspectionFailed`; subject and key = `inspection_id`;
         dataschema `urn:warehouse:yard-management:events:InspectionFailed:v1`. Raised by CompleteInspection (ADR 0015) only for a FAILED inspection, after InspectionCompleted; hold_placed is false when the trailer already carried a hold.'
       contentType: application/cloudevents+json
