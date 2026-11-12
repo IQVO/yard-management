@@ -259,6 +259,8 @@ components:
       name: VisitCheckedIn
       title: VisitCheckedIn
       summary: A tractor and driver passed the gate. Consumed by dock-scheduling (ArrivalFromGate).
+      x-no-consumer-reason: 'No consumer yet, by design: the dock safety interlock fact of this yard; the actionable outcome is the door work that follows it.'
+      x-no-consumer-reason: 'No consumer yet, by design: the dock safety interlock fact of this yard; the actionable outcome is the door work that follows it.'
       description: '`type` = `com.warehouse.wms.yard-management.yardvisit.VisitCheckedIn`; subject and key = `visit_id`; dataschema
         `urn:warehouse:yard-management:events:VisitCheckedIn:v1`.'
       contentType: application/cloudevents+json
