@@ -794,6 +794,12 @@
         "carrier": {
           "type": "string"
         },
+        "carrierFlag": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
         "carrierScac": {
           "type": [
             "null",
@@ -866,6 +872,7 @@
         "appointmentId",
         "state",
         "rejectionReason",
+        "carrierFlag",
         "trailersIn",
         "trailersOut",
         "arrivedAt",
@@ -2012,6 +2019,9 @@
         "siteId": {
           "type": "string"
         },
+        "suspendedCarrierAction": {
+          "type": "string"
+        },
         "version": {
           "type": "integer"
         }
@@ -2029,6 +2039,7 @@
         "requireSecuringBeforeDoorWork",
         "allowHazmatOnUnclassifiedSpots",
         "requiredInspections",
+        "suspendedCarrierAction",
         "version",
         "declared"
       ],
@@ -2751,6 +2762,12 @@
               "carrier": {
                 "type": "string"
               },
+              "carrierFlag": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
               "carrierScac": {
                 "type": [
                   "null",
@@ -2823,6 +2840,7 @@
               "appointmentId",
               "state",
               "rejectionReason",
+              "carrierFlag",
               "trailersIn",
               "trailersOut",
               "arrivedAt",

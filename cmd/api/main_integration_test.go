@@ -80,7 +80,7 @@ func dropVisitFlow(t *testing.T, a *api, dsn string, pool *pgxpool.Pool) {
 	wantEvent(t, events[0], "VisitCheckedIn", "yardvisit", visitID, map[string]any{
 		"visit_id": visitID, "site_id": "WH1", "carrier": "Acme Freight", "carrier_scac": "ACME", "purpose": "DROP", "appointment_id": nil,
 		"trailers":   []any{map[string]any{"trailer_id": trailerID, "unit_number": "TR-1", "carrier_scac": "ACME", "kind": "DRY_VAN", "load_state": "LOADED", "unit_number_scheme": nil, "seal_class": nil, "hazmat_class": nil, "un_number": nil, "requires_temperature_control": false}},
-		"arrived_at": "<time>", "version": 1,
+		"arrived_at": "<time>", "version": 1, "carrier_flag": nil,
 	})
 	wantEvent(t, events[1], "TrailerDocked", "trailer", trailerID, map[string]any{
 		"trailer_id": trailerID, "site_id": "WH1", "door_code": "WH1-D02", "appointment_id": nil, "asn_numbers": []any{},

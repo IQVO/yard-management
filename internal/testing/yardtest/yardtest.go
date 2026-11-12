@@ -29,7 +29,7 @@ func Deps(s *memory.Store) usecases.Deps {
 		UoW: s, Visits: s.Visits(), Trailers: s.Trailers(), Moves: s.Moves(), Checks: s.Checks(), Policies: s.Policies(), Inspections: s.Inspections(), Templates: s.Templates(),
 		Locations: s.Locations(), Appointments: s.Appointments(), Closures: s.Closures(), Asns: s.Asns(), Receipts: s.Receipts(),
 		Locks: s, Processed: s, ApptFeed: s.Appointments(), LocationFeed: s.Locations(), ClosureFeed: s.Closures(), AsnFeed: s.Asns(),
-		ReceiptFeed: s.Receipts(), Events: s, IDs: s, Clock: s,
+		ReceiptFeed: s.Receipts(), Carriers: s.Carriers(), CarrierFeed: s.Carriers(), Events: s, IDs: s, Clock: s,
 	}
 }
 

@@ -22,6 +22,23 @@ const (
 	Reject SealAction = "REJECT"
 )
 
+// CarrierAction is what the gate does with a visit whose carrier the local
+// copy of the dock-scheduling carrier registry says is SUSPENDED (ADR 0016).
+type CarrierAction string
+
+// The suspended-carrier actions. NONE is the default and today's behaviour:
+// the registry is not consulted at the gate.
+const (
+	CarrierNone   CarrierAction = "NONE"
+	CarrierFlag   CarrierAction = "FLAG"
+	CarrierReject CarrierAction = "REJECT"
+)
+
+// Valid reports whether a is one of the three actions.
+func (a CarrierAction) Valid() bool {
+	return a == CarrierNone || a == CarrierFlag || a == CarrierReject
+}
+
 // DefaultLeaseSeconds is the hostler lease of an undeclared site.
 const DefaultLeaseSeconds = 300
 
@@ -39,6 +56,7 @@ type Policy struct {
 	requireSecure bool
 	allowHazmat   bool
 	inspections   []InspectionRule
+	carrierAction CarrierAction
 	version       int64
 	declared      bool
 }
@@ -52,7 +70,7 @@ func Default(siteID string) (*Policy, error) {
 	}
 	return &Policy{
 		site: siteID, holdingSpots: []string{}, parkingZones: []string{}, dwell: map[shared.TrailerKind]int64{},
-		leaseSeconds: DefaultLeaseSeconds, sealAction: Flag, inspections: []InspectionRule{}, version: 1,
+		leaseSeconds: DefaultLeaseSeconds, sealAction: Flag, inspections: []InspectionRule{}, carrierAction: CarrierNone, version: 1,
 	}, nil
 }
 
@@ -84,6 +102,10 @@ type DeclareInput struct {
 	// loads or leaves (ADR 0015). Empty (the default) asks for none: the
 	// behaviour before inspections existed.
 	RequiredInspections []InspectionRule
+	// SuspendedCarrierAction is what the gate does with a visit of a carrier
+	// the registry copy says is SUSPENDED (ADR 0016): NONE, FLAG or REJECT.
+	// "" (left out) is NONE, the behaviour before the rule existed.
+	SuspendedCarrierAction CarrierAction
 }
 
 // Declare replaces the policy (DeclareYardPolicy). Holding spots must be
@@ -108,6 +130,12 @@ func (p *Policy) Declare(in DeclareInput, knownSpot func(code string) bool) erro
 	if err := validateInspectionRules(in.RequiredInspections); err != nil {
 		return err
 	}
+	if in.SuspendedCarrierAction == "" {
+		in.SuspendedCarrierAction = CarrierNone
+	}
+	if !in.SuspendedCarrierAction.Valid() {
+		return shared.Invalid("suspended carrier action must be NONE, FLAG or REJECT")
+	}
 	for _, code := range in.HoldingSpotCodes {
 		if !knownSpot(code) {
 			return fmt.Errorf("%w: holding spot %q is not a Yard slot of site %s", shared.ErrUnknownLocation, code, p.site)
@@ -115,6 +143,7 @@ func (p *Policy) Declare(in DeclareInput, knownSpot func(code string) bool) erro
 	}
 	p.requireAppt, p.leaseSeconds, p.sealAction, p.freeTimeMin = in.RequireAppointment, in.LeaseSeconds, in.SealMismatchAction, in.FreeTimeMinutes
 	p.minSealClass, p.requireSecure, p.allowHazmat = in.MinimumSealClass, in.RequireSecuringBeforeDoorWork, in.AllowHazmatOnUnclassifiedSpots
+	p.carrierAction = in.SuspendedCarrierAction
 	p.holdingSpots, p.parkingZones, p.inspections = slices.Clone(in.HoldingSpotCodes), slices.Clone(in.ParkingZoneIDs), cloneRules(in.RequiredInspections)
 	if p.holdingSpots == nil {
 		p.holdingSpots = []string{}
@@ -204,6 +233,7 @@ type Snapshot struct {
 	RequireSecuring           bool
 	AllowHazmatOnUnclassified bool
 	RequiredInspections       []InspectionRule
+	SuspendedCarrierAction    CarrierAction
 	Version                   int64
 	Declared                  bool
 }
@@ -217,7 +247,8 @@ func (p *Policy) Snapshot() Snapshot {
 	return Snapshot{
 		SiteID: p.site, RequireAppointment: p.requireAppt, HoldingSpotCodes: p.HoldingSpotCodes(), ParkingZoneIDs: p.ParkingZoneIDs(),
 		DwellThresholdMinutes: d, LeaseSeconds: p.leaseSeconds, SealMismatchAction: p.sealAction, FreeTimeMinutes: p.freeTimeMin,
-		MinimumSealClass: p.minSealClass, RequireSecuring: p.requireSecure, AllowHazmatOnUnclassified: p.allowHazmat, RequiredInspections: p.RequiredInspections(), Version: p.version, Declared: p.declared,
+		MinimumSealClass: p.minSealClass, RequireSecuring: p.requireSecure, AllowHazmatOnUnclassified: p.allowHazmat, RequiredInspections: p.RequiredInspections(),
+		SuspendedCarrierAction: p.carrierAction, Version: p.version, Declared: p.declared,
 	}
 }
 
@@ -235,7 +266,7 @@ func Restore(s Snapshot) (*Policy, error) {
 		RequireAppointment: s.RequireAppointment, HoldingSpotCodes: s.HoldingSpotCodes, ParkingZoneIDs: s.ParkingZoneIDs,
 		DwellThresholdMinutes: s.DwellThresholdMinutes, LeaseSeconds: s.LeaseSeconds, SealMismatchAction: s.SealMismatchAction, FreeTimeMinutes: s.FreeTimeMinutes,
 		MinimumSealClass: s.MinimumSealClass, RequireSecuringBeforeDoorWork: s.RequireSecuring, AllowHazmatOnUnclassifiedSpots: s.AllowHazmatOnUnclassified,
-		RequiredInspections: s.RequiredInspections,
+		RequiredInspections: s.RequiredInspections, SuspendedCarrierAction: s.SuspendedCarrierAction,
 	}, func(string) bool { return true }); err != nil {
 		return nil, err
 	}
@@ -257,3 +288,7 @@ func (p *Policy) RequireSecuringBeforeDoorWork() bool { return p.requireSecure }
 // class may take a spot with no spotKind at a site that has no HAZMAT spot
 // (false = refused, ADR 0014).
 func (p *Policy) AllowHazmatOnUnclassifiedSpots() bool { return p.allowHazmat }
+
+// SuspendedCarrierAction returns NONE, FLAG or REJECT (NONE = today's
+// behaviour, ADR 0016).
+func (p *Policy) SuspendedCarrierAction() CarrierAction { return p.carrierAction }

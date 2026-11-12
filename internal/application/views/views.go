@@ -21,11 +21,14 @@ type Visit struct {
 	AppointmentID   *string        `json:"appointmentId"`
 	State           string         `json:"state"`
 	RejectionReason *string        `json:"rejectionReason"`
-	TrailersIn      []string       `json:"trailersIn"`
-	TrailersOut     []string       `json:"trailersOut"`
-	ArrivedAt       time.Time      `json:"arrivedAt"`
-	DepartedAt      *time.Time     `json:"departedAt"`
-	Version         int64          `json:"version"`
+	// CarrierFlag is SUSPENDED when the gate admitted the visit of a carrier the
+	// registry copy says is suspended (policy FLAG, ADR 0016); null otherwise.
+	CarrierFlag *string    `json:"carrierFlag"`
+	TrailersIn  []string   `json:"trailersIn"`
+	TrailersOut []string   `json:"trailersOut"`
+	ArrivedAt   time.Time  `json:"arrivedAt"`
+	DepartedAt  *time.Time `json:"departedAt"`
+	Version     int64      `json:"version"`
 }
 
 // Seal is the seal of a trailer.
@@ -154,8 +157,12 @@ type YardPolicy struct {
 	// RequiredInspections are the inspections a trailer needs before it docks,
 	// loads or leaves (ADR 0015); empty = none, the behaviour before them.
 	RequiredInspections []InspectionRule `json:"requiredInspections"`
-	Version             int64            `json:"version"`
-	Declared            bool             `json:"declared"`
+	// SuspendedCarrierAction is what the gate does with a visit of a carrier
+	// the registry copy says is SUSPENDED: NONE (the default and the behaviour
+	// before the rule), FLAG or REJECT (ADR 0016).
+	SuspendedCarrierAction string `json:"suspendedCarrierAction"`
+	Version                int64  `json:"version"`
+	Declared               bool   `json:"declared"`
 }
 
 // InspectionRule is one entry of YardPolicy.requiredInspections.
@@ -258,6 +265,25 @@ type Appointment struct {
 	Status           string
 	Version          int64
 }
+
+// Carrier is the local copy of one dock-scheduling carrier (ADR 0016). USDOT, MC and
+// Reason are "" when the producer sent null.
+type Carrier struct {
+	SCAC      string
+	Name      string
+	USDOT     string
+	MC        string
+	Status    string
+	Reason    string
+	Version   int64
+	UpdatedAt time.Time
+}
+
+// The carrier standings of the copy, the dock-scheduling carrier status values.
+const (
+	CarrierActive    = "ACTIVE"
+	CarrierSuspended = "SUSPENDED"
+)
 
 // Closure is the local copy of one door closure.
 type Closure struct {

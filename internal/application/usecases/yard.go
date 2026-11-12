@@ -50,6 +50,7 @@ type Deps struct {
 	Locations    ports.Locations
 	Appointments ports.Appointments
 	Closures     ports.Closures
+	Carriers     ports.Carriers
 	Asns         ports.Asns
 	Receipts     ports.Receipts
 	Locks        ports.LocationLock
@@ -57,6 +58,7 @@ type Deps struct {
 	ApptFeed     ports.AppointmentFeed
 	LocationFeed ports.LocationFeed
 	ClosureFeed  ports.ClosureFeed
+	CarrierFeed  ports.CarrierFeed
 	AsnFeed      ports.AsnFeed
 	ReceiptFeed  ports.ReceiptFeed
 	Events       ports.EventPublisher

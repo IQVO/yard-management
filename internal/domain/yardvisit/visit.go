@@ -31,6 +31,10 @@ var (
 	// ErrSealRequired: a loaded trailer leaving on LIVE_LOAD or PICKUP carries
 	// no seal.
 	ErrSealRequired = errors.New("a loaded outbound trailer needs a seal")
+	// ErrCarrierSuspended: the carrier of the visit is SUSPENDED in the local
+	// copy of the dock-scheduling carrier registry and the site policy
+	// suspendedCarrierAction is REJECT (ADR 0016).
+	ErrCarrierSuspended = errors.New("the carrier is suspended")
 )
 
 // State is the lifecycle state of a visit.
@@ -53,12 +57,24 @@ const (
 	ReasonSealMismatch         RejectionReason = "SEAL_MISMATCH"
 	ReasonTrailerAlreadyOnSite RejectionReason = "TRAILER_ALREADY_ON_SITE"
 	ReasonSiteRequest          RejectionReason = "SITE_REQUEST"
+	ReasonCarrierSuspended     RejectionReason = "CARRIER_SUSPENDED"
 )
+
+// CarrierFlag annotates an admitted visit whose carrier the gate judged by
+// the carrier registry copy (ADR 0016). "" is no flag.
+type CarrierFlag string
+
+// FlagCarrierSuspended: the carrier was SUSPENDED at check-in and the site
+// policy suspendedCarrierAction is FLAG, so the visit was admitted and flagged.
+const FlagCarrierSuspended CarrierFlag = "SUSPENDED"
+
+// Valid reports whether f is no flag or a known flag.
+func (f CarrierFlag) Valid() bool { return f == "" || f == FlagCarrierSuspended }
 
 // Valid reports whether r is a rejection reason.
 func (r RejectionReason) Valid() bool {
 	switch r {
-	case ReasonAppointmentRequired, ReasonUnknownAppointment, ReasonSealMismatch, ReasonTrailerAlreadyOnSite, ReasonSiteRequest:
+	case ReasonAppointmentRequired, ReasonUnknownAppointment, ReasonSealMismatch, ReasonTrailerAlreadyOnSite, ReasonSiteRequest, ReasonCarrierSuspended:
 		return true
 	}
 	return false
@@ -72,6 +88,7 @@ type Visit struct {
 	appointmentID                   string
 	state                           State
 	reason                          RejectionReason
+	carrierFlag                     CarrierFlag
 	trailersIn, trailersOut         []string
 	arrivedAt, departedAt           time.Time
 	version                         int64
@@ -116,7 +133,9 @@ type CheckInInput struct {
 	AppointmentID string
 	Trailers      []TrailerRef
 	Gate          Gate
-	At            time.Time
+	// CarrierFlag annotates the admitted visit (ADR 0016); "" = none.
+	CarrierFlag CarrierFlag
+	At          time.Time
 }
 
 // CheckIn creates a CHECKED_IN visit at version 1 and raises VisitCheckedIn.
@@ -133,6 +152,9 @@ func CheckIn(in CheckInInput) (*Visit, error) {
 	if err != nil {
 		return nil, err
 	}
+	if !in.CarrierFlag.Valid() {
+		return nil, shared.Invalid("carrier flag %q is not valid", in.CarrierFlag)
+	}
 	appointment := in.AppointmentID
 	named := appointment != ""
 	if named && (!in.Gate.AppointmentKnown || len(in.Trailers) != 1) {
@@ -145,7 +167,7 @@ func CheckIn(in CheckInInput) (*Visit, error) {
 		appointment = ""
 	}
 	v := newVisit(in.ID, in.SiteID, in.Carrier, in.SCAC, in.TractorPlate, in.DriverRef, in.Purpose, appointment, in.At)
-	v.state = CheckedIn
+	v.state, v.carrierFlag = CheckedIn, in.CarrierFlag
 	refs := make([]VisitTrailer, 0, len(in.Trailers))
 	for i, tr := range in.Trailers {
 		v.trailersIn = append(v.trailersIn, tr.ID)
@@ -158,6 +180,7 @@ func CheckIn(in CheckInInput) (*Visit, error) {
 	v.emit(VisitCheckedIn{
 		Header: v.header("VisitCheckedIn", in.At), VisitID: v.id, SiteID: v.site, Carrier: v.carrier, CarrierSCAC: shared.Str(v.scac), Purpose: v.purpose,
 		AppointmentID: shared.Str(v.appointmentID), Trailers: refs, ArrivedAt: shared.Stamp(in.At), Version: v.version,
+		CarrierFlag: flagPtr(v.carrierFlag),
 	})
 	return v, nil
 }
@@ -372,3 +395,11 @@ func (v *Visit) AppointmentID() string { return v.appointmentID }
 
 // Version returns the optimistic-concurrency version.
 func (v *Visit) Version() int64 { return v.version }
+
+// CarrierFlag returns the carrier annotation of the visit ("" = none).
+func (v *Visit) CarrierFlag() CarrierFlag { return v.carrierFlag }
+
+// SCAC returns the SCAC the visit declared at the gate ("" = none).
+func (v *Visit) SCAC() string { return v.scac }
+
+func flagPtr(f CarrierFlag) *string { return shared.Str(string(f)) }

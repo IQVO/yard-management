@@ -36,14 +36,25 @@ type CheckInInput struct {
 // and runs DirectOnCheckIn (a VISITING_DRIVER move per trailer, created
 // CLAIMED) and SealCheckAtGate, all in one unit of work. A refused check-in
 // persists nothing. A seal mismatch under the REJECT policy records a
-// REJECTED visit instead (Y-5).
+// REJECTED visit instead (Y-5). A suspended carrier under the REJECT policy
+// (ADR 0016) records the REJECTED visit AND answers ErrCarrierSuspended: the
+// turn-away commits, then the refusal is returned.
 func (y *Yard) CheckInVisit(ctx context.Context, in CheckInInput) (views.CheckIn, error) {
-	var out views.CheckIn
+	var (
+		out     views.CheckIn
+		refusal error
+	)
 	err := y.atomically(ctx, func(ctx context.Context) (err error) {
 		out, err = y.checkIn(ctx, in)
+		if errors.Is(err, yardvisit.ErrCarrierSuspended) {
+			refusal, err = err, nil
+		}
 		return err
 	})
-	return out, err
+	if err != nil {
+		return out, err
+	}
+	return out, refusal
 }
 
 func (y *Yard) checkIn(ctx context.Context, in CheckInInput) (views.CheckIn, error) {
@@ -65,13 +76,21 @@ func (y *Yard) checkIn(ctx context.Context, in CheckInInput) (views.CheckIn, err
 	if err != nil {
 		return views.CheckIn{}, err
 	}
-	visit, err := yardvisit.CheckIn(yardvisit.CheckInInput{
+	scac := gateSCAC(in, appt)
+	suspended, err := y.carrierSuspended(ctx, pol, scac)
+	if err != nil {
+		return views.CheckIn{}, err
+	}
+	visit, err := yardvisit.CheckIn(yardvisit.CheckInInput{CarrierFlag: carrierFlagOf(pol, suspended),
 		ID: y.d.IDs.New("visit"), SiteID: in.SiteID, Carrier: in.Carrier, SCAC: in.CarrierSCAC, TractorPlate: in.TractorPlate, DriverRef: in.DriverRef,
 		Purpose: shared.Purpose(in.Purpose), AppointmentID: in.AppointmentID, Trailers: refs, At: now,
 		Gate: yardvisit.Gate{RequireAppointment: pol.RequireAppointment(), AppointmentKnown: appt != nil, AppointmentBooked: appt != nil && appt.Status == views.ApptBooked},
 	})
 	if err != nil {
 		return views.CheckIn{}, err
+	}
+	if suspended && pol.SuspendedCarrierAction() == yardpolicy.CarrierReject {
+		return views.CheckIn{}, y.rejectSuspendedCarrier(ctx, in, visit.ID(), scac, now)
 	}
 	if visit.AppointmentID() == "" {
 		appt = nil

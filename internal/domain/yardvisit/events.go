@@ -41,6 +41,10 @@ type VisitCheckedIn struct {
 	Trailers      []VisitTrailer `json:"trailers"`
 	ArrivedAt     string         `json:"arrived_at"`
 	Version       int64          `json:"version"`
+	// CarrierFlag is SUSPENDED when the gate admitted the visit of a carrier
+	// the registry copy says is suspended (policy FLAG), null otherwise;
+	// additive (ADR 0016).
+	CarrierFlag *string `json:"carrier_flag"`
 }
 
 // VisitRejected: a visit was turned away (integration, no version).
@@ -74,6 +78,7 @@ type Snapshot struct {
 	AppointmentID                   string
 	State                           State
 	Reason                          RejectionReason
+	CarrierFlag                     CarrierFlag
 	TrailersIn, TrailersOut         []string
 	ArrivedAt, DepartedAt           time.Time
 	Version                         int64
@@ -83,7 +88,7 @@ type Snapshot struct {
 func (v *Visit) Snapshot() Snapshot {
 	return Snapshot{
 		ID: v.id, SiteID: v.site, Carrier: v.carrier, SCAC: v.scac, Plate: v.plate, DriverRef: v.driverRef, Purpose: v.purpose,
-		AppointmentID: v.appointmentID, State: v.state, Reason: v.reason, TrailersIn: shared.Strings(v.trailersIn),
+		AppointmentID: v.appointmentID, State: v.state, Reason: v.reason, CarrierFlag: v.carrierFlag, TrailersIn: shared.Strings(v.trailersIn),
 		TrailersOut: shared.Strings(v.trailersOut), ArrivedAt: v.arrivedAt, DepartedAt: v.departedAt, Version: v.version,
 	}
 }
@@ -101,7 +106,7 @@ func Restore(s Snapshot) (*Visit, error) {
 		return nil, shared.Invalid("version must be at least 1")
 	}
 	v := newVisit(s.ID, s.SiteID, s.Carrier, s.SCAC, s.Plate, s.DriverRef, s.Purpose, s.AppointmentID, s.ArrivedAt)
-	v.state, v.reason, v.version = s.State, s.Reason, s.Version
+	v.state, v.reason, v.carrierFlag, v.version = s.State, s.Reason, s.CarrierFlag, s.Version
 	v.trailersIn, v.trailersOut = shared.Strings(s.TrailersIn), shared.Strings(s.TrailersOut)
 	if !s.DepartedAt.IsZero() {
 		v.departedAt = s.DepartedAt.UTC()
@@ -110,6 +115,9 @@ func Restore(s Snapshot) (*Visit, error) {
 }
 
 func validateState(s Snapshot) error {
+	if !s.CarrierFlag.Valid() || (s.State == Rejected && s.CarrierFlag != "") {
+		return shared.Invalid("carrier flag %q is not valid on a %s visit", s.CarrierFlag, s.State)
+	}
 	switch s.State {
 	case CheckedIn:
 		if !s.Purpose.Valid() || s.Reason != "" || !s.DepartedAt.IsZero() || len(s.TrailersOut) > 0 {

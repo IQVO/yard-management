@@ -63,7 +63,7 @@ func goldenCases() []goldenCase {
 			data: `{"visit_id":"visit-1","site_id":"WH1","carrier":"Acme Freight","carrier_scac":"ACME","purpose":"LIVE_UNLOAD","appointment_id":"appt-1",` +
 				`"trailers":[{"trailer_id":"trl-1","unit_number":"T100","carrier_scac":"ACME","kind":"DRY_VAN","load_state":"LOADED","unit_number_scheme":null,"seal_class":null,"hazmat_class":null,"un_number":null,"requires_temperature_control":true},` +
 				`{"trailer_id":"trl-2","unit_number":"CSQU3054383","carrier_scac":null,"kind":"CONTAINER","load_state":"EMPTY","unit_number_scheme":"ISO6346","seal_class":"H","hazmat_class":"3","un_number":"UN1203","requires_temperature_control":false}],` +
-				`"arrived_at":"2026-11-05T14:00:00Z","version":1}`,
+				`"arrived_at":"2026-11-05T14:00:00Z","version":1,"carrier_flag":null}`,
 		},
 		{
 			name: "VisitRejected", integration: true, subject: "visit-2",

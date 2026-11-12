@@ -34,6 +34,7 @@ type state struct {
 	locations   map[string]views.LocationInfo
 	appts       map[string]views.Appointment
 	closures    map[string]views.Closure
+	carriers    map[string]views.Carrier
 	asns        map[string]bool // asn number -> cancelled
 	receipts    map[string]views.Receipt
 	processed   map[string]bool
@@ -47,7 +48,7 @@ func newState() state {
 		checks: map[string]yardcheck.Snapshot{}, policies: map[string]yardpolicy.Snapshot{},
 		inspections: map[string]inspection.Snapshot{}, templates: map[string]inspection.TemplateSnapshot{}, zones: map[string]string{},
 		locations: map[string]views.LocationInfo{}, appts: map[string]views.Appointment{}, closures: map[string]views.Closure{},
-		asns: map[string]bool{}, receipts: map[string]views.Receipt{}, processed: map[string]bool{}, idem: map[string]views.IdempotencyRecord{},
+		carriers: map[string]views.Carrier{}, asns: map[string]bool{}, receipts: map[string]views.Receipt{}, processed: map[string]bool{}, idem: map[string]views.IdempotencyRecord{},
 	}
 }
 
@@ -63,7 +64,7 @@ func (s state) clone() state {
 	return state{
 		visits: copyMap(s.visits), trailers: copyMap(s.trailers), moves: copyMap(s.moves), checks: copyMap(s.checks), policies: copyMap(s.policies),
 		inspections: copyMap(s.inspections), templates: copyMap(s.templates),
-		zones: copyMap(s.zones), locations: copyMap(s.locations), appts: copyMap(s.appts), closures: copyMap(s.closures), asns: copyMap(s.asns),
+		zones: copyMap(s.zones), locations: copyMap(s.locations), appts: copyMap(s.appts), closures: copyMap(s.closures), carriers: copyMap(s.carriers), asns: copyMap(s.asns),
 		receipts: copyMap(s.receipts), processed: copyMap(s.processed), idem: copyMap(s.idem), events: append([]shared.Event(nil), s.events...),
 	}
 }
