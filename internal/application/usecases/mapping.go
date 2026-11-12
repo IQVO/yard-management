@@ -37,7 +37,7 @@ func visitView(v *yardvisit.Visit) views.Visit {
 	s := v.Snapshot()
 	return views.Visit{
 		VisitID: s.ID, SiteID: s.SiteID, Carrier: s.Carrier, CarrierSCAC: ptr(s.SCAC), TractorPlate: s.Plate, DriverRef: ptr(s.DriverRef),
-		Purpose: s.Purpose, AppointmentID: ptr(s.AppointmentID), State: string(s.State), RejectionReason: ptr(string(s.Reason)),
+		Purpose: s.Purpose, AppointmentID: ptr(s.AppointmentID), State: string(s.State), RejectionReason: ptr(string(s.Reason)), CarrierFlag: ptr(string(s.CarrierFlag)),
 		TrailersIn: strs(s.TrailersIn), TrailersOut: strs(s.TrailersOut), ArrivedAt: s.ArrivedAt, DepartedAt: tptr(s.DepartedAt), Version: s.Version,
 	}
 }
@@ -92,6 +92,7 @@ func policyView(p *yardpolicy.Policy) views.YardPolicy {
 	return views.YardPolicy{
 		SiteID: s.SiteID, RequireAppointment: s.RequireAppointment, HoldingSpotCodes: strs(s.HoldingSpotCodes), ParkingZoneIDs: strs(s.ParkingZoneIDs),
 		DwellThresholdMinutes: dwell, LeaseSeconds: s.LeaseSeconds, SealMismatchAction: string(s.SealMismatchAction), FreeTimeMinutes: free,
-		MinimumSealClass: ptr(string(s.MinimumSealClass)), RequireSecuringBeforeDoorWork: s.RequireSecuring, AllowHazmatOnUnclassifiedSpots: s.AllowHazmatOnUnclassified, RequiredInspections: rulesView(s.RequiredInspections), Version: s.Version, Declared: s.Declared,
+		MinimumSealClass: ptr(string(s.MinimumSealClass)), RequireSecuringBeforeDoorWork: s.RequireSecuring, AllowHazmatOnUnclassifiedSpots: s.AllowHazmatOnUnclassified, RequiredInspections: rulesView(s.RequiredInspections),
+		SuspendedCarrierAction: string(s.SuspendedCarrierAction), Version: s.Version, Declared: s.Declared,
 	}
 }

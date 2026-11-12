@@ -171,6 +171,24 @@ type AppointmentFeed interface {
 	MarkStatus(ctx context.Context, id, status string) (bool, error)
 }
 
+// Carriers is the read side of the CarrierView, the local copy of the dock-scheduling carrier
+// registry (ADR 0016).
+type Carriers interface {
+	// Get returns the copy of the carrier with the SCAC, or ok=false when it is not registered here.
+	Get(ctx context.Context, scac string) (views.Carrier, bool, error)
+}
+
+// CarrierFeed is the write side of the CarrierView. Every method is version-guarded: a fact whose version
+// is not higher than the stored one changes nothing, so a replay or a reordering never undoes a newer fact.
+type CarrierFeed interface {
+	// Register folds CarrierRegistered, the whole snapshot after a registration or an update.
+	Register(ctx context.Context, c views.Carrier) error
+	// Suspend folds CarrierSuspended: an unseen carrier is inserted with no name.
+	Suspend(ctx context.Context, scac, reason string, version int64, at time.Time) error
+	// Reinstate folds CarrierReinstated: an unseen carrier is inserted ACTIVE with no name.
+	Reinstate(ctx context.Context, scac string, version int64, at time.Time) error
+}
+
 // Closures is the DoorClosureView.
 type Closures interface {
 	// Closed reports whether the door is under a not-lifted closure at the instant.

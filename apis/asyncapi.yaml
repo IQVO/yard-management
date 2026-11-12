@@ -25,7 +25,7 @@ info:
     ONLY to the analytics topic. The key of every message is its aggregate root id (`visit_id`, `trailer_id`, `move_id`, `yard_check_id`, `inspection_id`).
 
 
-    **Consumed (ADR 0003).** dock-scheduling (appointments and door closures), facility-layout (locations and zones) and inbound-receiving
+    **Consumed (ADR 0003).** dock-scheduling (appointments, door closures and the carrier registry), facility-layout (locations and zones) and inbound-receiving
     (ASNs and receipts) feed event-fed local copies; no sibling is ever called live. A message that is not a valid CloudEvents
     1.0 event is skipped; a valid event of an unlisted `type` is ignored; a payload that can never be applied is dead-lettered
     to `<topic>.dlq`; any other handler error is retried and dead-lettered after 5 attempts. Consumer groups come from `DOCK_SCHEDULING_CONSUMER_GROUP`,
@@ -129,7 +129,8 @@ channels:
         $ref: '#/components/messages/InspectionFailedAnalytics'
   dockSchedulingEvents:
     address: warehouse.dock-scheduling.events
-    description: dock-scheduling's integration topic (key = appointment_id; closures key = site_id).
+    description: dock-scheduling's integration topic (key = appointment_id; closures key = site_id; carrier registry events
+      key = scac).
     messages:
       ConsumedDockAppointmentBooked:
         $ref: '#/components/messages/ConsumedDockAppointmentBooked'
@@ -143,6 +144,12 @@ channels:
         $ref: '#/components/messages/ConsumedDoorClosureScheduled'
       ConsumedDoorClosureLifted:
         $ref: '#/components/messages/ConsumedDoorClosureLifted'
+      ConsumedCarrierRegistered:
+        $ref: '#/components/messages/ConsumedCarrierRegistered'
+      ConsumedCarrierSuspended:
+        $ref: '#/components/messages/ConsumedCarrierSuspended'
+      ConsumedCarrierReinstated:
+        $ref: '#/components/messages/ConsumedCarrierReinstated'
   facilityEvents:
     address: warehouse.facility.events
     description: facility-layout's Published Language (camelCase payloads; key = locationCode or zoneId).
@@ -223,8 +230,9 @@ operations:
     action: receive
     channel:
       $ref: '#/channels/dockSchedulingEvents'
-    summary: Receive appointments and door closures.
-    description: Feeds the AppointmentView and DoorClosureView; NoShowFreesHolding reacts to DockAppointmentNoShow and DockAppointmentCancelled.
+    summary: Receive appointments, door closures and carrier registry facts.
+    description: Feeds the AppointmentView and DoorClosureView (NoShowFreesHolding reacts to DockAppointmentNoShow and
+      DockAppointmentCancelled) and the CarrierView, the local copy of the carrier registry keyed by SCAC (ADR 0016).
     messages:
     - $ref: '#/channels/dockSchedulingEvents/messages/ConsumedDockAppointmentBooked'
     - $ref: '#/channels/dockSchedulingEvents/messages/ConsumedDockAppointmentRescheduled'
@@ -232,6 +240,9 @@ operations:
     - $ref: '#/channels/dockSchedulingEvents/messages/ConsumedDockAppointmentNoShow'
     - $ref: '#/channels/dockSchedulingEvents/messages/ConsumedDoorClosureScheduled'
     - $ref: '#/channels/dockSchedulingEvents/messages/ConsumedDoorClosureLifted'
+    - $ref: '#/channels/dockSchedulingEvents/messages/ConsumedCarrierRegistered'
+    - $ref: '#/channels/dockSchedulingEvents/messages/ConsumedCarrierSuspended'
+    - $ref: '#/channels/dockSchedulingEvents/messages/ConsumedCarrierReinstated'
   receiveFacilityEvents:
     action: receive
     channel:
@@ -1950,6 +1961,114 @@ components:
             version: 2
       tags:
       - name: consumed
+    ConsumedCarrierRegistered:
+      name: CarrierRegistered
+      title: CarrierRegistered
+      summary: A carrier was registered or updated; fills the CarrierView. Key = scac.
+      description: A carrier was registered or updated, the whole snapshot; fills the CarrierView, the local copy of the
+        carrier registry (ADR 0016). Key = scac. The producer's own contract, restated here and never imported (ADR 0003).
+        `type` = `com.warehouse.wms.dock-scheduling.carrier.CarrierRegistered`.
+      contentType: application/cloudevents+json
+      payload:
+        allOf:
+        - $ref: '#/components/schemas/CloudEventEnvelope'
+        - type: object
+          properties:
+            type:
+              const: com.warehouse.wms.dock-scheduling.carrier.CarrierRegistered
+            data:
+              $ref: '#/components/schemas/ConsumedCarrierRegisteredData'
+      examples:
+      - name: CarrierRegistered
+        payload:
+          specversion: '1.0'
+          id: c1d2e3f4-0000-4000-8000-912388457201
+          source: /warehouse/dock-scheduling
+          type: com.warehouse.wms.dock-scheduling.carrier.CarrierRegistered
+          subject: ACMF
+          time: '2026-11-10T15:00:00Z'
+          datacontenttype: application/json
+          dataschema: urn:warehouse:dock-scheduling:events:CarrierRegistered:v1
+          data:
+            scac: ACMF
+            name: ACME Freight
+            usdot: '1234567'
+            mc: MC654321
+            status: ACTIVE
+            reason: null
+            suspended_at: null
+            version: 1
+      tags:
+      - name: consumed
+    ConsumedCarrierSuspended:
+      name: CarrierSuspended
+      title: CarrierSuspended
+      summary: A carrier was suspended; the copy keeps the name and identifiers. Key = scac.
+      description: A carrier was suspended; the copy keeps the name and identifiers and only the standing, the reason and
+        the version change. Key = scac. The producer's own contract, restated here and never imported (ADR 0003). `type`
+        = `com.warehouse.wms.dock-scheduling.carrier.CarrierSuspended`.
+      contentType: application/cloudevents+json
+      payload:
+        allOf:
+        - $ref: '#/components/schemas/CloudEventEnvelope'
+        - type: object
+          properties:
+            type:
+              const: com.warehouse.wms.dock-scheduling.carrier.CarrierSuspended
+            data:
+              $ref: '#/components/schemas/ConsumedCarrierSuspendedData'
+      examples:
+      - name: CarrierSuspended
+        payload:
+          specversion: '1.0'
+          id: c1d2e3f4-0000-4000-8000-528850146632
+          source: /warehouse/dock-scheduling
+          type: com.warehouse.wms.dock-scheduling.carrier.CarrierSuspended
+          subject: ACMF
+          time: '2026-11-10T15:30:00Z'
+          datacontenttype: application/json
+          dataschema: urn:warehouse:dock-scheduling:events:CarrierSuspended:v1
+          data:
+            scac: ACMF
+            reason: insurance lapsed
+            suspended_at: '2026-11-10T15:30:00Z'
+            version: 2
+      tags:
+      - name: consumed
+    ConsumedCarrierReinstated:
+      name: CarrierReinstated
+      title: CarrierReinstated
+      summary: A suspended carrier was reinstated. Key = scac.
+      description: A suspended carrier was reinstated; the standing becomes ACTIVE and the suspension reason is cleared.
+        Key = scac. The producer's own contract, restated here and never imported (ADR 0003). `type`
+        = `com.warehouse.wms.dock-scheduling.carrier.CarrierReinstated`.
+      contentType: application/cloudevents+json
+      payload:
+        allOf:
+        - $ref: '#/components/schemas/CloudEventEnvelope'
+        - type: object
+          properties:
+            type:
+              const: com.warehouse.wms.dock-scheduling.carrier.CarrierReinstated
+            data:
+              $ref: '#/components/schemas/ConsumedCarrierReinstatedData'
+      examples:
+      - name: CarrierReinstated
+        payload:
+          specversion: '1.0'
+          id: c1d2e3f4-0000-4000-8000-736143055847
+          source: /warehouse/dock-scheduling
+          type: com.warehouse.wms.dock-scheduling.carrier.CarrierReinstated
+          subject: ACMF
+          time: '2026-11-10T16:00:00Z'
+          datacontenttype: application/json
+          dataschema: urn:warehouse:dock-scheduling:events:CarrierReinstated:v1
+          data:
+            scac: ACMF
+            reinstated_at: '2026-11-10T16:00:00Z'
+            version: 3
+      tags:
+      - name: consumed
     ConsumedZoneRegistered:
       name: ZoneRegistered
       title: ZoneRegistered
@@ -3347,6 +3466,76 @@ components:
           type: string
         door_code:
           type: string
+        version:
+          type: integer
+          minimum: 1
+    ConsumedCarrierRegisteredData:
+      type: object
+      required:
+      - scac
+      - version
+      properties:
+        scac:
+          type: string
+        name:
+          type:
+          - string
+          - 'null'
+        usdot:
+          type:
+          - string
+          - 'null'
+        mc:
+          type:
+          - string
+          - 'null'
+        status:
+          type: string
+        reason:
+          type:
+          - string
+          - 'null'
+          description: null on a registration; the copy stores it as ''.
+        suspended_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        reinstated_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        version:
+          type: integer
+          minimum: 1
+    ConsumedCarrierSuspendedData:
+      type: object
+      required:
+      - scac
+      - version
+      properties:
+        scac:
+          type: string
+        reason:
+          type: string
+        suspended_at:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          minimum: 1
+    ConsumedCarrierReinstatedData:
+      type: object
+      required:
+      - scac
+      - version
+      properties:
+        scac:
+          type: string
+        reinstated_at:
+          type: string
+          format: date-time
         version:
           type: integer
           minimum: 1

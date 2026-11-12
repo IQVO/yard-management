@@ -34,8 +34,8 @@ func TestMigrationsUpDownUp(t *testing.T) {
 	if err := postgres.RunMigrations(url); err != nil {
 		t.Fatalf("a second up must be a no-op: %v", err)
 	}
-	if got := tables(); got != 16 {
-		t.Fatalf("tables after up = %d, want 16", got)
+	if got := tables(); got != 17 {
+		t.Fatalf("tables after up = %d, want 17", got)
 	}
 	m, err := postgres.Migrator(url)
 	if err != nil {
@@ -51,8 +51,8 @@ func TestMigrationsUpDownUp(t *testing.T) {
 	if err := postgres.RunMigrations(url); err != nil {
 		t.Fatalf("up after down: %v", err)
 	}
-	if got := tables(); got != 16 {
-		t.Fatalf("tables after the second up = %d, want 16", got)
+	if got := tables(); got != 17 {
+		t.Fatalf("tables after the second up = %d, want 17", got)
 	}
 }
 

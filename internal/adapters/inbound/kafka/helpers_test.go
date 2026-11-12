@@ -147,6 +147,7 @@ type recorder struct {
 	facts []usecases.AppointmentFact
 	clos  []views.Closure
 	rcpts []views.Receipt
+	carrs []views.Carrier
 	// failNext transient errors are returned (and not recorded) before a call succeeds.
 	failNext int
 }
@@ -222,6 +223,22 @@ func (r *recorder) OpenReceipt(_ context.Context, id string, rc views.Receipt) e
 
 func (r *recorder) CloseReceipt(_ context.Context, id, receiptID, asn string, closedAt time.Time) error {
 	return r.record(fmt.Sprintf("receipt-closed %s %s %s %s", id, receiptID, asn, closedAt.Format(time.RFC3339)))
+}
+
+func (r *recorder) ApplyCarrierRegistered(_ context.Context, id string, c views.Carrier, at time.Time) error {
+	if err := r.record(fmt.Sprintf("carrier-registered %s %s %s", id, c.SCAC, at.Format(time.RFC3339))); err != nil {
+		return err
+	}
+	r.carrs = append(r.carrs, c)
+	return nil
+}
+
+func (r *recorder) ApplyCarrierSuspended(_ context.Context, id, scac, reason string, version int64, at time.Time) error {
+	return r.record(fmt.Sprintf("carrier-suspended %s %s %s %d %s", id, scac, reason, version, at.Format(time.RFC3339)))
+}
+
+func (r *recorder) ApplyCarrierReinstated(_ context.Context, id, scac string, version int64, at time.Time) error {
+	return r.record(fmt.Sprintf("carrier-reinstated %s %s %d %s", id, scac, version, at.Format(time.RFC3339)))
 }
 
 // Compile-time proof that the recorder stands in for the real use cases.

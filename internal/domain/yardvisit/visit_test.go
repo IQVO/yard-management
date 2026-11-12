@@ -86,7 +86,7 @@ func TestCheckIn(t *testing.T) {
 	eq(t, data(t, e), map[string]any{
 		"visit_id": "visit-1", "site_id": "WH1", "carrier": "Acme Freight", "carrier_scac": "ACME", "purpose": "LIVE_UNLOAD", "appointment_id": "appt-1",
 		"trailers":   []any{map[string]any{"trailer_id": "trl-1", "unit_number": "TR-1", "carrier_scac": "ACME", "kind": "DRY_VAN", "load_state": "LOADED", "unit_number_scheme": nil, "seal_class": nil, "hazmat_class": nil, "un_number": nil, "requires_temperature_control": false}},
-		"arrived_at": "2026-11-05T14:00:00Z", "version": float64(1),
+		"arrived_at": "2026-11-05T14:00:00Z", "version": float64(1), "carrier_flag": nil,
 	})
 }
 

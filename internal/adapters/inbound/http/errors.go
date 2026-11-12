@@ -91,6 +91,7 @@ var problemCatalogue = []struct {
 	{yardvisit.ErrAppointmentRequired, conflict("appointment-required", "An appointment is required at this site")},
 	{yardvisit.ErrTrailerNotReleased, conflict("trailer-not-released", "A trailer is not released")},
 	{yardvisit.ErrSealRequired, conflict("seal-required", "A loaded outbound trailer needs a seal")},
+	{yardvisit.ErrCarrierSuspended, conflict("carrier-suspended", "The carrier is suspended")},
 	{trailer.ErrLocationOccupied, conflict("location-occupied", "The location already holds a trailer")},
 	{trailer.ErrDoorClosed, conflict("door-closed", "The door is closed")},
 	{trailer.ErrDoorFlowMismatch, conflict("door-flow-mismatch", "The door flow does not match the trailer")},

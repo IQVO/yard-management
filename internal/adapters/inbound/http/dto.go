@@ -180,6 +180,8 @@ type declarePolicyRequest struct {
 	AllowHazmatOnUnclassifiedSpots bool `json:"allowHazmatOnUnclassifiedSpots"`
 	// RequiredInspections is optional; left out it is empty (ADR 0015).
 	RequiredInspections []inspectionRuleRequest `json:"requiredInspections"`
+	// SuspendedCarrierAction is optional: NONE, FLAG or REJECT; left out it is NONE (ADR 0016).
+	SuspendedCarrierAction string `json:"suspendedCarrierAction"`
 }
 
 func (q declarePolicyRequest) input() yardpolicy.DeclareInput {
@@ -192,7 +194,7 @@ func (q declarePolicyRequest) input() yardpolicy.DeclareInput {
 		DwellThresholdMinutes: dwell, LeaseSeconds: q.LeaseSeconds, SealMismatchAction: yardpolicy.SealAction(q.SealMismatchAction),
 		FreeTimeMinutes: q.FreeTimeMinutes, MinimumSealClass: shared.SealClass(q.MinimumSealClass),
 		RequireSecuringBeforeDoorWork: q.RequireSecuringBeforeDoorWork, AllowHazmatOnUnclassifiedSpots: q.AllowHazmatOnUnclassifiedSpots,
-		RequiredInspections: inspectionRules(q.RequiredInspections),
+		RequiredInspections: inspectionRules(q.RequiredInspections), SuspendedCarrierAction: yardpolicy.CarrierAction(q.SuspendedCarrierAction),
 	}
 }
 
