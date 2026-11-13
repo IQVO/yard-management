@@ -180,7 +180,7 @@ operations:
     summary: Publish the integration events of the yard.
     description: 'Publishes the thirteen integration event types. TrailerSecured and TrailerSecuringReleased (ADR 0013) and InspectionCompleted (ADR 0015) have no consumer yet: they are the safety interlock facts and the inspection audit record of the yard. Consumers: outbound-shipping (TrailerDocked, DoorWorkCompleted, TrailerDeparted), dock-scheduling (VisitCheckedIn, TrailerDocked,
       TrailerUndocked), inbound-receiving (TrailerDocked), dock-scheduling (VisitRejected), exception-management (VisitRejected,
-      SealExceptionRaised, TrailerDwellExceeded, YardCheckClosed, InspectionFailed).'
+      SealExceptionRaised, TrailerDwellExceeded, YardCheckClosed). InspectionFailed has no consumer yet: exception-management is its planned consumer (ADR 0015).'
     messages:
     - $ref: '#/channels/yardManagementEvents/messages/VisitCheckedIn'
     - $ref: '#/channels/yardManagementEvents/messages/VisitRejected'
@@ -1571,7 +1571,7 @@ components:
     InspectionFailed:
       name: InspectionFailed
       title: InspectionFailed
-      summary: A required item of an inspection failed (ADR 0015); the trailer is held in the same step unless it already was. Consumed by exception-management.
+      summary: A required item of an inspection failed (ADR 0015); the trailer is held in the same step unless it already was. The intended consumer, exception-management, is not built yet (ADR 0015).
       x-no-consumer-reason: 'No consumer yet, by design: the failed check holds the trailer in the same instant (ADR 0015), so enforcement is local; this event is the audit fact of that failure.'
       description: '`type` = `com.warehouse.wms.yard-management.inspection.InspectionFailed`; subject and key = `inspection_id`;
         dataschema `urn:warehouse:yard-management:events:InspectionFailed:v1`. Raised by CompleteInspection (ADR 0015) only for a FAILED inspection, after InspectionCompleted; hold_placed is false when the trailer already carried a hold.'
@@ -1615,7 +1615,7 @@ components:
     InspectionFailedAnalytics:
       name: InspectionFailed
       title: InspectionFailed
-      summary: A required item of an inspection failed (ADR 0015); the trailer is held in the same step unless it already was. Consumed by exception-management.
+      summary: A required item of an inspection failed (ADR 0015); the trailer is held in the same step unless it already was. The intended consumer, exception-management, is not built yet (ADR 0015).
       description: '`type` = `com.warehouse.wms.yard-management.inspection.InspectionFailed`; subject and key = `inspection_id`;
         dataschema `urn:warehouse:yard-management:analytics:InspectionFailed:v1`. Raised by CompleteInspection (ADR 0015) only for a FAILED inspection, after InspectionCompleted; hold_placed is false when the trailer already carried a hold. Byte-identical payload to the integration
         topic.'
