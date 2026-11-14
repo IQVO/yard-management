@@ -101,7 +101,10 @@ paths:
         a hazard class is placed only on a HAZMAT spot (a site with none refuses it, unless the policy sets `allowHazmatOnUnclassifiedSpots`, then
         only spots whose kind is unknown); a trailer that requires temperature control only on a REEFER_PLUG spot where the site has any. A site
         with no suitable free spot answers 409 `no-free-spot` (all taken) or `placement-rule-violated` (none exists); doors are exempt; a trailer
-        that declares nothing, and a spot with no known kind, are judged as before. The gate clerk may then record the refusal with `POST /visit-rejections`.'
+        that declares nothing, and a spot with no known kind, are judged as before. The gate clerk may then record the refusal with `POST /visit-rejections`.
+        A carrier that dock-scheduling has suspended (the local copy of its registry, ADR 0016) is handled by the site yard policy `suspendedCarrierAction`:
+        NONE admits the visit as before; FLAG admits it and sets the visit `carrierFlag` to SUSPENDED; REJECT records a REJECTED visit (reason CARRIER_SUSPENDED,
+        VisitRejected published, no trailer persisted) and answers 409 `carrier-suspended`, so that turn-away is on record although the call is a 409.'
       tags:
       - Visits
       parameters:
@@ -1629,6 +1632,7 @@ paths:
                   REEFER: 720
                 leaseSeconds: 300
                 sealMismatchAction: FLAG
+                suspendedCarrierAction: NONE
                 freeTimeMinutes: 120
                 minimumSealClass: null
                 requireSecuringBeforeDoorWork: false
@@ -1694,6 +1698,7 @@ paths:
                   REEFER: 720
                 leaseSeconds: 300
                 sealMismatchAction: FLAG
+                suspendedCarrierAction: NONE
                 freeTimeMinutes: 120
                 minimumSealClass: null
                 requireSecuringBeforeDoorWork: false
@@ -2152,6 +2157,13 @@ components:
                 status: 409
                 detail: location is occupied
                 instance: /trailers
+            carrierSuspended:
+              value:
+                type: https://errors.yard-management.warehouse-systems.dev/carrier-suspended
+                title: The carrier is suspended
+                status: 409
+                detail: 'the carrier is suspended: SCAC ACME is suspended; visit vis-0a1b is recorded as REJECTED'
+                instance: /visits
             sealClassTooLow:
               value:
                 type: https://errors.yard-management.warehouse-systems.dev/seal-class-too-low
@@ -2550,8 +2562,16 @@ components:
           - SEAL_MISMATCH
           - TRAILER_ALREADY_ON_SITE
           - SITE_REQUEST
+          - CARRIER_SUSPENDED
           - null
           nullable: true
+        carrierFlag:
+          type: string
+          enum:
+          - SUSPENDED
+          - null
+          nullable: true
+          description: SUSPENDED when the gate admitted the visit of a suspended carrier because the yard policy action is FLAG (ADR 0016); null otherwise.
         trailersIn:
           type: array
           items:
@@ -3185,6 +3205,13 @@ components:
           description: When true, a trailer with a hazard class may take a spot whose kind is unknown at a site that has no HAZMAT spot (ADR 0014).
             false (the default) refuses it with 409 `placement-rule-violated`. Never lets a hazmat trailer onto a spot of another kind, nor
             onto an unclassified one where the site has a HAZMAT spot.
+        suspendedCarrierAction:
+          type: string
+          enum:
+          - NONE
+          - FLAG
+          - REJECT
+          description: What the gate does with a visit of a carrier that dock-scheduling has suspended (ADR 0016). NONE admits it as before, FLAG admits it and sets the visit's `carrierFlag` to SUSPENDED, REJECT records a REJECTED visit (reason CARRIER_SUSPENDED) and answers 409 `carrier-suspended`.
         requiredInspections:
           type: array
           items:
@@ -3204,6 +3231,7 @@ components:
       - dwellThresholdMinutes
       - leaseSeconds
       - sealMismatchAction
+      - suspendedCarrierAction
       - version
       - declared
     DeclareYardPolicyRequest:
@@ -3250,6 +3278,14 @@ components:
           type: boolean
           default: false
           description: Optional. When true, a trailer with a hazard class may take a spot of unknown kind at a site with no HAZMAT spot (ADR 0014). Left out = false.
+        suspendedCarrierAction:
+          type: string
+          enum:
+          - NONE
+          - FLAG
+          - REJECT
+          default: NONE
+          description: Optional. What the gate does with a visit of a carrier that dock-scheduling has suspended (ADR 0016); see the YardPolicy field of the same name. Left out it is NONE.
         requiredInspections:
           type: array
           maxItems: 20
