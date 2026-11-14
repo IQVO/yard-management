@@ -24,6 +24,30 @@ One image carries five binaries (`Dockerfile` builds every `cmd/*`; the image en
 | `cmd/yard-projector` | writer of the `analytics` schema | `:8091` |
 | `cmd/yard-reports` | read-only `/reports/*` | `:8092` |
 
+## Observability
+
+Every binary exports OpenTelemetry traces and metrics over OTLP/gRPC to the Collector and writes JSON logs whose records carry `trace_id` and
+`span_id` under a span ([ADR 0017](docs/adr/0017-fleet-observability-standard.md)). Export never blocks: an unreachable Collector costs
+telemetry, not availability. The service has no Prometheus endpoint of its own.
+
+| Signal | Name | Emitted by |
+| --- | --- | --- |
+| Request duration histogram (`http.route` is the route pattern) | `http.server.request.duration` (`http_server_request_duration_seconds` in Prometheus) | api, mcp, yard-reports, yard-projector admin port |
+| Gate check-ins by `outcome` (`admitted`, `rejected`, `refused`) and `reason` | `yard.visits.checked_in` (`yard_visits_checked_in_total`) | api |
+| Go runtime metrics | `go.*` | every binary |
+| Server span per request, named after the route pattern | n/a | api, mcp, yard-reports, yard-projector admin port |
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `OTEL_SERVICE_NAME` | `yard-management`, `yard-management-mcp`, `-relay`, `-projector`, `-reports` | `service.name` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `localhost:4317` | Collector OTLP/gRPC endpoint |
+| `SERVICE_VERSION` | `dev` | `service.version` |
+| `ENVIRONMENT` | `local` | `deployment.environment.name` |
+
+The Helm chart renders all four on every component that runs a binary (`otel.*`, `environment`, `serviceVersion`). The trace context does
+not cross Kafka: the `outbox` table has no headers column. Details: the
+[Observability](https://iqvo.github.io/yard-management/docs/operations/observability) page.
+
 ## Develop
 
 ```text

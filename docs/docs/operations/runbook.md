@@ -280,5 +280,5 @@ curl -X POST http://<api-host>/dwell-sweeps -H 'Content-Type: application/json' 
 
 `warehouse-infra` carries a dashboard and alert rules for this service (registered in
 infra; whether they are loaded in the observability stack was not checked: see [Observability](/docs/operations/observability#dashboards-and-alerts)),
-but the binaries expose no metrics of their own, so the dashboard and rules read
-Kong, kube-state-metrics and logs only.
+and the rules read Kong and kube-state-metrics only. The binaries on `develop` export OpenTelemetry
+traces and metrics (see [Observability](/docs/operations/observability#signals)); no alert rule reads those series yet.

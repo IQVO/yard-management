@@ -3,28 +3,81 @@ id: observability
 title: Observability
 sidebar_label: Observability
 sidebar_position: 3
-description: "What yard-management exposes for operators today: structured logs, probes, the freshness report and outbox state; it has no OTel instruments. The dashboard and alert rules registered in warehouse-infra develop are described too (the api and relay run on k3s; the rest is switched off)."
+description: "What yard-management exposes for operators: OpenTelemetry traces and metrics over OTLP, trace-correlated structured logs, probes, one business counter, the freshness report and outbox state. The dashboard and alert rules registered in warehouse-infra develop are described too (the api and relay run on k3s; the rest is switched off)."
 ---
 
 # Observability
 
-**Honest summary:** `yard-management` has **no OpenTelemetry instrument, no
-span and no Prometheus endpoint** of its own. The only `go.opentelemetry.io`
-entries in `go.mod` are indirect dependencies of other libraries (`// indirect`
-for `otelhttp`, `otel`, `otel/metric`, `otel/trace`), and no package under
-`cmd/` or `internal/` imports them; the binaries read no `OTEL_*` variable.
-What an operator has is structured logs, the probes, a handful of data-level
-signals, and, at the edge, whatever the Kong plugins of the chart emit.
+`yard-management` follows the fleet observability standard ([ADR 0017](/docs/adr/0017-fleet-observability-standard)): every
+long-running binary (`cmd/api`, `cmd/mcp`, `cmd/relay`, `cmd/yard-projector`, `cmd/yard-reports`) calls `telemetry.Setup`, which exports
+traces and metrics over **OTLP/gRPC** to the OpenTelemetry Collector, and writes JSON logs whose records carry `trace_id` and `span_id`
+when they are written under a span. The service has **no Prometheus endpoint** of its own: the Collector re-publishes the metrics.
+Export never blocks: an unreachable Collector costs telemetry, not availability (the exporters connect lazily, and a failed flush at shutdown is
+logged, not an exit code).
+
+What this page describes is the code on `develop`. Whether the image that runs on the k3s cluster contains it, and whether the series
+reach Prometheus, was not checked against a running pod.
+
+## Signals
+
+| Instrument | Kind, unit | Prometheus series (after the Collector) | Emitted by | Meaning |
+| --- | --- | --- | --- | --- |
+| `http.server.request.duration` | histogram, `s` | `http_server_request_duration_seconds_{bucket,sum,count}` | api, mcp, yard-reports, yard-projector (admin port) | Request duration, labelled `http.route` (the chi route **pattern**, `/trailers/{trailerId}`, never the raw path), `http.method` and `http.scheme`. It has no status attribute: request rate and duration come from it, an error rate from the gateway panels and the `http request` log lines. |
+| `yard.visits.checked_in` | counter, `{visit}` | `yard_visits_checked_in_total` | api | Gate check-ins by `outcome` (`admitted`, `rejected`, `refused`) and `reason`, see below. |
+| Go runtime metrics | gauges and counters | `go_*` (for example `go_goroutine_count`) | every binary | Goroutines, heap, GC and scheduler latency, from `go.opentelemetry.io/contrib/instrumentation/runtime`. |
+
+Traces: every request to the api, mcp and reports routers (and the admin port of the projector) produces one server span named after the
+route pattern. The relay and the consumers start no span of their own.
+
+### `yard.visits.checked_in`
+
+Counts every gate check-in (`CheckInVisit`, behind `POST /visits`; the MCP server has no check-in tool), once, after its unit of work ended.
+
+| `outcome` | `reason` | Meaning |
+| --- | --- | --- |
+| `admitted` | none | a `CHECKED_IN` visit was recorded |
+| `rejected` | `seal-mismatch`, `carrier-suspended` | a `REJECTED` visit was recorded: the site policy turned the truck away |
+| `refused` | the problem slug of the failure: `visit-already-open`, `appointment-required`, `unknown-appointment`, `trailer-already-on-site`, `no-free-spot`, `invalid-carrier`, `validation`, ... or `internal-error` | nothing was persisted |
+
+A rising `rejected` share means the policy is turning trucks away; a rising `refused` with a client reason means the gate clients send
+check-ins the rules refuse; a rising `internal-error` or `concurrent-modification` means the service itself is failing. A request replayed by
+the idempotency middleware does not run the use case and is not counted; a rejection recorded by hand (`POST /visit-rejections`) is another
+command and is not counted by this instrument.
+
+### Resource attributes and environment
+
+Every signal carries `service.name`, `service.version` and `deployment.environment.name`.
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `OTEL_SERVICE_NAME` | `yard-management` (api), `yard-management-mcp`, `yard-management-relay`, `yard-management-projector`, `yard-management-reports` | `service.name` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `localhost:4317` | Collector OTLP/gRPC endpoint, `host:port` or a URL |
+| `SERVICE_VERSION` | `dev` | `service.version` |
+| `ENVIRONMENT` | `local` | `deployment.environment.name` |
+
+The chart renders all four on every Deployment that runs a binary (`otel.enabled`, `otel.endpoint`, `otel.serviceName`, `environment`,
+`serviceVersion`); the sweeps CronJobs run `wget`, not a binary, and render none. See [Configuration](/docs/operations/configuration).
+
+### What is not instrumented
+
+A trace started by a REST or MCP request ends at the outbox insert: the `outbox` table has no column for the trace context, so no
+`traceparent` travels in the Kafka headers (ADR 0017, section 4). The Kafka consumers and the outbox relay have no spans and no metrics of
+their own (the data-level signals below cover them), and `http.server.active_requests` is not wired.
 
 ## Logs
 
 Every binary writes JSON (`log/slog`) to stdout. `LOG_LEVEL` selects
 `debug`/`info`/`warn`/`error` for the api, mcp, projector and reports; the relay
-always logs at info. There is no request-access log and no trace/correlation id
-in the log lines. Fields are those of the individual calls:
+always logs at info. A record written with a span-carrying context (the `*Context`
+slog variants, which the access log and the `request failed` line use) also carries
+`trace_id` and `span_id`; the others (startup, shutdown, the consumers and the relay
+loops) carry none. Fields are those of the individual calls:
 
 | Message (abridged) | Level | Fields | Binary |
 | --- | --- | --- | --- |
+| `http request` (one per request; INFO, WARN for 4xx, ERROR for 5xx; `/healthz` and `/readyz` are not logged) | info/warn/error | `method`, `route` (the route pattern, not the raw path), `status`, `duration_ms`, `bytes`, `request_id`, `trace_id`, `span_id` | api, mcp, reports, projector (admin) |
+| `telemetry configured` | info | `service_name`, `otlp_endpoint` | all |
+| `telemetry flush failed on shutdown` | warn | `error` | all |
 | `http server listening` / `mcp server listening (Streamable HTTP)` / `reports server listening` / `projector admin server listening` | info | `addr` | api, mcp, reports, projector |
 | `shutdown: readiness flipped to not-ready; waiting for traffic to drain` | info | `drain_delay` | api, mcp, reports |
 | `consumer starting` | info | `consumer`, `topic` | api |
@@ -53,8 +106,8 @@ the client: the problem detail is `an unexpected error occurred`.
 
 Sources: `internal/adapters/inbound/kafka/consumer.go` and `loop.go`,
 `internal/adapters/outbound/postgres/outbox_relay.go`,
-`internal/adapters/inbound/http/response.go` and `readiness.go`, the five
-`cmd/*/main.go`.
+`internal/adapters/inbound/http/response.go` and `readiness.go`,
+`internal/adapters/inbound/requestlog/requestlog.go`, the five `cmd/*/main.go` and `cmd/*/telemetry.go`.
 
 ## Probes
 
@@ -64,7 +117,7 @@ See [Runbook](/docs/operations/runbook#probes-and-what-readiness-waits-for).
 
 ## Data-level signals
 
-With no metrics, these are what answers "is it healthy":
+These are what answers the questions no instrument covers (the outbox, consumer lag, the read side):
 
 | Question | Where to look |
 | --- | --- |
@@ -105,10 +158,10 @@ the dashboard and the rules are loaded in the observability stack was not checke
 
 The service panels of rows two and three query OpenTelemetry-style names
 (`http_server_request_duration_seconds`, `go_goroutine_count` or `runtime_go_*`,
-keyed by `service_name`), while this service emits no OpenTelemetry instrument and
-no Prometheus endpoint (see the summary at the top of this page). Those panels are
-expected to stay empty unless something else produces the series; this was not
-checked against a running pod. The Kong and log panels do not depend on it.
+keyed by `service_name`). The instruments above are the ones that produce those names, with the
+five `service_name` values of the table in [Resource attributes](#resource-attributes-and-environment), all matching `yard-management.*`.
+Until a release carrying this code is deployed and the Collector pipeline is confirmed, treat them as unverified: this was not checked
+against a running pod. The Kong and log panels do not depend on it. No panel or alert reads `yard_visits_checked_in_total` yet.
 
 **Alert rules.** Six, in `terraform/alerting/warehouse-alert-rules.json`, all labelled
 `context=yard-management`, each linking this site's [runbook](/docs/operations/runbook)
