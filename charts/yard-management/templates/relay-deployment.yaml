@@ -63,6 +63,9 @@ spec:
             {{- end }}
             - name: RELAY_HEALTH_ADDR
               value: {{ .Values.relay.healthAddr | quote }}
+            # Fleet observability standard (ADR 0016): ENVIRONMENT, SERVICE_VERSION and,
+            # while otel.enabled, OTEL_EXPORTER_OTLP_ENDPOINT and OTEL_SERVICE_NAME.
+            {{- include "yard-management.telemetryEnv" (dict "root" . "suffix" "relay") | nindent 12 }}
             {{- range .Values.relay.extraEnv }}
             - {{ toYaml . | nindent 14 | trim }}
             {{- end }}

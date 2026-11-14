@@ -87,10 +87,44 @@ reports_vars=($(binary_env yard-reports))
 # (postgres.MigrationsURL) in api and mcp, not by a cmd/ literal; the relay's
 # DATABASE_URL by postgres.EnvDatabaseURL; ANALYTICS_CONSUMER_GROUP by the Kafka
 # adapter's constant (projector).
-assert_env_rendered mcp-deployment.yaml "${mcp_vars[@]}" MIGRATIONS_DATABASE_URL
-assert_env_rendered relay-deployment.yaml "${relay_vars[@]}" DATABASE_URL
-assert_env_rendered projector-deployment.yaml "${projector_vars[@]}" ANALYTICS_CONSUMER_GROUP
-assert_env_rendered reports-deployment.yaml "${reports_vars[@]}"
+# ENVIRONMENT (deployment.environment.name) is read by telemetry.Setup inside
+# internal/adapters/outbound/telemetry, not by a cmd/ literal: it is listed here.
+# OTEL_SERVICE_NAME, OTEL_EXPORTER_OTLP_ENDPOINT and SERVICE_VERSION are read in
+# cmd/*/telemetry.go, so the scan above already requires them.
+assert_env_rendered mcp-deployment.yaml "${mcp_vars[@]}" MIGRATIONS_DATABASE_URL ENVIRONMENT
+assert_env_rendered relay-deployment.yaml "${relay_vars[@]}" DATABASE_URL ENVIRONMENT
+assert_env_rendered projector-deployment.yaml "${projector_vars[@]}" ANALYTICS_CONSUMER_GROUP ENVIRONMENT
+assert_env_rendered reports-deployment.yaml "${reports_vars[@]}" ENVIRONMENT
+for var in OTEL_SERVICE_NAME OTEL_EXPORTER_OTLP_ENDPOINT SERVICE_VERSION; do
+  for vars_name in api_vars mcp_vars relay_vars projector_vars reports_vars; do
+    eval "scanned=\" \${$vars_name[*]} \""
+    [[ "$scanned" == *" $var "* ]] || fail "the env scan of $vars_name does not see $var: cmd/*/telemetry.go reads it with getenv(\"$var\")"
+  done
+done
+
+# The documented env table (docs/docs/operations/configuration.md) lists exactly
+# the variables each binary reads: the scanned names plus the ones the scan cannot
+# see (read through a constant or by a shared adapter). A new variable fails here
+# until the table names it, and a documented one that nothing reads fails too.
+config_doc="$repo_dir/docs/docs/operations/configuration.md"
+doc_vars() { # doc_vars <binary>: the backticked variable of each row of its section
+  awk -v sec="## \`cmd/$1\`" '$0 == sec {on=1; next} /^## / {on=0} on && /^\| `[A-Z][A-Z0-9_]*` \|/ {sub(/^\| `/, ""); sub(/`.*/, ""); print}' "$config_doc" | sort -u
+}
+assert_documented() { # assert_documented <binary> <scanned...> -- <extra...>
+  local bin="$1"; shift
+  local want got
+  want="$(printf '%s\n' "$@" | sort -u)"
+  got="$(doc_vars "$bin")"
+  [[ "$want" == "$got" ]] || fail "docs/docs/operations/configuration.md section cmd/$bin lists
+$got
+but the binary reads
+$want"
+}
+assert_documented api "${api_vars[@]}" MIGRATIONS_DATABASE_URL ENVIRONMENT
+assert_documented mcp "${mcp_vars[@]}" MIGRATIONS_DATABASE_URL ENVIRONMENT
+assert_documented relay "${relay_vars[@]}" DATABASE_URL ENVIRONMENT
+assert_documented yard-projector "${projector_vars[@]}" ANALYTICS_CONSUMER_GROUP ENVIRONMENT
+assert_documented yard-reports "${reports_vars[@]}" ENVIRONMENT
 
 # Every key the ConfigMap renders is a variable cmd/api reads (no dead keys).
 full_configmap="$(helm template "$release" "$chart_dir" "${everything[@]}" --show-only templates/configmap.yaml)"
@@ -258,6 +292,44 @@ grep -q 'ANALYTICS_READER_DATABASE_URL:' <<<"$secret_reader" || fail "analytics.
 # The api reads the reader DSN too while analytics is on.
 api_analytics="$(helm template "$release" "$chart_dir" "${base[@]}" "${analytics[@]}" --show-only templates/deployment.yaml)"
 grep -q 'name: ANALYTICS_READER_DATABASE_URL' <<<"$api_analytics" || fail "the api must read ANALYTICS_READER_DATABASE_URL while analytics is on"
+
+# --- observability (ADR 0016) ----------------------------------------------------------
+# Every component that runs a binary renders ENVIRONMENT, SERVICE_VERSION,
+# OTEL_EXPORTER_OTLP_ENDPOINT and OTEL_SERVICE_NAME; the sweeps CronJobs run
+# busybox wget (no yard-management binary) and render none.
+otel_endpoint="otel-collector.observability.svc.cluster.local:4317"
+for entry in deployment.yaml:yard-management mcp-deployment.yaml:yard-management-mcp relay-deployment.yaml:yard-management-relay \
+  projector-deployment.yaml:yard-management-projector reports-deployment.yaml:yard-management-reports; do
+  rendered="$(helm template "$release" "$chart_dir" "${everything[@]}" --show-only "templates/${entry%%:*}")"
+  [[ "$(env_value "$rendered" OTEL_SERVICE_NAME)" == "${entry#*:}" ]] || fail "${entry%%:*} must render OTEL_SERVICE_NAME=${entry#*:}"
+  [[ "$(env_value "$rendered" OTEL_EXPORTER_OTLP_ENDPOINT)" == "$otel_endpoint" ]] || fail "${entry%%:*} must render OTEL_EXPORTER_OTLP_ENDPOINT from otel.endpoint"
+  [[ "$(env_value "$rendered" ENVIRONMENT)" == "local" ]] || fail "${entry%%:*} must render ENVIRONMENT from environment"
+  [[ "$(env_value "$rendered" SERVICE_VERSION)" == "local" ]] || fail "${entry%%:*} must render SERVICE_VERSION (image.tag while serviceVersion is empty)"
+done
+for var in ENVIRONMENT SERVICE_VERSION OTEL_SERVICE_NAME OTEL_EXPORTER_OTLP_ENDPOINT; do
+  if helm template "$release" "$chart_dir" "${everything[@]}" --show-only templates/sweeps-cronjob.yaml | grep -q "name: $var\$"; then
+    fail "the sweeps CronJobs run wget, not a binary: they must not render $var"
+  fi
+done
+# otel.serviceName and otel.endpoint are the values behind the names; serviceVersion wins over the tag.
+renamed="$(helm template "$release" "$chart_dir" "${base[@]}" --set otel.serviceName=ym --set otel.endpoint=collector:4317 --set environment=staging --set serviceVersion=1.2.3 --set mcp.enabled=true)"
+for want in 'OTEL_SERVICE_NAME ym' 'OTEL_SERVICE_NAME ym-mcp' 'OTEL_SERVICE_NAME ym-relay' 'OTEL_EXPORTER_OTLP_ENDPOINT collector:4317' 'ENVIRONMENT staging' 'SERVICE_VERSION 1.2.3'; do
+  grep -A1 "name: ${want%% *}\$" <<<"$renamed" | grep -q "value: \"${want#* }\"" || fail "the render does not carry ${want% *}=${want#* }"
+done
+# otel.enabled=false drops the two OTEL_* names everywhere; ENVIRONMENT and SERVICE_VERSION stay.
+quiet="$(helm template "$release" "$chart_dir" "${base[@]}" "${everything[@]}" --set otel.enabled=false)"
+if grep -qE 'name: OTEL_(SERVICE_NAME|EXPORTER_OTLP_ENDPOINT)$' <<<"$quiet"; then fail "otel.enabled=false must not render OTEL_SERVICE_NAME or OTEL_EXPORTER_OTLP_ENDPOINT"; fi
+grep -q 'name: SERVICE_VERSION$' <<<"$quiet" || fail "SERVICE_VERSION is rendered whether or not otel is enabled"
+# With the tag unset the version falls back to the chart appVersion.
+fallback="$(helm template "$release" "$chart_dir" "${base[@]}" --set image.tag= --show-only templates/deployment.yaml)"
+[[ "$(env_value "$fallback" SERVICE_VERSION)" == "$(awk -F'"' '/^appVersion:/ {print $2}' "$chart_dir/Chart.yaml")" ]] \
+  || fail "SERVICE_VERSION must fall back to the chart appVersion"
+# The four names belong to the chart: no extraEnv list may redefine them.
+for list in extraEnv mcp.extraEnv relay.extraEnv analytics.projector.extraEnv analytics.reports.extraEnv; do
+  for name in ENVIRONMENT SERVICE_VERSION OTEL_EXPORTER_OTLP_ENDPOINT OTEL_SERVICE_NAME; do
+    expect_refusal "$name through $list" "$name" "${base[@]}" "${everything[@]}" --set "$list[0].name=$name" --set "$list[0].value=x"
+  done
+done
 
 # ALL optional components render TOGETHER (ct lint's values file).
 together="$(helm template "$release" "$chart_dir" "${base[@]}" "${everything[@]}")"

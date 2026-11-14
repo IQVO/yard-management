@@ -21,6 +21,9 @@ error, raised before any connection is opened or any port is bound
 [ADR 0008](/docs/adr/0008-rest-adapter-and-api-process)). Test-only variables do
 not exist: the integration tests start their own containers with testcontainers.
 
+Every binary also reads the four observability variables of the fleet standard
+([ADR 0016](/docs/adr/0016-fleet-observability-standard)); none is required.
+
 Where the chart sets a variable, the Helm value is named in the last column
 (`charts/yard-management/values.yaml`). Source files are under `cmd/<binary>/`.
 
@@ -40,6 +43,10 @@ Source: `cmd/api/config.go`, `cmd/api/wire.go`, `cmd/api/main.go`.
 | `ANALYTICS_READER_DATABASE_URL` | none | no | DSN of the read-only analytics reports role. Set: `GET /reports/*` on the API answers from the `analytics` schema. Unset: the report routes answer the contract shape with no rows. | `analytics.readerUrl` (secret key `analytics.readerExistingSecretKey`, `optional: true`) |
 | `SHUTDOWN_DRAIN_DELAY` | `5s` | no | After SIGINT/SIGTERM `/readyz` flips to 503 and the process waits this long before closing the listener. Go duration, `0` disables the wait. A negative or unparsable value is a **boot error**. | `config.shutdownDrainDelay` |
 | `LOG_LEVEL` | `info` | no | `debug`, `info`, `warn` (or `warning`), `error`, case-insensitive. Anything else silently falls back to `info`. Logs are JSON on stdout. | `config.logLevel` |
+| `OTEL_SERVICE_NAME` | `yard-management` | no | `service.name` of this binary's spans and metrics. | `otel.serviceName` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `localhost:4317` | no | OTLP/gRPC endpoint of the Collector, `host:port` or a URL. Export never blocks: an unreachable Collector costs telemetry, not availability ([ADR 0016](/docs/adr/0016-fleet-observability-standard)). | `otel.endpoint` (rendered only while `otel.enabled`) |
+| `SERVICE_VERSION` | `dev` | no | `service.version` of the resource. | `serviceVersion`, else `image.tag`, else the chart `appVersion` |
+| `ENVIRONMENT` | `local` | no | `deployment.environment.name` of the resource (read by `telemetry.Setup`). | `environment` |
 
 Boot errors are reported together, for example with an empty environment the
 process exits 1 with `invalid configuration:` followed by one line per missing
@@ -59,6 +66,10 @@ Source: `cmd/mcp/config.go`, `cmd/mcp/wire.go`.
 | `KAFKA_BROKERS` | none | **yes** | Brokers. This binary starts no relay and no consumer, but its writes enqueue outbox rows that `cmd/relay` drains and `/readyz` reports the broker, so a deployment without Kafka refuses to boot. | `kafka.brokers` |
 | `SHUTDOWN_DRAIN_DELAY` | `5s` | no | As for the API. | `config.shutdownDrainDelay` |
 | `LOG_LEVEL` | `info` | no | As for the API. | `config.logLevel` |
+| `OTEL_SERVICE_NAME` | `yard-management-mcp` | no | `service.name` of this binary's spans and metrics. | `otel.serviceName` with the suffix `-mcp` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `localhost:4317` | no | OTLP/gRPC endpoint of the Collector, `host:port` or a URL. Export never blocks: an unreachable Collector costs telemetry, not availability ([ADR 0016](/docs/adr/0016-fleet-observability-standard)). | `otel.endpoint` (rendered only while `otel.enabled`) |
+| `SERVICE_VERSION` | `dev` | no | `service.version` of the resource. | `serviceVersion`, else `image.tag`, else the chart `appVersion` |
+| `ENVIRONMENT` | `local` | no | `deployment.environment.name` of the resource (read by `telemetry.Setup`). | `environment` |
 
 `cmd/mcp` has no consumer-group variable and no analytics variable: its
 `get_yard_dwell_report` tool answers no rows because the reader is not wired
@@ -76,6 +87,10 @@ and is retried until the API (or MCP) has created the schema.
 | `OUTBOX_POLL_INTERVAL` | `1s` | no | Pause between polls. Go duration, must be positive: anything else is a boot error naming the variable. | `relay.outboxPollInterval` |
 | `OUTBOX_MAX_ATTEMPTS` | `20` | no | Failures after which one outbox row is no longer claimed (a poison row cannot block the relay). `0` = unlimited. Negative or unparsable: WARN log and the default `20`. | `relay.outboxMaxAttempts` |
 | `RELAY_HEALTH_ADDR` | `:8081` | no | Listen address of the `/healthz` liveness endpoint (the relay has no `/readyz`). | `relay.healthAddr` |
+| `OTEL_SERVICE_NAME` | `yard-management-relay` | no | `service.name` of this binary's spans and metrics. | `otel.serviceName` with the suffix `-relay` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `localhost:4317` | no | OTLP/gRPC endpoint of the Collector, `host:port` or a URL. Export never blocks: an unreachable Collector costs telemetry, not availability ([ADR 0016](/docs/adr/0016-fleet-observability-standard)). | `otel.endpoint` (rendered only while `otel.enabled`) |
+| `SERVICE_VERSION` | `dev` | no | `service.version` of the resource. | `serviceVersion`, else `image.tag`, else the chart `appVersion` |
+| `ENVIRONMENT` | `local` | no | `deployment.environment.name` of the resource (read by `telemetry.Setup`). | `environment` |
 
 The relay has no `LOG_LEVEL`: it always logs JSON at the default (info) level.
 
@@ -90,6 +105,10 @@ Source: `cmd/yard-projector/main.go`. The only writer of the `analytics` schema.
 | `ANALYTICS_CONSUMER_GROUP` | none | **yes** | Fixed consumer group of the `warehouse.yard-management.analytics` consumer. A brand-new group replays from the earliest retained offset (the backfill). | `analytics.consumerGroup` (chart default `yard-management-analytics`) |
 | `ADMIN_ADDR` | `:8091` | no | Listen address of `/healthz` and `/readyz`. | `analytics.projector.adminAddr` |
 | `LOG_LEVEL` | `info` | no | As for the API. | `config.logLevel` |
+| `OTEL_SERVICE_NAME` | `yard-management-projector` | no | `service.name` of this binary's spans and metrics. | `otel.serviceName` with the suffix `-projector` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `localhost:4317` | no | OTLP/gRPC endpoint of the Collector, `host:port` or a URL. Export never blocks: an unreachable Collector costs telemetry, not availability ([ADR 0016](/docs/adr/0016-fleet-observability-standard)). | `otel.endpoint` (rendered only while `otel.enabled`) |
+| `SERVICE_VERSION` | `dev` | no | `service.version` of the resource. | `serviceVersion`, else `image.tag`, else the chart `appVersion` |
+| `ENVIRONMENT` | `local` | no | `deployment.environment.name` of the resource (read by `telemetry.Setup`). | `environment` |
 
 ## `cmd/yard-reports`
 
@@ -103,6 +122,10 @@ the OLTP tables.
 | `HTTP_ADDR` | `:8092` | no | Listen address of the `/reports/*` routes plus `/healthz` and `/readyz`. | `analytics.reports.httpAddr` |
 | `SHUTDOWN_DRAIN_DELAY` | `5s` | no | As for the API. | `config.shutdownDrainDelay` |
 | `LOG_LEVEL` | `info` | no | As for the API. | `config.logLevel` |
+| `OTEL_SERVICE_NAME` | `yard-management-reports` | no | `service.name` of this binary's spans and metrics. | `otel.serviceName` with the suffix `-reports` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `localhost:4317` | no | OTLP/gRPC endpoint of the Collector, `host:port` or a URL. Export never blocks: an unreachable Collector costs telemetry, not availability ([ADR 0016](/docs/adr/0016-fleet-observability-standard)). | `otel.endpoint` (rendered only while `otel.enabled`) |
+| `SERVICE_VERSION` | `dev` | no | `service.version` of the resource. | `serviceVersion`, else `image.tag`, else the chart `appVersion` |
+| `ENVIRONMENT` | `local` | no | `deployment.environment.name` of the resource (read by `telemetry.Setup`). | `environment` |
 
 ## Readiness and liveness
 
