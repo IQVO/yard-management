@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/claudioed/yard-management/internal/adapters/outbound/telemetry"
-	"github.com/claudioed/yard-management/internal/application/ports"
 )
 
 // defaultServiceName is the OTEL_SERVICE_NAME default: the name every span,
@@ -65,17 +64,4 @@ func startTelemetry(logger *slog.Logger, cfg telemetryEnv) (func(), error) {
 			logger.Warn("telemetry flush failed on shutdown", "error", err)
 		}
 	}, nil
-}
-
-// checkInMetrics registers the Tier 2 counter of the gate check-in
-// (yard.visits.checked_in) on the MeterProvider telemetry.Setup installed. A
-// registration error (an invalid instrument name: a programming error) is not
-// fatal: it is logged and the use case records nothing, never the reverse.
-func checkInMetrics(logger *slog.Logger) ports.CheckInMetrics {
-	m, err := telemetry.NewCheckInMetrics()
-	if err != nil {
-		logger.Warn("the yard.visits.checked_in counter is unavailable; check-ins run without it", "error", err)
-		return nil
-	}
-	return m
 }

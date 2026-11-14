@@ -77,7 +77,7 @@ func wire(ctx context.Context, cfg config, getenv func(string) string, logger *s
 		inboundhttp.Dependency{Name: "postgres", Check: pool.Ping},
 		inboundhttp.Dependency{Name: "kafka", Check: outboundkafka.NewBrokerCheck(cfg.brokers).Check},
 	)
-	return &runtime{pool: pool, deps: mcpDeps(pool, checkInMetrics(logger)), readiness: readiness}, nil
+	return &runtime{pool: pool, deps: mcpDeps(pool), readiness: readiness}, nil
 }
 
 // mcpDeps wires the tools over the Postgres adapters. Events leave through the
@@ -86,14 +86,12 @@ func wire(ctx context.Context, cfg config, getenv func(string) string, logger *s
 // analytics read side (ADR 0006) is a later binary's job: Reports is left
 // unset, and get_yard_dwell_report answers no rows until it is wired, exactly
 // like GET /reports/yard-dwell.
-func mcpDeps(pool *pgxpool.Pool, metrics ports.CheckInMetrics) inboundmcp.Deps {
+func mcpDeps(pool *pgxpool.Pool) inboundmcp.Deps {
 	uow := postgres.NewUnitOfWork(pool)
 	locks := postgres.NewLocks()
 	clock := system.NewClock()
-	d := yardDeps(pool, uow, locks, clock, inboundmcp.NewAttributingPublisher(postgres.NewOutbox(pool)))
-	d.Metrics = metrics
 	return inboundmcp.Deps{
-		Yard:        usecases.New(d),
+		Yard:        usecases.New(yardDeps(pool, uow, locks, clock, inboundmcp.NewAttributingPublisher(postgres.NewOutbox(pool)))),
 		Idempotency: inboundmcp.IdempotencyDeps{UoW: uow, Store: postgres.NewIdempotencyStore(pool), Locks: locks, Clock: clock},
 	}
 }
