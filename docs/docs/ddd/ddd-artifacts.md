@@ -31,7 +31,7 @@ these pages are the own-site, as-built version for this repository.
 | [Class diagram](/docs/ddd/class-diagram) | domain types and the hexagonal ports and adapters | UML |
 | [Entity relationship](/docs/ddd/entity-relationship) | the Postgres schema (OLTP and analytics) | ER |
 | [Sequence diagrams](/docs/ddd/sequence-diagrams) | runtime sequences per significant command | UML |
-| [Domain events](/docs/ddd/domain-events) | the 19 published and 13 consumed events with CloudEvents types, topics and payloads | event catalogue |
+| [Domain events](/docs/ddd/domain-events) | the 23 published and 16 consumed events with CloudEvents types, topics and payloads | event catalogue |
 
 Related: [API overview](/docs/api-reference), [Event catalogue](/docs/api-reference/events),
 [Architecture](/docs/overview/architecture).

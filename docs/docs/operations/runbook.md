@@ -187,7 +187,7 @@ wrapped in a bounded retry (6 attempts, doubling from 500 ms).
 | `warehouse.yard-management.events` | produced | relay | thirteen integration types, key = aggregate id, 8 partitions |
 | `warehouse.yard-management.analytics` | produced | relay | the same thirteen types (same id) plus ten analytics-only types |
 | `warehouse.yard-management.events.dlq` | produced | relay | rows the encoder can never encode, verbatim, header `dlq-reason` |
-| `warehouse.dock-scheduling.events` | consumed | `DOCK_SCHEDULING_CONSUMER_GROUP` (api) | appointments, door closures |
+| `warehouse.dock-scheduling.events` | consumed | `DOCK_SCHEDULING_CONSUMER_GROUP` (api) | appointments, door closures, carriers |
 | `warehouse.facility.events` | consumed | `FACILITY_CONSUMER_GROUP` (api) | zones, location slots |
 | `warehouse.inbound-receiving.events` | consumed | `INBOUND_RECEIVING_CONSUMER_GROUP` (api) | ASNs, receipts |
 | `warehouse.yard-management.analytics` | consumed | `ANALYTICS_CONSUMER_GROUP` (projector) | own topic only |

@@ -43,7 +43,7 @@ CronJobs are switched off in infra until capacity is freed; see
 
 - **The door calendar**: bookings, opening hours, no-shows, overlap rules and
   ETA risk belong to `dock-scheduling`. yard-management keeps event-fed local
-  copies of appointments and door closures and never calls it.
+  copies of appointments, door closures and carriers and never calls it.
 - **Locations**: `facility-layout` registers the Yard and Dock slots; here they are
   a local copy fed by `warehouse.facility.events`.
 - **Receiving**: ASNs and receipts belong to `inbound-receiving`; the yard keeps
@@ -129,7 +129,7 @@ and door release from `yard-management` events
 | Yard supervisor | Person (console) | Requests and cancels moves, places and releases holds, records seals, declares the yard policy, runs yard checks. |
 | Dock planner | Person (console) | Not an actor here: declares door hours and closures in `dock-scheduling`. This context only reads the closures. |
 | Scheduler (cron) | Kubernetes CronJob | Calls `POST /dwell-sweeps` and `POST /move-lease-sweeps`. |
-| `dock-scheduling` | Sibling context (upstream and downstream) | Publishes appointments and door closures; consumes visit check-in and trailer docking and undocking. |
+| `dock-scheduling` | Sibling context (upstream and downstream) | Publishes appointments, door closures and the carrier registry; consumes visit check-in and trailer docking and undocking. |
 | `facility-layout` | Fleet context (upstream) | Publishes the Yard and Dock slots and the zone-to-site mapping. |
 | `inbound-receiving` | Fleet context (upstream and downstream) | Publishes ASNs and receipts. It consumes only `VisitCheckedIn` from this context (its ADR 0021, group `inbound-receiving-visit-arrivals`); it does not consume `TrailerDocked`, which its consumer commits past. |
 | `exception-management` | Fleet context (downstream) | Opens problem cases from rejected visits, seal exceptions, dwell breaches and yard-check discrepancies (merged on develop). |

@@ -90,3 +90,11 @@ The projector reads this service's own analytics topic with `ANALYTICS_CONSUMER_
 
 - Consumers need nothing but this catalogue and `apis/asyncapi.yaml`; there is no shared Go code.
 - The analytics stream is the only source of the KPI reports; the integration topic stays small.
+
+## Addendum 2026-11-13: current state
+
+- The Published table lists inbound-receiving as a consumer of `TrailerDocked` and only dock-scheduling for `VisitCheckedIn`. As built, `TrailerDocked` is read by
+  dock-scheduling and outbound-shipping, and `VisitCheckedIn` by dock-scheduling and inbound-receiving (inbound-receiving
+  `internal/adapters/inbound/kafka/visit_arrival_consumer.go`, its ADR 0021).
+- The Consumed table lists thirteen types; ADR 0016 added `CarrierRegistered`, `CarrierSuspended` and `CarrierReinstated` on `warehouse.dock-scheduling.events`,
+  sixteen in all (`internal/adapters/inbound/kafka/dock_scheduling_consumer.go`).

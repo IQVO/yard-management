@@ -56,7 +56,7 @@ flowchart LR
     in3 -->|"cmd - REST<br/>RequestMove, CancelMove,<br/>PlaceHold, ReleaseHold,<br/>RecordSeal, DeclareYardPolicy,<br/>yard check commands"| BC
     in4 -.->|"qry - REST<br/>ListVisits, GetVisit,<br/>ListTrailers, GetTrailer,<br/>ListMoves, GetYardBoard,<br/>GetYardPolicy, 7 reports"| BC
     in5 -->|"cmd - REST<br/>DwellSweep, ExpireLease"| BC
-    in6 ==>|"evt - Kafka<br/>DockAppointment x4,<br/>DoorClosure x2"| BC
+    in6 ==>|"evt - Kafka<br/>DockAppointment x4,<br/>DoorClosure x2,<br/>Carrier x3"| BC
     in7 ==>|"evt - Kafka<br/>LocationSlotRegistered,<br/>LocationSlotDecommissioned,<br/>ZoneRegistered"| BC
     in8 ==>|"evt - Kafka<br/>ASNRegistered, ASNCancelled,<br/>ReceiptOpened, ReceiptClosed"| BC
     linkStyle 0 stroke:#1971c2,stroke-width:1.5px
@@ -88,15 +88,18 @@ flowchart LR
         out1["outbound-shipping"]:::ctx
         out2["exception-management"]:::ctx
         out3["analytics topic only<br/>no named consumer"]:::none
+        out4["inbound-receiving"]:::ctx
     end
     BC ==>|"evt - Kafka<br/>VisitCheckedIn, VisitRejected,<br/>TrailerDocked, TrailerUndocked"| out0
     BC ==>|"evt - Kafka<br/>TrailerDocked, DoorWorkCompleted,<br/>TrailerDeparted"| out1
     BC ==>|"evt - Kafka<br/>VisitRejected,<br/>SealExceptionRaised,<br/>TrailerDwellExceeded,<br/>YardCheckClosed"| out2
     BC ==>|"evt - Kafka analytics<br/>VisitCheckedOut,<br/>TrailerParked, DoorWorkStarted,<br/>TrailerHeld, TrailerHoldReleased,<br/>YardMove x5"| out3
+    BC ==>|"evt - Kafka<br/>VisitCheckedIn"| out4
     linkStyle 0 stroke:#e8590c,stroke-width:2.5px
     linkStyle 1 stroke:#e8590c,stroke-width:2.5px
     linkStyle 2 stroke:#e8590c,stroke-width:2.5px
     linkStyle 3 stroke:#e8590c,stroke-width:2.5px
+    linkStyle 4 stroke:#e8590c,stroke-width:2.5px
 ```
 
 Source: `internal/domain/trailer/events.go`, `internal/adapters/outbound/kafka/encoder.go`, `internal/adapters/inbound/kafka/consumer.go`, `apis/openapi.yaml`, `internal/adapters/inbound/http/server.go`.
@@ -171,6 +174,9 @@ present of the yard.
 | `dock-scheduling` | `DockAppointmentNoShow` | Event | Kafka `warehouse.dock-scheduling.events`, `com.warehouse.wms.dock-scheduling.dockappointment.DockAppointmentNoShow` | Customer/Supplier |
 | `dock-scheduling` | `DoorClosureScheduled` | Event | Kafka `warehouse.dock-scheduling.events`, `com.warehouse.wms.dock-scheduling.dockcalendar.DoorClosureScheduled` | Customer/Supplier |
 | `dock-scheduling` | `DoorClosureLifted` | Event | Kafka `warehouse.dock-scheduling.events`, `com.warehouse.wms.dock-scheduling.dockcalendar.DoorClosureLifted` | Customer/Supplier |
+| `dock-scheduling` | `CarrierRegistered` | Event | Kafka `warehouse.dock-scheduling.events`, `com.warehouse.wms.dock-scheduling.carrier.CarrierRegistered` (ADR 0016) | Customer/Supplier |
+| `dock-scheduling` | `CarrierSuspended` | Event | Kafka `warehouse.dock-scheduling.events`, `com.warehouse.wms.dock-scheduling.carrier.CarrierSuspended` (ADR 0016) | Customer/Supplier |
+| `dock-scheduling` | `CarrierReinstated` | Event | Kafka `warehouse.dock-scheduling.events`, `com.warehouse.wms.dock-scheduling.carrier.CarrierReinstated` (ADR 0016) | Customer/Supplier |
 | `facility-layout` | `LocationSlotRegistered` (optional `spotKind`, ADR 0014) | Event | Kafka `warehouse.facility.events`, `com.warehouse.wms.facility-layout.locationslot.LocationSlotRegistered` | Conformist |
 | `facility-layout` | `LocationSlotDecommissioned` | Event | Kafka `warehouse.facility.events`, `com.warehouse.wms.facility-layout.locationslot.LocationSlotDecommissioned` | Conformist |
 | `facility-layout` | `ZoneRegistered` | Event | Kafka `warehouse.facility.events`, `com.warehouse.wms.facility-layout.zone.ZoneRegistered` | Conformist |
@@ -188,6 +194,7 @@ AsyncAPI: `apis/` for `facility-layout` and `inbound-receiving`, `yard/apis/dock
 | Collaborator | Message | Type | Channel | Relationship |
 | --- | --- | --- | --- | --- |
 | `dock-scheduling` | `VisitCheckedIn` | Event | Kafka `warehouse.yard-management.events`, `com.warehouse.wms.yard-management.yardvisit.VisitCheckedIn` | Customer/Supplier (`dock-scheduling` is the Customer) |
+| `inbound-receiving` | `VisitCheckedIn` | Event | Kafka `warehouse.yard-management.events`, `com.warehouse.wms.yard-management.yardvisit.VisitCheckedIn` | No pattern named (its ADR 0021 names none) |
 | `dock-scheduling`, `outbound-shipping` | `TrailerDocked` | Event | Kafka `warehouse.yard-management.events`, `com.warehouse.wms.yard-management.trailer.TrailerDocked` | Customer/Supplier |
 | `dock-scheduling` | `TrailerUndocked` | Event | Kafka `warehouse.yard-management.events`, `com.warehouse.wms.yard-management.trailer.TrailerUndocked` | Customer/Supplier |
 | `dock-scheduling`, `exception-management` | `VisitRejected` | Event | Kafka `warehouse.yard-management.events`, `com.warehouse.wms.yard-management.yardvisit.VisitRejected` | Customer/Supplier |
@@ -207,7 +214,7 @@ The relationship for `exception-management` and `outbound-shipping` is this
 pack's reading: the model lists them as consumers of the events and as
 `fleet_changes`, and the strategic context map marks both edges Customer/Supplier. Both
 consumers are merged on `develop`. `inbound-receiving` is not a consumer of `TrailerDocked`: the optional
-consumer in the model was not built. Neither context's own `inbound` rows are in this model.
+consumer in the model was not built; it consumes `VisitCheckedIn` only (its ADR 0021). Neither context's own `inbound` rows are in this model.
 
 Full message details: [Domain Events](/docs/ddd/domain-events).
 Relationship evidence: [Context Map](/docs/ddd/context-map).

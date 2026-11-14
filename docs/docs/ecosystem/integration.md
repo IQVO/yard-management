@@ -25,10 +25,10 @@ message shapes are on [Domain events](/docs/ddd/domain-events) and the
 
 | Upstream | Protocol and topic | Contract (`type` suffixes) | What it feeds | Failure behaviour |
 | --- | --- | --- | --- | --- |
-| `dock-scheduling` | Kafka `warehouse.dock-scheduling.events`, group `DOCK_SCHEDULING_CONSUMER_GROUP` | `dockappointment.DockAppointmentBooked`, `…Rescheduled`, `…Cancelled`, `…NoShow`; `dockcalendar.DoorClosureScheduled`, `…DoorClosureLifted` | `appointments`, `door_closures` copies; gates check-in (`appointment-required`, `unknown-appointment`), directs a trailer to its door, refuses a closed door (`door-closed`); `NoShowFreesHolding` cancels the open `TO_DOOR` move on no-show or cancellation | transient failure: the same message is retried forever (200 ms to 5 s backoff), blocking its partition; a payload without `version` or `window` is poison and goes to `warehouse.dock-scheduling.events.dlq`; dock-scheduling down: the copy goes stale, check-in still works on what it has |
+| `dock-scheduling` | Kafka `warehouse.dock-scheduling.events`, group `DOCK_SCHEDULING_CONSUMER_GROUP` | `dockappointment.DockAppointmentBooked`, `…Rescheduled`, `…Cancelled`, `…NoShow`; `dockcalendar.DoorClosureScheduled`, `…DoorClosureLifted`; `carrier.CarrierRegistered`, `…CarrierSuspended`, `…CarrierReinstated` | `appointments`, `door_closures`, `carriers` copies (the carrier copy is read by the suspended-carrier rule of the gate, ADR 0016); gates check-in (`appointment-required`, `unknown-appointment`), directs a trailer to its door, refuses a closed door (`door-closed`); `NoShowFreesHolding` cancels the open `TO_DOOR` move on no-show or cancellation | transient failure: the same message is retried forever (200 ms to 5 s backoff), blocking its partition; a payload without `version` or `window` is poison and goes to `warehouse.dock-scheduling.events.dlq`; dock-scheduling down: the copy goes stale, check-in still works on what it has |
 | `facility-layout` | Kafka `warehouse.facility.events`, group `FACILITY_CONSUMER_GROUP` | `zone.ZoneRegistered`, `locationslot.LocationSlotRegistered`, `locationslot.LocationSlotDecommissioned` (camelCase payloads) | `zones`, `locations`: Yard slots are spots, Dock slots are doors with a `dockFlow`; zone to site code | same; with no location copy for a site the yard board is `site-not-found` and moves/check-ins cannot find a destination |
 | `inbound-receiving` | Kafka `warehouse.inbound-receiving.events`, group `INBOUND_RECEIVING_CONSUMER_GROUP` | `asn.ASNRegistered`, `asn.ASNCancelled`, `receipt.ReceiptOpened`, `receipt.ReceiptClosed` | `asns` (which ASNs a trailer holds; decides door flow compatibility), `receipts`; `AutoCompleteUnload` completes the door work on `ReceiptClosed` | same |
-| Own analytics topic | Kafka `warehouse.yard-management.analytics`, group `ANALYTICS_CONSUMER_GROUP` | the 19 published types, analytics `dataschema` | `analytics.*` tables via `cmd/yard-projector` | a dying consumer exits the projector so the pod restarts; a new group replays from the first offset |
+| Own analytics topic | Kafka `warehouse.yard-management.analytics`, group `ANALYTICS_CONSUMER_GROUP` | the 23 published types, analytics `dataschema` | `analytics.*` tables via `cmd/yard-projector` | a dying consumer exits the projector so the pod restarts; a new group replays from the first offset |
 
 Consumers ignore types they do not handle, skip messages that are not
 CloudEvents (WARN), and are idempotent on the CloudEvents `id`
@@ -80,10 +80,9 @@ commit each pod runs (the image tag is that commit), as the tables above say; th
 and neighbour columns come from `warehouse-infra` `origin/develop` and the cluster
 listing. The `exception-management` row was "not wired in infra" until its group ids were
 pinned (`warehouse-infra` commit `a703971`, 2026-11-09); the running Deployment carries it.
-Spec note: this service's `apis/asyncapi.yaml` names `inbound-receiving` as a consumer of
-`TrailerDocked`, not of `VisitCheckedIn`; the `inbound-receiving` spec and code declare the
-`VisitCheckedIn` consumer (its ADR 0021). That spec cannot be edited from this page's
-change.
+Spec note: this service's `apis/asyncapi.yaml` used to name `inbound-receiving` as a consumer
+of `TrailerDocked`, not of `VisitCheckedIn`; it now names it as a consumer of `VisitCheckedIn`,
+as the `inbound-receiving` spec and code declare (its ADR 0021).
 
 Not verified: the offsets and lag of every group, whether the topics hold the events a
 consumer expects, and delivery from the relay. The api log of the yard pod shows
@@ -94,8 +93,7 @@ diagnosed.
 
 ## Edges that do not exist
 
-- **`inbound-receiving` does not consume `TrailerDocked`.** This service's
-  `apis/asyncapi.yaml` names it as a consumer of `TrailerDocked`; its consumer reads only
+- **`inbound-receiving` does not consume `TrailerDocked`.** Its consumer reads only
   `VisitCheckedIn` (its ADR 0021) and commits every other type on the topic past. The
   optional door-confirm consumer was not built.
 - **No call to a sibling's REST API, in either direction.** There is no HTTP client

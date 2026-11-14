@@ -179,7 +179,7 @@ operations:
       $ref: '#/channels/yardManagementEvents'
     summary: Publish the integration events of the yard.
     description: 'Publishes the thirteen integration event types. TrailerSecured and TrailerSecuringReleased (ADR 0013) and InspectionCompleted (ADR 0015) have no consumer yet: they are the safety interlock facts and the inspection audit record of the yard. Consumers: outbound-shipping (TrailerDocked, DoorWorkCompleted, TrailerDeparted), dock-scheduling (VisitCheckedIn, TrailerDocked,
-      TrailerUndocked), inbound-receiving (TrailerDocked), dock-scheduling (VisitRejected), exception-management (VisitRejected,
+      TrailerUndocked), inbound-receiving (VisitCheckedIn), dock-scheduling (VisitRejected), exception-management (VisitRejected,
       SealExceptionRaised, TrailerDwellExceeded, YardCheckClosed). InspectionFailed has no consumer yet: exception-management is its planned consumer (ADR 0015).'
     messages:
     - $ref: '#/channels/yardManagementEvents/messages/VisitCheckedIn'
@@ -269,7 +269,7 @@ components:
     VisitCheckedIn:
       name: VisitCheckedIn
       title: VisitCheckedIn
-      summary: A tractor and driver passed the gate. Consumed by dock-scheduling (ArrivalFromGate).
+      summary: A tractor and driver passed the gate. Consumed by dock-scheduling (ArrivalFromGate) and inbound-receiving.
       description: '`type` = `com.warehouse.wms.yard-management.yardvisit.VisitCheckedIn`; subject and key = `visit_id`; dataschema
         `urn:warehouse:yard-management:events:VisitCheckedIn:v1`.'
       contentType: application/cloudevents+json
@@ -320,7 +320,7 @@ components:
     VisitCheckedInAnalytics:
       name: VisitCheckedIn
       title: VisitCheckedIn
-      summary: A tractor and driver passed the gate. Consumed by dock-scheduling (ArrivalFromGate).
+      summary: A tractor and driver passed the gate. Consumed by dock-scheduling (ArrivalFromGate) and inbound-receiving.
       description: '`type` = `com.warehouse.wms.yard-management.yardvisit.VisitCheckedIn`; subject and key = `visit_id`; dataschema
         `urn:warehouse:yard-management:analytics:VisitCheckedIn:v1`. Byte-identical payload to the integration topic.'
       contentType: application/cloudevents+json
@@ -487,7 +487,7 @@ components:
     TrailerDocked:
       name: TrailerDocked
       title: TrailerDocked
-      summary: A trailer is at a door. Consumed by dock-scheduling (ActualDoorWins) and inbound-receiving.
+      summary: A trailer is at a door. Consumed by dock-scheduling (ActualDoorWins) and outbound-shipping.
       description: '`type` = `com.warehouse.wms.yard-management.trailer.TrailerDocked`; subject and key = `trailer_id`; dataschema
         `urn:warehouse:yard-management:events:TrailerDocked:v1`.'
       contentType: application/cloudevents+json
@@ -533,7 +533,7 @@ components:
     TrailerDockedAnalytics:
       name: TrailerDocked
       title: TrailerDocked
-      summary: A trailer is at a door. Consumed by dock-scheduling (ActualDoorWins) and inbound-receiving.
+      summary: A trailer is at a door. Consumed by dock-scheduling (ActualDoorWins) and outbound-shipping.
       description: '`type` = `com.warehouse.wms.yard-management.trailer.TrailerDocked`; subject and key = `trailer_id`; dataschema
         `urn:warehouse:yard-management:analytics:TrailerDocked:v1`. Byte-identical payload to the integration topic.'
       contentType: application/cloudevents+json

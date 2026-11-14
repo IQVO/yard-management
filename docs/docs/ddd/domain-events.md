@@ -12,7 +12,7 @@ Every event this context publishes and consumes, from
 `contexts[yard-management].publishes` and `.consumes`. The envelope follows the
 yard [CloudEvents standard](https://iqvo.github.io/warehouse-docs/yard/strategic-design/event-standard-cloudevents).
 There are **twenty-three published events** (thirteen integration, ten analytics only)
-and **thirteen consumed events**. The split is as built (service ADR 0004, refined by ADR 0010 on
+and **sixteen consumed events** (nine from `dock-scheduling`, three from `facility-layout`, four from `inbound-receiving`). The split is as built (service ADR 0004, refined by ADR 0010 on
 2026-11-09, which moved `DoorWorkCompleted` and `TrailerDeparted` to the integration topic; ADR 0013 added `TrailerSecured` and `TrailerSecuringReleased`; ADR 0015 added `InspectionCompleted` and `InspectionFailed`); the AsyncAPI is
 version 3.0.0 and the topic of each channel is in its `address`.
 
@@ -48,7 +48,7 @@ Topic `warehouse.yard-management.events` (each message also goes, as a twin, to 
 
 | Event | Full `type` | `data` fields | Producing command / use case | Consumers |
 | --- | --- | --- | --- | --- |
-| `VisitCheckedIn` | `com.warehouse.wms.yard-management.yardvisit.VisitCheckedIn` | `visit_id`, `site_id`, `carrier`, `carrier_scac`, `purpose`, `appointment_id`, `trailers`, `arrived_at`, `version` | `CheckInVisit` | `dock-scheduling` |
+| `VisitCheckedIn` | `com.warehouse.wms.yard-management.yardvisit.VisitCheckedIn` | `visit_id`, `site_id`, `carrier`, `carrier_scac`, `purpose`, `appointment_id`, `trailers`, `arrived_at`, `version` | `CheckInVisit` | `dock-scheduling`, `inbound-receiving` |
 | `VisitRejected` | `com.warehouse.wms.yard-management.yardvisit.VisitRejected` | `visit_id`, `site_id`, `carrier_scac`, `appointment_id`, `reason`, `rejected_at` | `RejectAtGate` (also the `REJECT` outcome of `SealCheckAtGate`) | `dock-scheduling`, `exception-management` |
 
 `reason` is a `RejectionReason`: `APPOINTMENT_REQUIRED`, `UNKNOWN_APPOINTMENT`,
@@ -194,6 +194,9 @@ consumer has its own (`ANALYTICS_CONSUMER_GROUP`).
 | `com.warehouse.wms.dock-scheduling.dockappointment.DockAppointmentNoShow` | `appointment_id`, `site_id`, `door_code`, `direction`, `carrier_scac`, `window_end`, `version` | Marks it `NO_SHOW`; `NoShowFreesHolding` as above | As above |
 | `com.warehouse.wms.dock-scheduling.dockcalendar.DoorClosureScheduled` | `site_id`, `closure_id`, `door_code`, `from`, `to`, `reason`, `version` | Inserts the closure into `DoorClosureView` (`ErrDoorClosed`) | Upsert on `closure_id` |
 | `com.warehouse.wms.dock-scheduling.dockcalendar.DoorClosureLifted` | `site_id`, `closure_id`, `door_code`, `version` | Removes the closure from `DoorClosureView` | As above |
+| `com.warehouse.wms.dock-scheduling.carrier.CarrierRegistered` | `scac`, `name`, `usdot`, `mc`, `status`, `version` | Replaces the carrier in the `carriers` copy (the whole snapshot; service ADR 0016) | Apply only `version` above the stored one |
+| `com.warehouse.wms.dock-scheduling.carrier.CarrierSuspended` | `scac`, `reason`, `version` | Sets the carrier `SUSPENDED` with the reason; keeps its name and identifiers | As above |
+| `com.warehouse.wms.dock-scheduling.carrier.CarrierReinstated` | `scac`, `version` | Sets the carrier `ACTIVE` and clears the reason | As above |
 
 ### From `facility-layout` (topic `warehouse.facility.events`)
 
@@ -233,7 +236,7 @@ The gaps this page used to list are closed by the service's decisions (see the
   Y-6, `YM-G8`).
 - `VisitRejected` is consumed by `dock-scheduling`, which cancels the appointment with `TURNED_AWAY` (decision X2,
   `YM-G17`), and by `exception-management`.
-- The AsyncAPI description of `TrailerDocked` says `inbound-receiving` consumes it; on `develop` it does not (the optional
-  confirm of the door on an open receipt was not built), while `outbound-shipping` does. The upstream spec text is to be
-  corrected in the producer's repository.
+- `inbound-receiving` consumes `VisitCheckedIn` (its ADR 0021, `visit_arrival_consumer.go`) and no other type of this context; it does not consume
+  `TrailerDocked` (the optional confirm of the door on an open receipt was not built), while `outbound-shipping` does. The AsyncAPI
+  descriptions that named `inbound-receiving` as a consumer of `TrailerDocked` were corrected on 2026-11-13.
 - The consumed `lines` of `ASNRegistered` is used by no rule on these pages (gap `YM-G26`, accepted).
