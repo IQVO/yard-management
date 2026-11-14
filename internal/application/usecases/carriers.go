@@ -56,8 +56,9 @@ func gateSCAC(in CheckInInput, appt *views.Appointment) string {
 // carrierSuspended is the carrier rule of the gate (ADR 0016): true only when
 // the site policy asks for it (FLAG or REJECT), a SCAC is known for the visit
 // and the carrier copy says that SCAC is SUSPENDED. With the default policy
-// (NONE), no SCAC, or a SCAC the copy does not know, the copy is not even read
-// and the visit is admitted exactly as before the rule existed.
+// (NONE) or no SCAC the copy is not even read; with a SCAC the copy does not
+// know, the copy is read and finds nothing. Either way the visit is admitted
+// exactly as before the rule existed.
 func (y *Yard) carrierSuspended(ctx context.Context, pol *yardpolicy.Policy, scac string) (bool, error) {
 	if pol.SuspendedCarrierAction() == yardpolicy.CarrierNone || scac == "" {
 		return false, nil
