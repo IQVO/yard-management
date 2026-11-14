@@ -111,7 +111,7 @@ else the chart appVersion. Never a literal of its own.
 {{- end -}}
 
 {{/*
-The observability env of one component (ADR 0016, the fleet observability
+The observability env of one component (ADR 0017, the fleet observability
 standard): ENVIRONMENT (deployment.environment.name) and SERVICE_VERSION
 always; OTEL_EXPORTER_OTLP_ENDPOINT and OTEL_SERVICE_NAME only while
 otel.enabled (off = the binary keeps its defaults and exports to nothing

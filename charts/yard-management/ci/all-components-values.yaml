@@ -11,7 +11,7 @@ config:
   inboundReceivingConsumerGroup: "yard-management-inbound-receiving"
 kafka:
   brokers: "kafka.warehouse-systems.svc.cluster.local:9092"
-# Fleet observability standard (ADR 0016): every component renders these four.
+# Fleet observability standard (ADR 0017): every component renders these four.
 environment: "local"
 serviceVersion: ""
 otel:

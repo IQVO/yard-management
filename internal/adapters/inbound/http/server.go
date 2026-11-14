@@ -123,8 +123,8 @@ func NewAdminRouter(readiness *Readiness, logger *slog.Logger, serviceName strin
 // middleware, the NUL guard, the problem documents for unknown paths and
 // methods, and the probes.
 //
-// The order is the fleet standard (ADR 0016 of inventory-storage, ADR 0016 of
-// this repo): RequestID, otelchi (server span named after the route PATTERN),
+// The order is the fleet standard (ADR 0016 of inventory-storage, adopted here
+// by ADR 0017): RequestID, otelchi (server span named after the route PATTERN),
 // the http.server.request.duration histogram, the request log, Recoverer.
 // otelchi runs before the log so the request context already carries the span
 // the trace-correlating slog handler reads. telemetry.Setup must have run

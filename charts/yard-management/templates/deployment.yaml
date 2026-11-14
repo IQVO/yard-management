@@ -115,7 +115,7 @@ spec:
                   key: {{ .Values.analytics.readerExistingSecretKey }}
                   optional: true
             {{- end }}
-            # Fleet observability standard (ADR 0016): ENVIRONMENT, SERVICE_VERSION and,
+            # Fleet observability standard (ADR 0017): ENVIRONMENT, SERVICE_VERSION and,
             # while otel.enabled, OTEL_EXPORTER_OTLP_ENDPOINT and OTEL_SERVICE_NAME.
             {{- include "yard-management.telemetryEnv" (dict "root" . "suffix" "") | nindent 12 }}
             {{- range .Values.extraEnv }}

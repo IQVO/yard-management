@@ -165,7 +165,7 @@ environment: "local"
 # the chart appVersion; set it only to pin a label that differs from the tag.
 serviceVersion: ""
 
-# OpenTelemetry traces + metrics over OTLP/gRPC to a Collector (ADR 0016, the
+# OpenTelemetry traces + metrics over OTLP/gRPC to a Collector (ADR 0017, the
 # fleet observability standard). Every component that runs a binary (api, mcp,
 # relay, projector, reports) gets OTEL_EXPORTER_OTLP_ENDPOINT and
 # OTEL_SERVICE_NAME while enabled; the sweeps CronJobs run busybox wget, not a

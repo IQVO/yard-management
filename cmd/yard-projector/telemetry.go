@@ -17,7 +17,7 @@ const defaultServiceName = "yard-management-projector"
 // out well past what an orchestrator will wait for.
 const telemetryFlushTimeout = 5 * time.Second
 
-// telemetryEnv is the observability part of the environment (ADR 0016).
+// telemetryEnv is the observability part of the environment (ADR 0017).
 //
 //	OTEL_SERVICE_NAME            service.name of spans and metrics (default yard-management-projector)
 //	OTEL_EXPORTER_OTLP_ENDPOINT  Collector OTLP/gRPC endpoint, host:port or URL (default telemetry.DefaultEndpoint)

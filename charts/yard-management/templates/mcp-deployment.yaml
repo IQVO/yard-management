@@ -72,7 +72,7 @@ spec:
             {{- end }}
             - name: KAFKA_BROKERS
               value: {{ .Values.kafka.brokers | quote }}
-            # Fleet observability standard (ADR 0016): ENVIRONMENT, SERVICE_VERSION and,
+            # Fleet observability standard (ADR 0017): ENVIRONMENT, SERVICE_VERSION and,
             # while otel.enabled, OTEL_EXPORTER_OTLP_ENDPOINT and OTEL_SERVICE_NAME.
             {{- include "yard-management.telemetryEnv" (dict "root" . "suffix" "mcp") | nindent 12 }}
             {{- range .Values.mcp.extraEnv }}

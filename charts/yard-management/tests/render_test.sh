@@ -293,7 +293,7 @@ grep -q 'ANALYTICS_READER_DATABASE_URL:' <<<"$secret_reader" || fail "analytics.
 api_analytics="$(helm template "$release" "$chart_dir" "${base[@]}" "${analytics[@]}" --show-only templates/deployment.yaml)"
 grep -q 'name: ANALYTICS_READER_DATABASE_URL' <<<"$api_analytics" || fail "the api must read ANALYTICS_READER_DATABASE_URL while analytics is on"
 
-# --- observability (ADR 0016) ----------------------------------------------------------
+# --- observability (ADR 0017) ----------------------------------------------------------
 # Every component that runs a binary renders ENVIRONMENT, SERVICE_VERSION,
 # OTEL_EXPORTER_OTLP_ENDPOINT and OTEL_SERVICE_NAME; the sweeps CronJobs run
 # busybox wget (no yard-management binary) and render none.
