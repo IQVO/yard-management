@@ -34,6 +34,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -44,6 +45,7 @@ import (
 	"time"
 
 	inboundhttp "github.com/claudioed/yard-management/internal/adapters/inbound/http"
+	"github.com/claudioed/yard-management/internal/adapters/outbound/telemetry"
 )
 
 // shutdownTimeout bounds the HTTP server's graceful drain.
@@ -66,6 +68,14 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("invalid configuration: %w", err)
 	}
+	// Telemetry comes up before the router is built (otelchimetric binds the
+	// global MeterProvider at construction) and is flushed last.
+	tel := loadTelemetryEnv(os.Getenv)
+	flushTelemetry, err := startTelemetry(logger, tel)
+	if err != nil {
+		return err
+	}
+	defer flushTelemetry()
 	rt, err := wire(ctx, cfg, os.Getenv, logger)
 	if err != nil {
 		return err
@@ -77,7 +87,7 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("listen on %s: %w", cfg.addr, err)
 	}
-	srv := &http.Server{Handler: newRouter(rt), ReadHeaderTimeout: 5 * time.Second}
+	srv := &http.Server{Handler: newRouter(rt, logger, tel.serviceName), ReadHeaderTimeout: 5 * time.Second}
 	return serve(ctx, logger, srv, ln, rt.readiness, cfg.drainDelay)
 }
 
@@ -110,9 +120,14 @@ func serve(ctx context.Context, logger *slog.Logger, srv *http.Server, ln net.Li
 	return srv.Shutdown(shutdownCtx)
 }
 
-// newLogger builds the process-wide JSON logger. LOG_LEVEL maps
+// newLogger builds the process-wide JSON logger on stdout. LOG_LEVEL maps
 // debug|info|warn|error (case-insensitive), defaulting to Info.
-func newLogger(level string) *slog.Logger {
+func newLogger(level string) *slog.Logger { return newLoggerTo(os.Stdout, level) }
+
+// newLoggerTo writes the JSON logger to w. The handler is wrapped so a record
+// written with a span-carrying context (the *Context slog variants) also
+// carries trace_id and span_id.
+func newLoggerTo(w io.Writer, level string) *slog.Logger {
 	var lvl slog.Level
 	switch strings.ToLower(level) {
 	case "debug":
@@ -124,5 +139,5 @@ func newLogger(level string) *slog.Logger {
 	default:
 		lvl = slog.LevelInfo
 	}
-	return slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: lvl}))
+	return slog.New(telemetry.WithTraceContext(slog.NewJSONHandler(w, &slog.HandlerOptions{Level: lvl})))
 }

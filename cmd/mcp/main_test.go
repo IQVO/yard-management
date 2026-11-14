@@ -54,7 +54,7 @@ func allUp() *inboundhttp.Readiness {
 
 func newTestServer(t *testing.T, readiness *inboundhttp.Readiness) *httptest.Server {
 	t.Helper()
-	srv := httptest.NewServer(routes(inboundmcp.Handler(inboundmcp.NewServer(memoryDeps())), readiness))
+	srv := httptest.NewServer(routes(inboundmcp.Handler(inboundmcp.NewServer(memoryDeps())), readiness, quietLogger(), defaultServiceName))
 	t.Cleanup(srv.Close)
 	return srv
 }
@@ -305,7 +305,7 @@ func TestServeStopsOnContextCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() {
-		done <- serve(ctx, quietLogger(), &http.Server{Handler: routes(http.NotFoundHandler(), allUp())}, ln, allUp(), 0)
+		done <- serve(ctx, quietLogger(), &http.Server{Handler: routes(http.NotFoundHandler(), allUp(), quietLogger(), defaultServiceName)}, ln, allUp(), 0)
 	}()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
