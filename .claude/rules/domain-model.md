@@ -60,4 +60,5 @@ YardCheckClosed, TrailerSecured, TrailerSecuringReleased, InspectionCompleted, I
   `PublishInspectionTemplate`; the gates `requireInspections` / `judgeInspections` before a door move, loading and check-out.
 - Audit and policy: `OpenYardCheck`, `RecordObservation`, `CloseYardCheck`, `DeclareYardPolicy`, `SweepDwell`.
 - Local copies from consumers: `ApplyAppointment`, `ApplySlot`, `ApplyZone`, `DecommissionSlot`, `ScheduleClosure`,
-  `LiftClosure`, `RegisterAsn`, `CancelAsn`, `OpenReceipt`, `CloseReceipt`.
+  `LiftClosure`, `RegisterAsn`, `CancelAsn`, `OpenReceipt`, `CloseReceipt`, and the carrier registry
+  copy `ApplyCarrierRegistered`, `ApplyCarrierSuspended`, `ApplyCarrierReinstated` (ADR 0016).

@@ -11,12 +11,14 @@ paths:
      placeholder: keep it verbatim, only substitute the per-repo values. -->
 # Cross-service integration events (Kafka)
 
-This service BOTH publishes and consumes. It publishes its own domain
-events to `warehouse.yard-management.events` and mirrors every one of
-them to `warehouse.yard-management.analytics` (consumed only by this
-service's own projector, ADR 0006). It consumes
-`warehouse.dock-scheduling.events`, `warehouse.facility.events` and
-`warehouse.inbound-receiving.events` (ADR 0003) into local copies.
+This service BOTH publishes and consumes. It publishes 23 event types: 13 to
+`warehouse.yard-management.events` (the integration topic) and all 23 to
+`warehouse.yard-management.analytics` (consumed only by this service's own
+projector, ADR 0006), so 10 types are analytics-only. It consumes
+`warehouse.dock-scheduling.events` (including the carrier registry events,
+ADR 0016), `warehouse.facility.events` and `warehouse.inbound-receiving.events`
+(ADR 0003) into local copies. In the other direction, inbound-receiving
+consumes only `VisitCheckedIn` from this service.
 
 ## Events: CloudEvents 1.0 is MANDATORY
 
@@ -71,28 +73,33 @@ their local copies live in `docs/adr/0003-consumed-contracts-and-local-copies.md
 
 ### Published types
 
-One row per published event, exact strings (ADR 0004 / `apis/asyncapi.yaml`).
+One row per published event, exact strings (ADR 0004 / `apis/asyncapi.yaml`): 23 types,
+13 on the integration topic and 10 analytics-only.
 
 | `type` | topic(s) | `subject` | `dataschema` |
 | --- | --- | --- | --- |
 | `com.warehouse.wms.yard-management.yardvisit.VisitCheckedIn` | `warehouse.yard-management.events` + `.analytics` | visit id | `urn:warehouse:yard-management:events:VisitCheckedIn:v1` |
 | `com.warehouse.wms.yard-management.yardvisit.VisitRejected` | `warehouse.yard-management.events` + `.analytics` | visit id | `urn:warehouse:yard-management:events:VisitRejected:v1` |
-| `com.warehouse.wms.yard-management.yardvisit.VisitCheckedOut` | `warehouse.yard-management.events` + `.analytics` | visit id | `urn:warehouse:yard-management:events:VisitCheckedOut:v1` |
-| `com.warehouse.wms.yard-management.trailer.TrailerParked` | `warehouse.yard-management.events` + `.analytics` | trailer id | `urn:warehouse:yard-management:events:TrailerParked:v1` |
+| `com.warehouse.wms.yard-management.yardvisit.VisitCheckedOut` | `warehouse.yard-management.analytics` only | visit id | `urn:warehouse:yard-management:events:VisitCheckedOut:v1` |
+| `com.warehouse.wms.yard-management.trailer.TrailerParked` | `warehouse.yard-management.analytics` only | trailer id | `urn:warehouse:yard-management:events:TrailerParked:v1` |
 | `com.warehouse.wms.yard-management.trailer.TrailerDocked` | `warehouse.yard-management.events` + `.analytics` | trailer id | `urn:warehouse:yard-management:events:TrailerDocked:v1` |
 | `com.warehouse.wms.yard-management.trailer.TrailerUndocked` | `warehouse.yard-management.events` + `.analytics` | trailer id | `urn:warehouse:yard-management:events:TrailerUndocked:v1` |
-| `com.warehouse.wms.yard-management.trailer.DoorWorkStarted` | `warehouse.yard-management.events` + `.analytics` | trailer id | `urn:warehouse:yard-management:events:DoorWorkStarted:v1` |
+| `com.warehouse.wms.yard-management.trailer.DoorWorkStarted` | `warehouse.yard-management.analytics` only | trailer id | `urn:warehouse:yard-management:events:DoorWorkStarted:v1` |
 | `com.warehouse.wms.yard-management.trailer.DoorWorkCompleted` | `warehouse.yard-management.events` + `.analytics` | trailer id | `urn:warehouse:yard-management:events:DoorWorkCompleted:v1` |
 | `com.warehouse.wms.yard-management.trailer.TrailerDeparted` | `warehouse.yard-management.events` + `.analytics` | trailer id | `urn:warehouse:yard-management:events:TrailerDeparted:v1` |
 | `com.warehouse.wms.yard-management.trailer.SealExceptionRaised` | `warehouse.yard-management.events` + `.analytics` | trailer id | `urn:warehouse:yard-management:events:SealExceptionRaised:v1` |
 | `com.warehouse.wms.yard-management.trailer.TrailerDwellExceeded` | `warehouse.yard-management.events` + `.analytics` | trailer id | `urn:warehouse:yard-management:events:TrailerDwellExceeded:v1` |
-| `com.warehouse.wms.yard-management.trailer.TrailerHeld` | `warehouse.yard-management.events` + `.analytics` | trailer id | `urn:warehouse:yard-management:events:TrailerHeld:v1` |
-| `com.warehouse.wms.yard-management.trailer.TrailerHoldReleased` | `warehouse.yard-management.events` + `.analytics` | trailer id | `urn:warehouse:yard-management:events:TrailerHoldReleased:v1` |
-| `com.warehouse.wms.yard-management.yardmove.YardMoveRequested` | `warehouse.yard-management.events` + `.analytics` | move id | `urn:warehouse:yard-management:events:YardMoveRequested:v1` |
-| `com.warehouse.wms.yard-management.yardmove.YardMoveClaimed` | `warehouse.yard-management.events` + `.analytics` | move id | `urn:warehouse:yard-management:events:YardMoveClaimed:v1` |
-| `com.warehouse.wms.yard-management.yardmove.YardMoveCompleted` | `warehouse.yard-management.events` + `.analytics` | move id | `urn:warehouse:yard-management:events:YardMoveCompleted:v1` |
-| `com.warehouse.wms.yard-management.yardmove.YardMoveCancelled` | `warehouse.yard-management.events` + `.analytics` | move id | `urn:warehouse:yard-management:events:YardMoveCancelled:v1` |
-| `com.warehouse.wms.yard-management.yardmove.YardMoveLeaseExpired` | `warehouse.yard-management.events` + `.analytics` | move id | `urn:warehouse:yard-management:events:YardMoveLeaseExpired:v1` |
+| `com.warehouse.wms.yard-management.trailer.TrailerHeld` | `warehouse.yard-management.analytics` only | trailer id | `urn:warehouse:yard-management:events:TrailerHeld:v1` |
+| `com.warehouse.wms.yard-management.trailer.TrailerHoldReleased` | `warehouse.yard-management.analytics` only | trailer id | `urn:warehouse:yard-management:events:TrailerHoldReleased:v1` |
+| `com.warehouse.wms.yard-management.trailer.TrailerSecured` | `warehouse.yard-management.events` + `.analytics` | trailer id | `urn:warehouse:yard-management:events:TrailerSecured:v1` |
+| `com.warehouse.wms.yard-management.trailer.TrailerSecuringReleased` | `warehouse.yard-management.events` + `.analytics` | trailer id | `urn:warehouse:yard-management:events:TrailerSecuringReleased:v1` |
+| `com.warehouse.wms.yard-management.yardmove.YardMoveRequested` | `warehouse.yard-management.analytics` only | move id | `urn:warehouse:yard-management:events:YardMoveRequested:v1` |
+| `com.warehouse.wms.yard-management.yardmove.YardMoveClaimed` | `warehouse.yard-management.analytics` only | move id | `urn:warehouse:yard-management:events:YardMoveClaimed:v1` |
+| `com.warehouse.wms.yard-management.yardmove.YardMoveCompleted` | `warehouse.yard-management.analytics` only | move id | `urn:warehouse:yard-management:events:YardMoveCompleted:v1` |
+| `com.warehouse.wms.yard-management.yardmove.YardMoveCancelled` | `warehouse.yard-management.analytics` only | move id | `urn:warehouse:yard-management:events:YardMoveCancelled:v1` |
+| `com.warehouse.wms.yard-management.yardmove.YardMoveLeaseExpired` | `warehouse.yard-management.analytics` only | move id | `urn:warehouse:yard-management:events:YardMoveLeaseExpired:v1` |
+| `com.warehouse.wms.yard-management.inspection.InspectionCompleted` | `warehouse.yard-management.events` + `.analytics` | inspection id | `urn:warehouse:yard-management:events:InspectionCompleted:v1` |
+| `com.warehouse.wms.yard-management.inspection.InspectionFailed` | `warehouse.yard-management.events` + `.analytics` | inspection id | `urn:warehouse:yard-management:events:InspectionFailed:v1` |
 | `com.warehouse.wms.yard-management.yardcheck.YardCheckClosed` | `warehouse.yard-management.events` + `.analytics` | yard check id | `urn:warehouse:yard-management:events:YardCheckClosed:v1` |
 
 ### Consumed types
@@ -108,6 +115,9 @@ catalogue (byte-identical; see ADR 0003 and `docs/adr/0009-kafka-consumers.md`).
 | `com.warehouse.wms.dock-scheduling.dockappointment.DockAppointmentNoShow` | `warehouse.dock-scheduling.events` | dock-scheduling |
 | `com.warehouse.wms.dock-scheduling.dockcalendar.DoorClosureScheduled` | `warehouse.dock-scheduling.events` | dock-scheduling |
 | `com.warehouse.wms.dock-scheduling.dockcalendar.DoorClosureLifted` | `warehouse.dock-scheduling.events` | dock-scheduling |
+| `com.warehouse.wms.dock-scheduling.carrier.CarrierRegistered` | `warehouse.dock-scheduling.events` | dock-scheduling |
+| `com.warehouse.wms.dock-scheduling.carrier.CarrierSuspended` | `warehouse.dock-scheduling.events` | dock-scheduling |
+| `com.warehouse.wms.dock-scheduling.carrier.CarrierReinstated` | `warehouse.dock-scheduling.events` | dock-scheduling |
 | `com.warehouse.wms.facility-layout.locationslot.LocationSlotRegistered` | `warehouse.facility.events` | facility-layout |
 | `com.warehouse.wms.facility-layout.locationslot.LocationSlotDecommissioned` | `warehouse.facility.events` | facility-layout |
 | `com.warehouse.wms.facility-layout.zone.ZoneRegistered` | `warehouse.facility.events` | facility-layout |
