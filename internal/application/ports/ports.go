@@ -240,6 +240,22 @@ type EventPublisher interface {
 	Publish(ctx context.Context, events ...shared.Event) error
 }
 
+// CheckInMetrics records the business outcome of every gate check-in (Tier 2
+// of the fleet metrics convention, the instrument yard.visits.checked_in). Each
+// attempt calls exactly one method, after its unit of work ended. reason is the
+// problem slug of the failure (visit-already-open, seal-mismatch,
+// carrier-suspended, internal-error, ...), never free text. A nil
+// CheckInMetrics in the use case deps records nothing.
+type CheckInMetrics interface {
+	// CheckInAdmitted counts a visit recorded CHECKED_IN.
+	CheckInAdmitted(ctx context.Context)
+	// CheckInRejected counts a visit recorded REJECTED: the gate turned the
+	// truck away.
+	CheckInRejected(ctx context.Context, reason string)
+	// CheckInRefused counts a check-in that persisted nothing.
+	CheckInRefused(ctx context.Context, reason string)
+}
+
 // ProcessedEvents is the inbound consumers' idempotency guard: a consumed
 // CloudEvent's id is claimed in the SAME unit of work as its effect.
 type ProcessedEvents interface {

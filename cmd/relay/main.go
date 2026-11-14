@@ -15,6 +15,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -25,6 +26,7 @@ import (
 
 	outboundkafka "github.com/claudioed/yard-management/internal/adapters/outbound/kafka"
 	"github.com/claudioed/yard-management/internal/adapters/outbound/postgres"
+	"github.com/claudioed/yard-management/internal/adapters/outbound/telemetry"
 )
 
 // shutdownGrace bounds the health server's own shutdown.
@@ -40,14 +42,30 @@ type config struct {
 
 func main() { os.Exit(realMain()) }
 
+// newLoggerTo builds the JSON logger on w. The handler is wrapped so a record
+// written with a span-carrying context (the *Context slog variants) also
+// carries trace_id and span_id.
+func newLoggerTo(w io.Writer) *slog.Logger {
+	return slog.New(telemetry.WithTraceContext(slog.NewJSONHandler(w, nil)))
+}
+
 // realMain is main without os.Exit, so its deferred stop runs.
 func realMain() int {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	logger := newLoggerTo(os.Stdout)
+	slog.SetDefault(logger)
 	cfg, err := loadConfig(os.Getenv, logger)
 	if err != nil {
 		logger.Error("relay: invalid configuration", "error", err)
 		return 2
 	}
+	// Telemetry (runtime metrics, traces, trace-correlated logs) comes up
+	// once the configuration is accepted and is flushed last.
+	flushTelemetry, err := startTelemetry(logger, loadTelemetryEnv(os.Getenv))
+	if err != nil {
+		logger.Error("relay: telemetry setup failed", "error", err)
+		return 1
+	}
+	defer flushTelemetry()
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	if err := run(ctx, cfg, logger); err != nil {

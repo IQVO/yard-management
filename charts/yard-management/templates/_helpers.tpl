@@ -103,6 +103,54 @@ Image reference shared by every Deployment and CronJob.
 {{- end }}
 
 {{/*
+service.version of every component: serviceVersion when set, else the image tag,
+else the chart appVersion. Never a literal of its own.
+*/}}
+{{- define "yard-management.serviceVersion" -}}
+{{- .Values.serviceVersion | default .Values.image.tag | default .Chart.AppVersion -}}
+{{- end -}}
+
+{{/*
+The observability env of one component (ADR 0017, the fleet observability
+standard): ENVIRONMENT (deployment.environment.name) and SERVICE_VERSION
+always; OTEL_EXPORTER_OTLP_ENDPOINT and OTEL_SERVICE_NAME only while
+otel.enabled (off = the binary keeps its defaults and exports to nothing
+reachable, costing telemetry only). Call with
+  (dict "root" . "suffix" "<component>")
+OTEL_SERVICE_NAME is otel.serviceName for the api (empty suffix) and
+<otel.serviceName>-<suffix> for the others, the same names the binaries default
+to (mcp, relay, projector, reports).
+*/}}
+{{- define "yard-management.telemetryEnv" -}}
+{{- $root := .root -}}
+- name: ENVIRONMENT
+  value: {{ $root.Values.environment | quote }}
+- name: SERVICE_VERSION
+  value: {{ include "yard-management.serviceVersion" $root | quote }}
+{{- if $root.Values.otel.enabled }}
+- name: OTEL_EXPORTER_OTLP_ENDPOINT
+  value: {{ $root.Values.otel.endpoint | quote }}
+- name: OTEL_SERVICE_NAME
+  value: {{ ternary $root.Values.otel.serviceName (printf "%s-%s" $root.Values.otel.serviceName .suffix) (empty .suffix) | quote }}
+{{- end }}
+{{- end -}}
+
+{{/*
+The four observability variables belong to the chart (telemetryEnv above):
+a second definition through extraEnv would set the same variable twice, with
+an undefined winner.
+*/}}
+{{- define "yard-management.requireNoChartOwnedEnv" -}}
+{{- $where := .where -}}
+{{- range .list -}}
+{{- $name := toString .name -}}
+{{- if has $name (list "ENVIRONMENT" "SERVICE_VERSION" "OTEL_EXPORTER_OTLP_ENDPOINT" "OTEL_SERVICE_NAME") -}}
+{{- fail (printf "%s sets %s — the chart owns it: use environment, serviceVersion, otel.endpoint or otel.serviceName instead." $where $name) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 MANDATORY: Postgres is the only runtime. cmd/api, cmd/mcp and cmd/relay exit at
 boot without DATABASE_URL; there is no in-memory mode. Fails the render naming
 the values instead of crash-looping.
@@ -179,6 +227,11 @@ Deployment (always rendered) includes it, so a mis-set release fails
 {{- include "yard-management.requireNoInMemoryEnv" (dict "list" .Values.extraEnv "where" "extraEnv") -}}
 {{- include "yard-management.requireNoInMemoryEnv" (dict "list" .Values.mcp.extraEnv "where" "mcp.extraEnv") -}}
 {{- include "yard-management.requireNoInMemoryEnv" (dict "list" .Values.relay.extraEnv "where" "relay.extraEnv") -}}
+{{- include "yard-management.requireNoChartOwnedEnv" (dict "list" .Values.extraEnv "where" "extraEnv") -}}
+{{- include "yard-management.requireNoChartOwnedEnv" (dict "list" .Values.mcp.extraEnv "where" "mcp.extraEnv") -}}
+{{- include "yard-management.requireNoChartOwnedEnv" (dict "list" .Values.relay.extraEnv "where" "relay.extraEnv") -}}
+{{- include "yard-management.requireNoChartOwnedEnv" (dict "list" .Values.analytics.projector.extraEnv "where" "analytics.projector.extraEnv") -}}
+{{- include "yard-management.requireNoChartOwnedEnv" (dict "list" .Values.analytics.reports.extraEnv "where" "analytics.reports.extraEnv") -}}
 {{- include "yard-management.requireGracePeriod" . -}}
 {{- end -}}
 

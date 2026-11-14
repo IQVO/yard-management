@@ -6,11 +6,16 @@
 package http
 
 import (
+	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/riandyrn/otelchi"
+	otelchimetric "github.com/riandyrn/otelchi/metric"
 
+	"github.com/claudioed/yard-management/internal/adapters/inbound/requestlog"
 	"github.com/claudioed/yard-management/internal/application/ports"
 	"github.com/claudioed/yard-management/internal/application/usecases"
 )
@@ -33,7 +38,18 @@ type Server struct {
 	// Readiness backs GET /readyz: the drain gate plus the Postgres and Kafka
 	// checks (NewReadiness). nil (handler unit tests) means always ready.
 	Readiness *Readiness
+	// Logger writes the access log (one line per request, none for the
+	// probes); slog.Default() when nil. Build it with the trace-correlating
+	// handler of the composition root so a line carries trace_id/span_id.
+	Logger *slog.Logger
+	// ServiceName labels the server spans and the request-duration histogram
+	// (the OTEL_SERVICE_NAME of the binary); DefaultServiceName when empty.
+	ServiceName string
 }
+
+// DefaultServiceName labels the spans and metrics of a router built without a
+// ServiceName; it is the service.name of the OTel resource of cmd/api.
+const DefaultServiceName = "yard-management"
 
 // NewRouter builds the chi router for every route of apis/openapi.yaml.
 func NewRouter(s *Server) http.Handler {
@@ -98,19 +114,38 @@ func NewReportsRouter(s *Server) http.Handler {
 }
 
 // NewAdminRouter builds the probe-only router of the workers (cmd/yard-projector):
-// /healthz and /readyz.
-func NewAdminRouter(readiness *Readiness) http.Handler {
-	return newBase(&Server{Readiness: readiness})
+// /healthz and /readyz. logger and serviceName are the Server fields of the same name.
+func NewAdminRouter(readiness *Readiness, logger *slog.Logger, serviceName string) http.Handler {
+	return newBase(&Server{Readiness: readiness, Logger: logger, ServiceName: serviceName})
 }
 
-// newBase is the router every process shares: the NUL guard, the problem
-// documents for unknown paths and methods, and the probes.
+// newBase is the router every process shares: the fleet observability
+// middleware, the NUL guard, the problem documents for unknown paths and
+// methods, and the probes.
+//
+// The order is the fleet standard (ADR 0016 of inventory-storage, adopted here
+// by ADR 0017): RequestID, otelchi (server span named after the route PATTERN),
+// the http.server.request.duration histogram, the request log, Recoverer.
+// otelchi runs before the log so the request context already carries the span
+// the trace-correlating slog handler reads. telemetry.Setup must have run
+// before the router is built: otelchimetric binds the global MeterProvider at
+// construction.
 func newBase(s *Server) chi.Router {
 	r := chi.NewRouter()
+	name := s.ServiceName
+	if name == "" {
+		name = DefaultServiceName
+	}
+	r.Use(middleware.RequestID)
+	r.Use(otelchi.Middleware(name, otelchi.WithChiRoutes(r)))
+	r.Use(otelchimetric.NewServerRequestDuration(otelchimetric.NewBaseConfig(name)))
+	r.Use(requestlog.RequestLogger(s.Logger))
+	r.Use(middleware.Recoverer)
 	// A NUL (U+0000) in the path, the query or a body is a uniform client
 	// error here, never a Postgres 22021 -> 500; it runs before the
 	// route-scoped idempotency middleware so a rejected request never
-	// records its key.
+	// records its key. It sits INSIDE the observability middleware so a
+	// refused request still shows up in the RED metrics and the log.
 	r.Use(rejectNUL)
 	r.NotFound(func(w http.ResponseWriter, req *http.Request) {
 		writeProblem(w, req, notFoundResource, "no resource matches the requested path")

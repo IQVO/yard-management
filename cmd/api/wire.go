@@ -89,7 +89,9 @@ func wire(ctx context.Context, cfg config, getenv func(string) string, logger *s
 		inboundhttp.Dependency{Name: "postgres", Check: pool.Ping},
 		inboundhttp.Dependency{Name: "kafka", Check: outboundkafka.NewBrokerCheck(cfg.brokers).Check},
 	)
-	yard := usecases.New(deps(pool, uow, locks, clock))
+	yardDeps := deps(pool, uow, locks, clock)
+	yardDeps.Metrics = checkInMetrics(logger)
+	yard := usecases.New(yardDeps)
 	server := &inboundhttp.Server{
 		Yard:             yard,
 		Idempotency:      inboundhttp.NewIdempotency(idem),

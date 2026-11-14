@@ -64,6 +64,9 @@ type Deps struct {
 	Events       ports.EventPublisher
 	IDs          ports.IDGen
 	Clock        ports.Clock
+	// Metrics records the business outcome of every gate check-in (Tier 2 of the
+	// fleet metrics convention). Optional: nil records nothing.
+	Metrics ports.CheckInMetrics
 }
 
 // Yard is the application service of the yard-management context.
