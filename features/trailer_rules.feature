@@ -21,6 +21,19 @@ Feature: Trailer rules from the documentation
       | parked                   | completes door work  |
       | docked at door "WH1-D02" | completes door work  |
 
+  Scenario: Door work that has started or finished is not started or completed again
+    Given trailer "TR-1" is docked at door "WH1-D02"
+    When the dock operator starts door work on trailer "TR-1"
+    And the dock operator starts door work on trailer "TR-1"
+    Then trailer "TR-1" has door work IN_PROGRESS and load state LOADED
+    And the event "DoorWorkStarted" was published 1 time
+    When the dock operator completes door work on trailer "TR-1"
+    And the dock operator completes door work on trailer "TR-1"
+    And the dock operator starts door work on trailer "TR-1"
+    Then trailer "TR-1" has door work DONE and load state EMPTY
+    And the event "DoorWorkStarted" was published 1 time
+    And the event "DoorWorkCompleted" was published 1 time
+
   Scenario: A hold on a docked trailer is allowed and its door work waits for the release
     Given trailer "TR-1" is docked at door "WH1-D02"
     When the supervisor places a QUALITY hold on trailer "TR-1"

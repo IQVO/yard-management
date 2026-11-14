@@ -194,7 +194,27 @@ Feature: Gate rules from the documentation
     Then the latest move of trailer "TR-1" has reason TO_SPOT and performer VISITING_DRIVER
     And the latest move of trailer "TR-1" goes to SPOT "WH1-Z01"
 
+  Scenario: On a site that takes walk-ins a cancelled appointment is treated as no appointment
+    Given ASN "ASN-1" is registered
+    And appointment "appt-1" is booked at door "WH1-D01" for ASN "ASN-1" starting in 10 minutes
+    And dock-scheduling cancels appointment "appt-1"
+    When the gate checks in visit "A" for purpose LIVE_UNLOAD with plate "ABC1D23" and trailer "TR-1" (DRY_VAN, LOADED) on appointment "appt-1"
+    Then the response status is 201
+    And the response field "visit.appointmentId" is null
+    And the latest move of trailer "TR-1" has reason TO_HOLDING and performer VISITING_DRIVER
+    And appointment "appt-1" is marked CANCELLED
+
   # ---- CheckOutVisit ---------------------------------------------------------------------------------------------
+
+  Scenario: A visit cannot take a trailer that stands at another site
+    Given a yard site "WH2" with spots "WH2-Y01" and doors "WH2-D01:Both"
+    And trailer "TR-2" is parked
+    And the gate works at site "WH1"
+    When the gate checks in visit "P" for purpose PICKUP with plate "PU1"
+    And visit "P" checks out taking trailers "TR-2"
+    Then the response status is 409
+    And the problem is "trailer-not-released"
+    And trailer "TR-2" is PARKED at SPOT "WH2-Y01"
 
   Scenario: A check-out takes every trailer or none
     When the gate checks in visit "A" for purpose DROP with plate "TWO-1" and trailers "TR-1,TR-2" (DRY_VAN, LOADED)

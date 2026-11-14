@@ -386,3 +386,58 @@ Feature: Move rules from the documentation
     And dock-scheduling cancels appointment "appt-2"
     Then the latest move of trailer "TR-1" is REQUESTED
     And no "YardMoveCancelled" event was published
+
+  Scenario: A door that frees up calls only a trailer that is parked
+    Given ASN "ASN-2" is registered
+    And appointment "appt-2" is booked at door "WH1-D01" for ASN "ASN-2" starting in 5 minutes
+    And trailer "TR-1" is docked at door "WH1-D01"
+    When the gate checks in visit "B" for purpose DROP with plate "XYZ9" and trailer "TR-2" (DRY_VAN, LOADED) on appointment "appt-2"
+    And the gate clerk completes the move of trailer "TR-2"
+    And the supervisor requests a move of trailer "TR-2" to DOOR "WH1-D02"
+    And hostler "h1" claims the next move at site "WH1"
+    And hostler "h1" completes the move of trailer "TR-2"
+    Then trailer "TR-2" is DOCKED at DOOR "WH1-D02"
+    When the dock operator starts door work on trailer "TR-1"
+    And the dock operator completes door work on trailer "TR-1"
+    And hostler "h2" claims the next move at site "WH1" and gets the move of trailer "TR-1"
+    Then the latest move of trailer "TR-2" is COMPLETED
+
+  Scenario: A door that frees up gives no second move to a trailer that already has one
+    Given ASN "ASN-2" is registered
+    And appointment "appt-2" is booked at door "WH1-D01" for ASN "ASN-2" starting in 5 minutes
+    And trailer "TR-1" is docked at door "WH1-D01"
+    When the gate checks in visit "B" for purpose DROP with plate "XYZ9" and trailer "TR-2" (DRY_VAN, LOADED) on appointment "appt-2"
+    And the gate clerk completes the move of trailer "TR-2"
+    And the dock operator starts door work on trailer "TR-1"
+    And the dock operator completes door work on trailer "TR-1"
+    And the supervisor requests a move of trailer "TR-2" to SPOT "WH1-Y04"
+    And hostler "h1" claims the next move at site "WH1" and gets the move of trailer "TR-1"
+    And I send GET "/moves?trailerId=<trailer TR-2>&state=REQUESTED"
+    Then the response list "items" has 1 item
+    And the response field "items.0.reason" is "RELOCATE"
+
+  Scenario: A trailer sent back to its door finds its door work as it left it
+    Given trailer "TR-1" is docked at door "WH1-D02"
+    When the dock operator starts door work on trailer "TR-1"
+    And the supervisor requests a move of trailer "TR-1" to SPOT "WH1-Y04"
+    And hostler "h1" claims the next move at site "WH1"
+    And the clock advances 301 seconds
+    And the lease expiry sweep runs
+    Then trailer "TR-1" is DOCKED at DOOR "WH1-D02"
+    And trailer "TR-1" has door work IN_PROGRESS and load state LOADED
+
+  Scenario: An empty trailer is not bound to the direction of the ASN on its appointment
+    Given ASN "ASN-1" is registered
+    And appointment "appt-1" is booked at door "WH1-D01" for ASN "ASN-1" starting in 120 minutes
+    When the gate checks in visit "A" for purpose DROP with plate "ABC1D23" and trailer "TR-1" (DRY_VAN, EMPTY) on appointment "appt-1"
+    And the gate clerk completes the move of trailer "TR-1"
+    And the supervisor requests a move of trailer "TR-1" to DOOR "WH1-D03"
+    Then the response status is 201
+
+  Scenario: A spot of another site is not a destination for the trailer
+    Given a yard site "WH2" with spots "WH2-Y01" and doors "WH2-D01:Both"
+    And the gate works at site "WH1"
+    And trailer "TR-1" is parked
+    When the supervisor requests a move of trailer "TR-1" to SPOT "WH2-Y01"
+    Then the response status is 422
+    And the problem is "unknown-location"
