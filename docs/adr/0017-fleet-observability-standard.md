@@ -147,3 +147,8 @@ asserts the rendering, scans the names each `cmd/*` reads, and compares them wit
 - Instrumenting only `cmd/api`: the MCP server runs the same write use cases, and the relay, projector and reports are where the data-level
   signals of [Observability](/docs/operations/observability) live.
 - One counter per outcome (`yard.visits.admitted`, `yard.visits.rejected`): the convention prefers one counter with an `outcome` attribute.
+
+## Addendum 2026-11-13: current state
+
+ADR 0016 now exists: `docs/adr/0016-carrier-registry-copy-and-suspended-carrier-gate.md`, written retroactively from the code. The "Numbering" paragraph under
+Status, which says `docs/adr` has no 0016, described the tree when this ADR was written.
