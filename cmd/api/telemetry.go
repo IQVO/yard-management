@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/claudioed/yard-management/internal/adapters/outbound/telemetry"
+	"github.com/claudioed/yard-management/internal/application/ports"
 )
 
 // defaultServiceName is the OTEL_SERVICE_NAME default: the name every span,
@@ -17,7 +18,7 @@ const defaultServiceName = "yard-management"
 // out well past what an orchestrator will wait for.
 const telemetryFlushTimeout = 5 * time.Second
 
-// telemetryEnv is the observability part of the environment (ADR 0016).
+// telemetryEnv is the observability part of the environment (ADR 0017).
 //
 //	OTEL_SERVICE_NAME            service.name of spans and metrics (default yard-management)
 //	OTEL_EXPORTER_OTLP_ENDPOINT  Collector OTLP/gRPC endpoint, host:port or URL (default telemetry.DefaultEndpoint)
@@ -64,4 +65,17 @@ func startTelemetry(logger *slog.Logger, cfg telemetryEnv) (func(), error) {
 			logger.Warn("telemetry flush failed on shutdown", "error", err)
 		}
 	}, nil
+}
+
+// checkInMetrics registers the Tier 2 counter of the gate check-in
+// (yard.visits.checked_in) on the MeterProvider telemetry.Setup installed. A
+// registration error (an invalid instrument name: a programming error) is not
+// fatal: it is logged and the use case records nothing, never the reverse.
+func checkInMetrics(logger *slog.Logger) ports.CheckInMetrics {
+	m, err := telemetry.NewCheckInMetrics()
+	if err != nil {
+		logger.Warn("the yard.visits.checked_in counter is unavailable; check-ins run without it", "error", err)
+		return nil
+	}
+	return m
 }

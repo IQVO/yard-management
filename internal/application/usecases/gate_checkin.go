@@ -39,7 +39,16 @@ type CheckInInput struct {
 // REJECTED visit instead (Y-5). A suspended carrier under the REJECT policy
 // (ADR 0016) records the REJECTED visit AND answers ErrCarrierSuspended: the
 // turn-away commits, then the refusal is returned.
+//
+// Every attempt is counted once, after its unit of work ended, through
+// Deps.Metrics (recordCheckIn).
 func (y *Yard) CheckInVisit(ctx context.Context, in CheckInInput) (views.CheckIn, error) {
+	out, err := y.checkInVisit(ctx, in)
+	y.recordCheckIn(ctx, out, err)
+	return out, err
+}
+
+func (y *Yard) checkInVisit(ctx context.Context, in CheckInInput) (views.CheckIn, error) {
 	var (
 		out     views.CheckIn
 		refusal error

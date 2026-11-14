@@ -137,3 +137,31 @@ func TestRouterDoesNotLogTheProbes(t *testing.T) {
 		t.Fatalf("probes were logged: %s", buf.String())
 	}
 }
+
+// The Tier 2 counter of the gate check-in is registered on the MeterProvider
+// installed before it, so a check-in shows up as yard.visits.checked_in.
+func TestCheckInMetricsRegistersTheTier2Counter(t *testing.T) {
+	prev := otel.GetMeterProvider()
+	t.Cleanup(func() { otel.SetMeterProvider(prev) })
+	reader := sdkmetric.NewManualReader()
+	otel.SetMeterProvider(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)))
+
+	m := checkInMetrics(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if m == nil {
+		t.Fatal("checkInMetrics returned nil: the counter was not registered")
+	}
+	m.CheckInRefused(context.Background(), "visit-already-open")
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatal(err)
+	}
+	for _, sm := range rm.ScopeMetrics {
+		for _, metric := range sm.Metrics {
+			if metric.Name == "yard.visits.checked_in" {
+				return
+			}
+		}
+	}
+	t.Fatal("yard.visits.checked_in was not exported after a refused check-in")
+}
