@@ -1632,6 +1632,7 @@ paths:
                   REEFER: 720
                 leaseSeconds: 300
                 sealMismatchAction: FLAG
+                suspendedCarrierAction: NONE
                 freeTimeMinutes: 120
                 minimumSealClass: null
                 requireSecuringBeforeDoorWork: false
@@ -1697,6 +1698,7 @@ paths:
                   REEFER: 720
                 leaseSeconds: 300
                 sealMismatchAction: FLAG
+                suspendedCarrierAction: NONE
                 freeTimeMinutes: 120
                 minimumSealClass: null
                 requireSecuringBeforeDoorWork: false
