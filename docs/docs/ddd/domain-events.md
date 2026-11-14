@@ -48,11 +48,11 @@ Topic `warehouse.yard-management.events` (each message also goes, as a twin, to 
 
 | Event | Full `type` | `data` fields | Producing command / use case | Consumers |
 | --- | --- | --- | --- | --- |
-| `VisitCheckedIn` | `com.warehouse.wms.yard-management.yardvisit.VisitCheckedIn` | `visit_id`, `site_id`, `carrier`, `carrier_scac`, `purpose`, `appointment_id`, `trailers`, `arrived_at`, `version` | `CheckInVisit` | `dock-scheduling`, `inbound-receiving` |
+| `VisitCheckedIn` | `com.warehouse.wms.yard-management.yardvisit.VisitCheckedIn` | `visit_id`, `site_id`, `carrier`, `carrier_scac`, `purpose`, `appointment_id`, `carrier_flag`, `trailers`, `arrived_at`, `version` | `CheckInVisit` | `dock-scheduling`, `inbound-receiving` |
 | `VisitRejected` | `com.warehouse.wms.yard-management.yardvisit.VisitRejected` | `visit_id`, `site_id`, `carrier_scac`, `appointment_id`, `reason`, `rejected_at` | `RejectAtGate` (also the `REJECT` outcome of `SealCheckAtGate`) | `dock-scheduling`, `exception-management` |
 
 `reason` is a `RejectionReason`: `APPOINTMENT_REQUIRED`, `UNKNOWN_APPOINTMENT`,
-`SEAL_MISMATCH`, `TRAILER_ALREADY_ON_SITE` or `SITE_REQUEST`.
+`SEAL_MISMATCH`, `TRAILER_ALREADY_ON_SITE`, `SITE_REQUEST` or `CARRIER_SUSPENDED` (ADR 0016).
 
 ### Trailer events (key `trailerId`)
 

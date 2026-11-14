@@ -113,6 +113,7 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
 | `ErrAppointmentRequired` | 409 | `appointment-required` |
 | `ErrTrailerAlreadyOnSite` (from `RecordArrival`) | 409 | `trailer-already-on-site` |
 | `ErrSealClassTooLow` (site `minimumSealClass`; ADR 0012) | 409 | `seal-class-too-low` |
+| `ErrCarrierSuspended` (carrier suspended in dock-scheduling and the site policy `suspendedCarrierAction` is `REJECT`; the REJECTED visit is committed first; ADR 0016) | 409 | `carrier-suspended` |
 | `ErrDestinationReserved` (first move) | 409 | `destination-reserved` |
 | `ErrInvalidUnitNumber` (ISO 6346 check; ADR 0012) | 422 | `invalid-unit-number` |
 | `ErrInvalidSealClass` (ADR 0012) | 422 | `invalid-seal-class` |

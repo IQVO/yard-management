@@ -64,7 +64,7 @@ From the `value_objects` and `states` of the aggregates.
 | **Lease** | The `hostler_ref` and `expires_at` of a claimed move. | field of `yardmove.Move` |
 | **Observation** | A `location_code` and optional `unit_number` recorded in a yard check. | `yardcheck.Observation` |
 | **Discrepancy** | `MISSING`, `UNEXPECTED` or `WRONG_LOCATION`, with the location and the trailer. | `yardcheck.Discrepancy` |
-| **Rejection Reason** | `APPOINTMENT_REQUIRED`, `UNKNOWN_APPOINTMENT`, `SEAL_MISMATCH`, `TRAILER_ALREADY_ON_SITE` or `SITE_REQUEST`. | `yardvisit.RejectionReason` |
+| **Rejection Reason** | `APPOINTMENT_REQUIRED`, `UNKNOWN_APPOINTMENT`, `SEAL_MISMATCH`, `TRAILER_ALREADY_ON_SITE`, `SITE_REQUEST` or `CARRIER_SUSPENDED`. | `yardvisit.RejectionReason` |
 | **Seal Mismatch Action** | `FLAG` or `REJECT`: site policy for a seal that differs from the expected one. | `yardpolicy.SealAction` |
 | **Free Time** | The detention clock in minutes; optional, with no default. | `yardpolicy.Policy` |
 

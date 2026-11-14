@@ -2390,6 +2390,14 @@ components:
           type:
           - string
           - 'null'
+        carrier_flag:
+          type:
+          - string
+          - 'null'
+          enum:
+          - SUSPENDED
+          - null
+          description: Additive (ADR 0016). SUSPENDED when the gate admitted the visit of a carrier dock-scheduling has suspended, under the FLAG action of the yard policy; null otherwise.
         trailers:
           type: array
           items:
@@ -2519,6 +2527,7 @@ components:
           - SEAL_MISMATCH
           - TRAILER_ALREADY_ON_SITE
           - SITE_REQUEST
+          - CARRIER_SUSPENDED
         rejected_at:
           type: string
           format: date-time
