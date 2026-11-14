@@ -376,3 +376,13 @@ Feature: Move rules from the documentation
     And dock-scheduling cancels appointment "appt-1"
     Then trailer "TR-1" is DOCKED at DOOR "WH1-D01"
     And no "YardMoveCancelled" event was published
+
+  Scenario: A cancelled appointment cancels the move to its door and leaves a relocation of the trailer alone
+    Given ASN "ASN-2" is registered
+    And appointment "appt-2" is booked at door "WH1-D02" for ASN "ASN-2" starting in 60 minutes
+    When the gate checks in visit "A" for purpose LIVE_UNLOAD with plate "ABC1D23" and trailer "TR-1" (DRY_VAN, LOADED) on appointment "appt-2"
+    And the gate clerk completes the move of trailer "TR-1"
+    And the supervisor requests a move of trailer "TR-1" to SPOT "WH1-Y04"
+    And dock-scheduling cancels appointment "appt-2"
+    Then the latest move of trailer "TR-1" is REQUESTED
+    And no "YardMoveCancelled" event was published

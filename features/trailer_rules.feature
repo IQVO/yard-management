@@ -126,6 +126,17 @@ Feature: Trailer rules from the documentation
     When the gate clerk completes the move of trailer "TR-1"
     Then trailer "TR-1" has door work WAITING and load state LOADED
 
+  Scenario: A receipt closed while the trailer is on hold completes nothing
+    Given ASN "ASN-1" is registered
+    And appointment "appt-1" is booked at door "WH1-D01" for ASN "ASN-1" starting in 10 minutes
+    And receipt "rcpt-1" is opened for ASN "ASN-1" on appointment "appt-1" at door "WH1-D01"
+    When the gate checks in visit "A" for purpose LIVE_UNLOAD with plate "ABC1D23" and trailer "TR-1" (DRY_VAN, LOADED) on appointment "appt-1"
+    And the gate clerk completes the move of trailer "TR-1"
+    And the supervisor places a QUALITY hold on trailer "TR-1"
+    And inbound-receiving closes receipt "rcpt-1" for ASN "ASN-1"
+    Then trailer "TR-1" has door work WAITING and load state LOADED
+    And no "DoorWorkCompleted" event was published
+
   Scenario: Closing the receipt of work that is already done changes nothing
     Given ASN "ASN-1" is registered
     And appointment "appt-1" is booked at door "WH1-D01" for ASN "ASN-1" starting in 10 minutes

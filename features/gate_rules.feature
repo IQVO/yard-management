@@ -185,14 +185,14 @@ Feature: Gate rules from the documentation
     Then the response field "declared" is false
 
   Scenario: The parking zones of the policy decide where an on-time arrival goes when its door is taken
-    Given the site "WH1" has a spot "WH1-X01" in zone "WH1-overflow"
+    Given the site "WH1" has a spot "WH1-Z01" in zone "WH1-overflow"
     And the yard policy of site "WH1" is {"requireAppointment":false,"sealMismatchAction":"FLAG","leaseSeconds":300,"parkingZoneIds":["WH1-overflow"]}
     And ASN "ASN-1" is registered
     And the door "WH1-D01" is closed for the next 2 hours
     And appointment "appt-1" is booked at door "WH1-D01" for ASN "ASN-1" starting in 5 minutes
     When the gate checks in visit "A" for purpose LIVE_UNLOAD with plate "ABC1D23" and trailer "TR-1" (DRY_VAN, LOADED) on appointment "appt-1"
     Then the latest move of trailer "TR-1" has reason TO_SPOT and performer VISITING_DRIVER
-    And the latest move of trailer "TR-1" goes to SPOT "WH1-X01"
+    And the latest move of trailer "TR-1" goes to SPOT "WH1-Z01"
 
   # ---- CheckOutVisit ---------------------------------------------------------------------------------------------
 
