@@ -169,6 +169,85 @@ jobs:
         run: python3 scripts/harness/test_pinned_contract_gate.py
 
   # ============================================================
+  # CLASSIFICATION: CONTRACT TESTING (producer breaking-change gate)
+  # ============================================================
+  # yard-management is a PRODUCER: dock-scheduling, exception-management,
+  # inbound-receiving and outbound-shipping pin apis/asyncapi.yaml
+  # (contracts/pinned.json in each repo; source of truth: warehouse-docs
+  # network/model/contract-edges.json on origin/main, read-only). A
+  # consumer's contract tests only see a spec change after the pin is
+  # refreshed, so a breaking change must fail HERE, in the producer's PR,
+  # not later in four sibling repos. oasdiff gates the REST surface;
+  # scripts/harness/asyncapi_breaking.py gates the event spec. Runs only
+  # when the PR touches apis/** (the step self-skips otherwise).
+  spec-breaking:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0        # the PR base sha must be present for git show / git diff
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+        with:
+          python-version: "3.13"
+      - name: Install oasdiff (pinned)
+        run: go install github.com/oasdiff/oasdiff@v1.38.0
+      - name: Install PyYAML (hash-pinned, for the AsyncAPI gate)
+        run: python3 -m pip install --require-hashes -r .github/requirements/chart-tests.txt
+      - name: Breaking spec changes vs the base branch
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          if ! git diff --name-only "${BASE_SHA}" HEAD -- apis/ | grep -q .; then
+            echo "This PR does not touch apis/ — nothing to gate."
+            exit 0
+          fi
+          mkdir -p /tmp/base-specs
+          git show "${BASE_SHA}:apis/openapi.yaml"  > /tmp/base-specs/openapi.yaml
+          git show "${BASE_SHA}:apis/asyncapi.yaml" > /tmp/base-specs/asyncapi.yaml
+          if ! oasdiff breaking --fail-on ERR /tmp/base-specs/openapi.yaml apis/openapi.yaml; then
+            echo "::error::Breaking OpenAPI change vs the PR base. Make it additive (new optional field, new path/response) or coordinate the transition. Consumers of this context's contracts (warehouse-docs network/model/contract-edges.json, origin/main): dock-scheduling, exception-management, inbound-receiving, outbound-shipping."
+            exit 1
+          fi
+          python3 scripts/harness/asyncapi_breaking.py /tmp/base-specs/asyncapi.yaml apis/asyncapi.yaml
+      - name: The asyncapi gate's own tests
+        run: python3 scripts/harness/asyncapi_breaking.py --self-check
+
+  # Property-based contract testing: boots the service with its REAL
+  # adapters — testcontainers Postgres + Kafka on the runner's Docker
+  # daemon, because cmd/api has no in-memory mode — then Schemathesis
+  # generates valid AND invalid requests for every operation in
+  # apis/openapi.yaml and asserts the responses conform to the spec
+  # (status codes, content types, response schemas; positive data
+  # accepted, negative data rejected). Same invocation as `make
+  # contract` / scripts/contract-test.sh.
+  # ============================================================
+  # CLASSIFICATION: CONTRACT TESTING (OpenAPI / Schemathesis)
+  # ============================================================
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+        with:
+          python-version: "3.13"
+      - name: Install Schemathesis (pinned)
+        run: python3 -m pip install --require-hashes -r .github/requirements/schemathesis.txt
+      - name: Contract tests (Schemathesis over apis/openapi.yaml)
+        run: ./scripts/contract-test.sh
+
+  # ============================================================
   # CLASSIFICATION: BEHAVIOR TESTING (BDD / Gherkin)
   # ============================================================
   bdd:
