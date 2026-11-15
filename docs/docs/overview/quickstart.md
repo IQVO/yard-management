@@ -34,7 +34,7 @@ itself is applied to that cluster at `v0.1.2` (api and relay; read-only check on
 make check        # fmt-check vet build lint test   (the fast pre-commit bundle)
 make check-all    # check + coverage + arch-test + bdd   (run before pushing)
 make test         # go test ./... -race   (unit + httptest + godog features)
-make bdd          # go test ./... -run TestFeatures -v   (7 feature files, 53 scenarios)
+make bdd          # go test ./... -run TestFeatures -v   (15 feature files, 231 scenario definitions, 328 executed)
 make arch-test    # go test ./internal/architecture/... -v   (fitness tests)
 make coverage     # test with -coverpkg domain+application, 90 % gate
 make build        # go build ./...

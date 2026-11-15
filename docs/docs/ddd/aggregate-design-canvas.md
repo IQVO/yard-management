@@ -64,8 +64,9 @@ from-state). A refused `CheckInVisit` creates nothing; `RejectAtGate` is the com
 | --- | --- |
 | Carrier name non-blank, at most 100 characters; `scac` 2..4 upper-case letters when given | `ErrInvalidCarrier` |
 | At most one `CHECKED_IN` visit per tractor plate per site | `ErrVisitAlreadyOpen` |
+| A named appointment is in this site's local copy and the visit brings exactly one trailer | `ErrUnknownAppointment` |
 | When the site requires appointments, the named appointment is `BOOKED` for this site in the local copy | `ErrAppointmentRequired` |
-| Every trailer taken out is on site and released (not `DOCKED`, no open move) | `ErrTrailerNotReleased` |
+| Every trailer taken out is on site and released (no open move, and `PARKED` or `DOCKED` with door work `DONE`) | `ErrTrailerNotReleased` |
 | Every `LOADED` trailer taken out on an `OUTBOUND` purpose carries a seal | `ErrSealRequired` |
 | The unit number of a `CONTAINER` (or of a unit declared `ISO6346`) is an ISO 6346 number with a correct check digit; other units stay free-form | `ErrInvalidUnitNumber` |
 | A seal class is `I`, `S` or `H`; a seal below the site's `minimumSealClass`, or with no class, is refused | `ErrInvalidSealClass`, `ErrSealClassTooLow` |
@@ -85,8 +86,8 @@ The outbound purposes are `LIVE_LOAD` and `PICKUP` (decision Y-9), and a trailer
   or an arrival earlier than the tolerance goes `TO_HOLDING`.
 - **`VisitingDriverMove`** (this context): the first move of a trailer from the
   gate is created `CLAIMED` with performer `VISITING_DRIVER` (no lease).
-- **`SealCheckAtGate`** (this context): a recorded seal that differs from the
-  appointment's `expected_seal_number` raises `SealExceptionRaised`; `REJECT`
+- **`SealCheckAtGate`** (this context): at check-in (not at `RecordSeal`), a seal on the
+  trailer entry that differs from the appointment's `expected_seal_number` raises `SealExceptionRaised`; `REJECT`
   policy also rejects the visit.
 - **`ArrivalFromGate`** (`dock-scheduling`, a neighbour's reaction): on
   `VisitCheckedIn` naming an appointment, it records the arrival.

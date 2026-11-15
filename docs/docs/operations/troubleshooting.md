@@ -71,7 +71,8 @@ Errors are `application/problem+json`; the slug is the last segment of `type`
 | 409 `location-occupied`, `destination-reserved`, `trailer-has-open-move` | a spot or door holds a trailer or is reserved by an open move; one open move per trailer (partial unique indexes) | wait or choose another destination |
 | 409 `door-closed`, `door-flow-mismatch` | a door closure copy covers it; the door's flow (Inbound/Outbound/Both) does not match the trailer | pick another door or wait for `DoorClosureLifted` |
 | 409 `trailer-on-hold` / `trailer-not-on-hold` | move or release of a held trailer / release of one not held | release the hold first |
-| 409 `door-work-open`, `trailer-not-released`, `seal-required` | check-out of a trailer whose door work is not `DONE`, that still has an open move, or a `LOADED` outbound trailer without a seal | finish the work, close the move, record the seal (`POST /trailers/{trailerId}/seals`) |
+| 409 `trailer-not-released`, `seal-required` | check-out of a trailer that is not on site, still has an open move, is `DOCKED` with door work not `DONE`, or is a `LOADED` outbound trailer without a seal | finish the work, close the move, record the seal (`POST /trailers/{trailerId}/seals`) |
+| 409 `door-work-open` | releasing the securing (`POST /trailers/{trailerId}/securing-releases`) while door work is `IN_PROGRESS` (ADR 0013); check-out answers `trailer-not-released` first | complete the door work first |
 | 409 `hostler-busy`, `not-lease-holder`, `lease-not-expired` | a hostler can hold one claimed move; only the lease holder completes it | complete or cancel the current move |
 | 404 `no-claimable-move` | `POST /moves/claims` found no `REQUESTED` hostler move at the site | expected when idle |
 | a `CLAIMED` move is not released after the lease | the lease sweep did not run (the CronJob is the only scheduler) | `kubectl get cronjob`; run `POST /move-lease-sweeps` by hand; the default lease is 300 s |
