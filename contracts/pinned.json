@@ -1,0 +1,29 @@
+{
+  "_doc": "Every contract copy this repo pins from a producer, and the producer branch it must equal. scripts/harness/pinned_contract_gate.py fails when a copy differs from the producer's develop. Refresh = copy the file, never edit it. The yard-management entry pins THIS repo's own apis/asyncapi.yaml (the analytics self-subscription of ADR 0004): it fails the gate the moment a spec change lands on develop without this repo's consumer contract tests following it.",
+  "pins": [
+    {
+      "local": "internal/adapters/inbound/kafka/testdata/contracts/dock-scheduling.asyncapi.yaml",
+      "repo": "IQVO/dock-scheduling",
+      "path": "apis/asyncapi.yaml",
+      "ref": "develop"
+    },
+    {
+      "local": "internal/adapters/inbound/kafka/testdata/contracts/facility-layout.asyncapi.yaml",
+      "repo": "IQVO/facility-layout",
+      "path": "apis/asyncapi.yaml",
+      "ref": "develop"
+    },
+    {
+      "local": "internal/adapters/inbound/kafka/testdata/contracts/inbound-receiving.asyncapi.yaml",
+      "repo": "IQVO/inbound-receiving",
+      "path": "apis/asyncapi.yaml",
+      "ref": "develop"
+    },
+    {
+      "local": "internal/adapters/inbound/kafka/testdata/contracts/yard-management.asyncapi.yaml",
+      "repo": "IQVO/yard-management",
+      "path": "apis/asyncapi.yaml",
+      "ref": "develop"
+    }
+  ]
+}
