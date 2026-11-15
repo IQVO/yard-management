@@ -116,8 +116,8 @@ and door release from `yard-management` events
   unless the site's policy requires an appointment. A seal mismatch at the gate
   always raises an exception; whether it also rejects the visit is site policy.
 - **A visit leaves only when its trailers are released.** Every trailer taken
-  out must be off the door and without an open move, and every loaded outbound
-  trailer must carry a seal.
+  out must have no open move and be parked, or docked with its door work done (a
+  live visit leaves from its door), and every loaded outbound trailer must carry a seal.
 
 ## Actors
 
@@ -146,8 +146,8 @@ The business decisions the context enforces:
    when the move is requested.
 4. Moves are pulled by hostlers (claim-next with a lease), never pushed, as in
    `fulfillment-execution`.
-5. A visit checks out only when every trailer it takes is released (not docked,
-   no open move) and every loaded trailer of a live-load or pickup visit carries a seal.
+5. A visit checks out only when every trailer it takes is released (no open move, and parked or
+   docked with door work done) and every loaded trailer of a live-load or pickup visit carries a seal.
 6. Walk-ins are allowed into a holding spot unless the site's policy requires an
    appointment.
 7. A seal mismatch at the gate raises `SealExceptionRaised`; whether it also

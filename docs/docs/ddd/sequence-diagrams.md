@@ -324,7 +324,8 @@ Source: `internal/domain/yardvisit/visit.go`, `internal/domain/trailer/trailer.g
 
 Omitted: the idempotency-key check (as in B1). `Depart` is called from here for each trailer taken out
 (decision Y-6). For a live visit the trailer leaves from the door: released means no open move and either
-`PARKED` or `DOCKED` with door work `DONE` (decision Y-2).
+`PARKED` or `DOCKED` with door work `DONE` (decision Y-2). A `DOCKED` trailer with door work not `DONE` is already
+refused as `ErrTrailerNotReleased`, so the `ErrDoorWorkOpen` of `Depart` drawn above is not reached through this route.
 
 ### B3. RequestMove
 
@@ -488,7 +489,7 @@ sequenceDiagram
     participant R as repositories
     CR->>H: POST move-lease-sweeps
     H->>U: ExpireLease now
-    U->>R: CLAIMED moves with<br/>lease expires_at before now
+    U->>R: CLAIMED moves with<br/>lease expires_at at or before now
     loop each expired move
         U->>A: ExpireLease
         alt no longer CLAIMED
@@ -531,10 +532,7 @@ sequenceDiagram
         U-->>H: 404 not-found
     else found
         U->>A: CancelMove
-        alt already CANCELLED
-            A-->>U: unchanged
-            U-->>H: 200 move
-        else COMPLETED
+        alt COMPLETED or already CANCELLED
             A-->>U: ErrIllegalTransition
         else REQUESTED or CLAIMED
             A-->>U: CANCELLED, reservation released
@@ -578,10 +576,8 @@ sequenceDiagram
         U-->>H: 404 not-found
     else found
         U->>A: StartDoorWork or CompleteDoorWork
-        alt trailer not DOCKED
+        alt trailer not DOCKED, or door work not in the state the command needs<br/>(WAITING to start, IN_PROGRESS to complete)
             A-->>U: ErrIllegalTransition
-        else already in the target door-work state
-            A-->>U: unchanged, idempotent
         else accepted
             A-->>U: DoorWork IN_PROGRESS or DONE
             Note over U,O: one transaction
@@ -670,7 +666,7 @@ sequenceDiagram
         U->>A: dwell = now minus ArrivedAt
         alt below threshold or already reported
             A-->>U: nothing to raise
-        else threshold crossed
+        else dwell at or above the threshold
             Note over U,O: one transaction per trailer
             U->>R: mark crossing reported
             U->>O: insert TrailerDwellExceeded
@@ -708,8 +704,7 @@ sequenceDiagram
     else found
         U->>A: CloseYardCheck expected places
         alt state CLOSED already
-            A-->>U: unchanged, idempotent
-            U-->>H: 200 check
+            A-->>U: ErrIllegalTransition
         else OPEN
             A-->>U: CLOSED with<br/>discrepancies
             Note over U,O: one transaction
