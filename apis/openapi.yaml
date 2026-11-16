@@ -48,7 +48,7 @@ tags:
 - name: Health
   description: Liveness and readiness probes.
 paths:
-  /healthz:
+  /healthz-canary:
     get:
       operationId: getHealthz
       summary: Liveness probe
