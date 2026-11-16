@@ -28,9 +28,6 @@ import (
 //
 // Excluded CHECKS:
 //
-//   - unsupported_method: the 405 answer (problem+json `method-not-allowed`)
-//     carries no `Allow` header, which RFC 9110 requires. REAL code finding
-//     (dock-scheduling excludes the same check).
 //   - negative_data_rejection (product-master excludes it too): "schema-
 //     violating request answered 2xx". Every hit is one REAL, lenient-reader
 //     class: an empty or null value is read as ABSENT, so the schema's
@@ -64,7 +61,7 @@ import (
 //     (non-integer version, site id over 64 characters) is answered 422
 //     `validation`, which is not among the documented responses (200/400/404/500).
 var contractExcludes = []string{
-	"--exclude-checks", "unsupported_method,negative_data_rejection,positive_data_acceptance",
+	"--exclude-checks", "negative_data_rejection,positive_data_acceptance",
 	"--exclude-operation-id", "getVisit",
 	"--exclude-operation-id", "listVisits",
 	"--exclude-operation-id", "rejectAtGate",
