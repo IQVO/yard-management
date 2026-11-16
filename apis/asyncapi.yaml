@@ -19,7 +19,7 @@ info:
     **Published.** Five aggregates (YardVisit, Trailer, YardMove, YardCheck, Inspection) raise 23 event types through a transactional
     outbox: the aggregate row and its events are written in ONE database transaction and a relay drains them to Kafka (at-least-once;
     the CloudEvents `id` is stored with the outbox row). Thirteen types are integration events on `warehouse.yard-management.events`
-    (VisitCheckedIn, VisitRejected, TrailerDocked, TrailerUndocked, SealExceptionRaised, TrailerDwellExceeded, YardCheckClosed, DoorWorkCompleted, TrailerDeparted,
+    (VisitCheckedInCanary, VisitRejected, TrailerDocked, TrailerUndocked, SealExceptionRaised, TrailerDwellExceeded, YardCheckClosed, DoorWorkCompleted, TrailerDeparted,
     TrailerSecured, TrailerSecuringReleased, InspectionCompleted, InspectionFailed)
     and are mirrored on `warehouse.yard-management.analytics` under the same id; the other ten are analytics-only and go
     ONLY to the analytics topic. The key of every message is its aggregate root id (`visit_id`, `trailer_id`, `move_id`, `yard_check_id`, `inspection_id`).
@@ -49,8 +49,8 @@ channels:
     description: This service's integration topic. Written by the outbox relay; key = the aggregate root id. A row that can
       never be encoded goes verbatim to `warehouse.yard-management.events.dlq`.
     messages:
-      VisitCheckedIn:
-        $ref: '#/components/messages/VisitCheckedIn'
+      VisitCheckedInCanary:
+        $ref: '#/components/messages/VisitCheckedInCanary'
       VisitRejected:
         $ref: '#/components/messages/VisitRejected'
       TrailerDocked:
@@ -182,11 +182,11 @@ operations:
     channel:
       $ref: '#/channels/yardManagementEvents'
     summary: Publish the integration events of the yard.
-    description: 'Publishes the thirteen integration event types. TrailerSecured and TrailerSecuringReleased (ADR 0013) and InspectionCompleted (ADR 0015) have no consumer yet: they are the safety interlock facts and the inspection audit record of the yard. Consumers: outbound-shipping (TrailerDocked, DoorWorkCompleted, TrailerDeparted), dock-scheduling (VisitCheckedIn, TrailerDocked,
-      TrailerUndocked), inbound-receiving (VisitCheckedIn), dock-scheduling (VisitRejected), exception-management (VisitRejected,
+    description: 'Publishes the thirteen integration event types. TrailerSecured and TrailerSecuringReleased (ADR 0013) and InspectionCompleted (ADR 0015) have no consumer yet: they are the safety interlock facts and the inspection audit record of the yard. Consumers: outbound-shipping (TrailerDocked, DoorWorkCompleted, TrailerDeparted), dock-scheduling (VisitCheckedInCanary, TrailerDocked,
+      TrailerUndocked), inbound-receiving (VisitCheckedInCanary), dock-scheduling (VisitRejected), exception-management (VisitRejected,
       SealExceptionRaised, TrailerDwellExceeded, YardCheckClosed). InspectionFailed has no consumer yet: exception-management is its planned consumer (ADR 0015).'
     messages:
-    - $ref: '#/channels/yardManagementEvents/messages/VisitCheckedIn'
+    - $ref: '#/channels/yardManagementEvents/messages/VisitCheckedInCanary'
     - $ref: '#/channels/yardManagementEvents/messages/VisitRejected'
     - $ref: '#/channels/yardManagementEvents/messages/TrailerDocked'
     - $ref: '#/channels/yardManagementEvents/messages/TrailerUndocked'
@@ -270,12 +270,12 @@ operations:
     - $ref: '#/channels/inboundReceivingEvents/messages/ConsumedReceiptClosed'
 components:
   messages:
-    VisitCheckedIn:
-      name: VisitCheckedIn
-      title: VisitCheckedIn
+    VisitCheckedInCanary:
+      name: VisitCheckedInCanary
+      title: VisitCheckedInCanary
       summary: A tractor and driver passed the gate. Consumed by dock-scheduling (ArrivalFromGate) and inbound-receiving.
       description: '`type` = `com.warehouse.wms.yard-management.yardvisit.VisitCheckedIn`; subject and key = `visit_id`; dataschema
-        `urn:warehouse:yard-management:events:VisitCheckedIn:v1`.'
+        `urn:warehouse:yard-management:events:VisitCheckedInCanary:v1`.'
       contentType: application/cloudevents+json
       payload:
         allOf:
@@ -285,11 +285,11 @@ components:
             type:
               const: com.warehouse.wms.yard-management.yardvisit.VisitCheckedIn
             dataschema:
-              const: urn:warehouse:yard-management:events:VisitCheckedIn:v1
+              const: urn:warehouse:yard-management:events:VisitCheckedInCanary:v1
             data:
               $ref: '#/components/schemas/VisitCheckedInData'
       examples:
-      - name: VisitCheckedIn
+      - name: VisitCheckedInCanary
         payload:
           specversion: '1.0'
           id: 7f3c9a52-1b8d-4e6f-9a07-000000000001
@@ -298,7 +298,7 @@ components:
           subject: visit-5b1f0c3e-7a24-4d1e-9c55-0e7d3f2a9b10
           time: '2026-11-05T14:02:11Z'
           datacontenttype: application/json
-          dataschema: urn:warehouse:yard-management:events:VisitCheckedIn:v1
+          dataschema: urn:warehouse:yard-management:events:VisitCheckedInCanary:v1
           data:
             visit_id: visit-5b1f0c3e-7a24-4d1e-9c55-0e7d3f2a9b10
             site_id: WH1
@@ -322,11 +322,11 @@ components:
       tags:
       - name: yardvisit
     VisitCheckedInAnalytics:
-      name: VisitCheckedIn
-      title: VisitCheckedIn
+      name: VisitCheckedInCanary
+      title: VisitCheckedInCanary
       summary: A tractor and driver passed the gate. Consumed by dock-scheduling (ArrivalFromGate) and inbound-receiving.
       description: '`type` = `com.warehouse.wms.yard-management.yardvisit.VisitCheckedIn`; subject and key = `visit_id`; dataschema
-        `urn:warehouse:yard-management:analytics:VisitCheckedIn:v1`. Byte-identical payload to the integration topic.'
+        `urn:warehouse:yard-management:analytics:VisitCheckedInCanary:v1`. Byte-identical payload to the integration topic.'
       contentType: application/cloudevents+json
       payload:
         allOf:
@@ -336,11 +336,11 @@ components:
             type:
               const: com.warehouse.wms.yard-management.yardvisit.VisitCheckedIn
             dataschema:
-              const: urn:warehouse:yard-management:analytics:VisitCheckedIn:v1
+              const: urn:warehouse:yard-management:analytics:VisitCheckedInCanary:v1
             data:
               $ref: '#/components/schemas/VisitCheckedInData'
       examples:
-      - name: VisitCheckedIn
+      - name: VisitCheckedInCanary
         payload:
           specversion: '1.0'
           id: 7f3c9a52-1b8d-4e6f-9a07-000000000001
@@ -349,7 +349,7 @@ components:
           subject: visit-5b1f0c3e-7a24-4d1e-9c55-0e7d3f2a9b10
           time: '2026-11-05T14:02:11Z'
           datacontenttype: application/json
-          dataschema: urn:warehouse:yard-management:analytics:VisitCheckedIn:v1
+          dataschema: urn:warehouse:yard-management:analytics:VisitCheckedInCanary:v1
           data:
             visit_id: visit-5b1f0c3e-7a24-4d1e-9c55-0e7d3f2a9b10
             site_id: WH1
