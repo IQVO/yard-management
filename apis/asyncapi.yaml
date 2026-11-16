@@ -1,5 +1,6 @@
 asyncapi: 3.0.0
 info:
+  x-canary: true
   title: yard-management Domain Events
   version: 1.0.0
   contact:
