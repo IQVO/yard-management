@@ -24,6 +24,16 @@ One image carries five binaries (`Dockerfile` builds every `cmd/*`; the image en
 | `cmd/yard-projector` | writer of the `analytics` schema | `:8091` |
 | `cmd/yard-reports` | read-only `/reports/*` | `:8092` |
 
+## Published facts and their standard meaning
+
+Partners read standards, not this context's private event names. A published fact whose meaning a standard states exactly carries, as
+additive OPTIONAL `data` fields, `x12_status` (the ANSI X12 214 shipment status code), `cbv_biz_step` and `cbv_disposition` (GS1 EPCIS Core
+Business Vocabulary 2.0 URNs): `VisitCheckedIn` (`I1` In-Gate, `arriving`), `VisitCheckedOut` and `TrailerDeparted` (`OA` Out-Gate, `departing`),
+`InspectionCompleted` and `InspectionFailed` (`inspecting`, `conformant` / `non_conformant`) and `TrailerHeld` (`damaged` for DAMAGED,
+`container_open` for SEAL_BROKEN). Every other fact, and every ambiguous case, carries nothing: a field is omitted, never `null`, so those
+payloads are byte-for-byte what they were. One tested table (`internal/domain/standards`) decides it, with the reason for every code
+withheld, in [ADR 0018](docs/adr/0018-standard-vocabulary-on-published-facts.md).
+
 ## Observability
 
 Every binary exports OpenTelemetry traces and metrics over OTLP/gRPC to the Collector and writes JSON logs whose records carry `trace_id` and

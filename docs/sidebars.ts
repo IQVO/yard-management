@@ -157,6 +157,11 @@ const sidebars: SidebarsConfig = {
           label: '0015 Compliance inspections: checklist templates, gate on dock, load and departure',
           href: '/docs/adr/0015-compliance-inspections',
         },
+        {
+          type: 'link',
+          label: '0018 Standard vocabulary on published facts: X12 214, CBV business step and disposition',
+          href: '/docs/adr/0018-standard-vocabulary-on-published-facts',
+        },
       ],
     },
   ],

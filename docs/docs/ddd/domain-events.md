@@ -48,7 +48,7 @@ Topic `warehouse.yard-management.events` (each message also goes, as a twin, to 
 
 | Event | Full `type` | `data` fields | Producing command / use case | Consumers |
 | --- | --- | --- | --- | --- |
-| `VisitCheckedIn` | `com.warehouse.wms.yard-management.yardvisit.VisitCheckedIn` | `visit_id`, `site_id`, `carrier`, `carrier_scac`, `purpose`, `appointment_id`, `carrier_flag`, `trailers`, `arrived_at`, `version` | `CheckInVisit` | `dock-scheduling`, `inbound-receiving` |
+| `VisitCheckedIn` | `com.warehouse.wms.yard-management.yardvisit.VisitCheckedIn` | `visit_id`, `site_id`, `carrier`, `carrier_scac`, `purpose`, `appointment_id`, `carrier_flag`, `trailers`, `arrived_at`, `version`; optional `x12_status`, `cbv_biz_step` | `CheckInVisit` | `dock-scheduling`, `inbound-receiving` |
 | `VisitRejected` | `com.warehouse.wms.yard-management.yardvisit.VisitRejected` | `visit_id`, `site_id`, `carrier_scac`, `appointment_id`, `reason`, `rejected_at` | `RejectAtGate` (also the `REJECT` outcome of `SealCheckAtGate`) | `dock-scheduling`, `exception-management` |
 
 `reason` is a `RejectionReason`: `APPOINTMENT_REQUIRED`, `UNKNOWN_APPOINTMENT`,
@@ -63,7 +63,7 @@ Topic `warehouse.yard-management.events` (each message also goes, as a twin, to 
 | `SealExceptionRaised` | `com.warehouse.wms.yard-management.trailer.SealExceptionRaised` | `trailer_id`, `site_id`, `appointment_id`, `expected_seal_number`, `found_seal_number`, `raised_at` | policy `SealCheckAtGate` | `exception-management` |
 | `TrailerDwellExceeded` | `com.warehouse.wms.yard-management.trailer.TrailerDwellExceeded` | `trailer_id`, `site_id`, `kind`, `dwell_minutes`, `threshold_minutes`, `location_code` | `DwellSweep` | `exception-management` |
 | `DoorWorkCompleted` | `com.warehouse.wms.yard-management.trailer.DoorWorkCompleted` | `trailer_id`, `site_id`, `door_code`, `appointment_id`, `completed_at`, `load_state`, `version` | `CompleteDoorWork` (also `AutoCompleteUnload`) | `outbound-shipping` |
-| `TrailerDeparted` | `com.warehouse.wms.yard-management.trailer.TrailerDeparted` | `trailer_id`, `site_id`, `visit_id`, `departed_at`, `dwell_minutes`, `load_state`, `seal_number`, `version` | `Depart` | `outbound-shipping` |
+| `TrailerDeparted` | `com.warehouse.wms.yard-management.trailer.TrailerDeparted` | `trailer_id`, `site_id`, `visit_id`, `departed_at`, `dwell_minutes`, `load_state`, `seal_number`, `version`; optional `x12_status`, `cbv_biz_step` | `Depart` | `outbound-shipping` |
 | `TrailerSecured` | `com.warehouse.wms.yard-management.trailer.TrailerSecured` | `trailer_id`, `site_id`, `door_code`, `method`, `secured_at`, `version` | `SecureTrailer` (not raised again for the same method) | none yet |
 | `TrailerSecuringReleased` | `com.warehouse.wms.yard-management.trailer.TrailerSecuringReleased` | `trailer_id`, `site_id`, `door_code`, `released_at`, `version` | `ReleaseTrailerSecuring` | none yet |
 
@@ -76,8 +76,8 @@ is null when the visit was rejected at the gate (the CloudEvents subject is then
 
 | Event | Full `type` | `data` fields | Producing command / use case | Consumers |
 | --- | --- | --- | --- | --- |
-| `InspectionCompleted` | `com.warehouse.wms.yard-management.inspection.InspectionCompleted` | `inspection_id`, `site_id`, `trailer_id`, `visit_id`, `template_id`, `template_version`, `gate`, `outcome`, `condition_grade`, `completed_at`, `failed_item_codes` | `CompleteInspection` | none yet (the audit record, ADR 0015) |
-| `InspectionFailed` | `com.warehouse.wms.yard-management.inspection.InspectionFailed` | `inspection_id`, `site_id`, `trailer_id`, `template_id`, `gate`, `failed_items`, `failed_at`, `hold_placed` | `CompleteInspection` ending FAILED (the `TrailerHeld` of its hold follows) | `exception-management` (planned) |
+| `InspectionCompleted` | `com.warehouse.wms.yard-management.inspection.InspectionCompleted` | `inspection_id`, `site_id`, `trailer_id`, `visit_id`, `template_id`, `template_version`, `gate`, `outcome`, `condition_grade`, `completed_at`, `failed_item_codes`; optional `cbv_biz_step`, `cbv_disposition` | `CompleteInspection` | none yet (the audit record, ADR 0015) |
+| `InspectionFailed` | `com.warehouse.wms.yard-management.inspection.InspectionFailed` | `inspection_id`, `site_id`, `trailer_id`, `template_id`, `gate`, `failed_items`, `failed_at`, `hold_placed`; optional `cbv_biz_step`, `cbv_disposition` | `CompleteInspection` ending FAILED (the `TrailerHeld` of its hold follows) | `exception-management` (planned) |
 
 Both are advisory (no `version`): an inspection is final once completed. `visit_id`, `condition_grade` and `failed_items[].note` are null when absent.
 
@@ -97,10 +97,10 @@ the analytics reports read model is built from them and from the twins of the in
 
 | Event | Full `type` | `data` fields | Producing command / use case |
 | --- | --- | --- | --- |
-| `VisitCheckedOut` | `com.warehouse.wms.yard-management.yardvisit.VisitCheckedOut` | `visit_id`, `site_id`, `trailers_out`, `departed_at`, `on_site_minutes`, `version` | `CheckOutVisit` |
+| `VisitCheckedOut` | `com.warehouse.wms.yard-management.yardvisit.VisitCheckedOut` | `visit_id`, `site_id`, `trailers_out`, `departed_at`, `on_site_minutes`, `version`; optional `x12_status`, `cbv_biz_step` | `CheckOutVisit` |
 | `TrailerParked` | `com.warehouse.wms.yard-management.trailer.TrailerParked` | `trailer_id`, `site_id`, `spot_code`, `version` | `ArriveAt` a spot, via `CompleteMove`; also `ReturnToOrigin` |
 | `DoorWorkStarted` | `com.warehouse.wms.yard-management.trailer.DoorWorkStarted` | `trailer_id`, `site_id`, `door_code`, `appointment_id`, `started_at`, `version` | `StartDoorWork` |
-| `TrailerHeld` | `com.warehouse.wms.yard-management.trailer.TrailerHeld` | `trailer_id`, `site_id`, `reason`, `version` | `PlaceHold` (also `RecordSeal` with state `BROKEN`) |
+| `TrailerHeld` | `com.warehouse.wms.yard-management.trailer.TrailerHeld` | `trailer_id`, `site_id`, `reason`, `version`; optional `cbv_disposition` | `PlaceHold` (also `RecordSeal` with state `BROKEN`) |
 | `TrailerHoldReleased` | `com.warehouse.wms.yard-management.trailer.TrailerHoldReleased` | `trailer_id`, `site_id`, `version` | `ReleaseHold` |
 | `YardMoveRequested` | `com.warehouse.wms.yard-management.yardmove.YardMoveRequested` | `move_id`, `site_id`, `trailer_id`, `appointment_id`, `performer`, `from_location`, `to_location`, `reason`, `due_by`, `version` | `RequestMove` (also the first move at the gate, created `CLAIMED`) |
 | `YardMoveClaimed` | `com.warehouse.wms.yard-management.yardmove.YardMoveClaimed` | `move_id`, `site_id`, `hostler_ref`, `claimed_at`, `version` | `ClaimNextMove` |
@@ -109,7 +109,7 @@ the analytics reports read model is built from them and from the twins of the in
 | `YardMoveCancelled` | `com.warehouse.wms.yard-management.yardmove.YardMoveCancelled` | `move_id`, `site_id`, `reason`, `version` | `CancelMove` |
 
 `reason` in `TrailerHeld` is a `HoldReason`: `DAMAGED`, `SEAL_BROKEN`, `NOT_FOUND`,
-`QUALITY` or `SECURITY`. `YardMoveLeaseExpired` is new as built (decision Y-10): `ExpireLease`
+`QUALITY` or `SECURITY`. Since ADR 0018 six events carry the optional standard-vocabulary fields `x12_status` (ANSI X12 214 status code), `cbv_biz_step` and `cbv_disposition` (GS1 CBV 2.0 URNs), listed in the `data` columns above and in [Event catalogue](/docs/api-reference/events#standard-vocabulary-on-the-facts-adr-0018); they are omitted, never `null`, when the mapping has no honest value, so every other payload is unchanged. `YardMoveLeaseExpired` is new as built (decision Y-10): `ExpireLease`
 used to raise nothing. `DeclareYardPolicy` raises no event; neither do `OpenYardCheck`, `RecordObservation`, `RecordArrival`, `RecordSeal`,
 `BreakSeal`, `RecordLoadState`, `StartMoving` or `ArriveAt` on their own account.
 
