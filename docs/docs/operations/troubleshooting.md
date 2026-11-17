@@ -60,7 +60,7 @@ Errors are `application/problem+json`; the slug is the last segment of `type`
 | --- | --- | --- |
 | 400 `idempotency-key-required` / `idempotency-key-invalid` | a `POST`/`PUT` without the header, or a key that is not 1-128 printable ASCII characters | send a unique key per logical request (not needed on the two sweeps) |
 | 409 `idempotency-key-reused` | the same key with another method, path or body | use a new key; to retry, send the identical request |
-| 409 `concurrent-modification` | the aggregate was changed by another request (version guard) | re-read and retry |
+| 409 `concurrent-modification` | the aggregate was changed by another request (version guard); any `POST` or `PUT` can answer it except the two sweeps, which skip what changed | re-read and retry with a new `Idempotency-Key` (the refusal is stored under the old one and replays) |
 | 412 `precondition-failed` on `PUT /sites/{siteId}/yard-policy` | `If-Match` is not the policy's current version | `GET` the policy, send its ETag |
 | 400 `invalid-if-match` | `If-Match` is not an entity tag of a policy version | send the ETag returned by `GET` |
 | 400 `unknown-query-parameter`, `invalid-limit`, `invalid-cursor`, `invalid-state` | list endpoints reject unknown parameters, bad `limit`, a cursor not produced by the service, a state outside the enum | fix the query |
@@ -88,7 +88,9 @@ Errors are `application/problem+json`; the slug is the last segment of `type`
 | 422 `invalid-hazmat-class`, `invalid-un-number` | a hazard class that is not a US DOT class or division (`1` to `9`, `1.4`, `2.1`...), or a UN number that is not `UN` and four digits (ADR 0014) | send a valid value or leave the field out |
 | 422 `invalid-seal-class` | a seal class (or the policy's `minimumSealClass`) that is not `I`, `S` or `H` | use one of the three |
 | 422 `unknown-location`, `unknown-appointment`, `invalid-carrier`, `validation`, `unexplained-destination` | a value or reference the model refuses; locations and appointments are event-fed copies | fix the body; check the copies are loaded |
-| 400 on a body containing a NUL character | U+0000 in the path, query or body is refused uniformly (it would be a Postgres error otherwise) | remove it |
+| 400 `malformed-request-body` or 404 `resource-not-found` on a NUL character | U+0000 is refused uniformly (it would be a Postgres error otherwise): in the query or the body it is the 400, in the path the 404 | remove it |
+| 404 `resource-not-found` | the path matches no route (or carries a NUL character) | check the path against the endpoint table of the [API overview](/docs/api-reference) |
+| 405 `method-not-allowed` | the path exists and does not take that method; the `Allow` header lists the ones it takes | use a listed method |
 | 500 `internal-error` | an unexpected error; the cause is only in the log (`request failed`, `method`, `path`, `error`) | find the ERROR line |
 | `GET /reports/*` on the **api** returns rows empty | `ANALYTICS_READER_DATABASE_URL` is unset on the api, so it answers the contract shape with no rows | set it, or call `yard-reports`; the MCP `get_yard_dwell_report` tool always answers no rows (the reader is not wired in `cmd/mcp`) |
 | `/reports/*` rows are stale | the projector is behind or down | `GET /reports/freshness`; projector logs and lag of its group |
