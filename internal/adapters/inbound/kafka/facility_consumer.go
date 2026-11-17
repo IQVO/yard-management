@@ -32,7 +32,7 @@ const (
 // *usecases.Yard implements it.
 type FacilityUseCases interface {
 	ApplyZone(ctx context.Context, eventID, zoneID, siteCode string) error
-	ApplySlot(ctx context.Context, eventID, code, zoneID, role, dockFlow string) error
+	ApplySlot(ctx context.Context, eventID, code, zoneID, role, dockFlow, spotKind string) error
 	DecommissionSlot(ctx context.Context, eventID, code string) error
 }
 
@@ -51,6 +51,9 @@ type slotData struct {
 	ZoneID       string `json:"zoneId"`
 	Role         string `json:"role"`
 	DockFlow     string `json:"dockFlow"`
+	// SpotKind is the optional spotKind of a Yard slot (ADR 0045 of
+	// facility-layout); absent or null decodes as "".
+	SpotKind string `json:"spotKind"`
 }
 
 // NewFacilityConsumer consumes FacilityTopic under groupID (from
@@ -81,7 +84,7 @@ func NewFacilityConsumerForTopic(f Factory, topic, groupID string, uc FacilityUs
 				log.DebugContext(ctx, "ignoring a slot that is not a yard spot or a dock door", "location_code", d.LocationCode, "role", d.Role)
 				return nil
 			}
-			return uc.ApplySlot(ctx, e.ID(), d.LocationCode, d.ZoneID, d.Role, d.DockFlow)
+			return uc.ApplySlot(ctx, e.ID(), d.LocationCode, d.ZoneID, d.Role, d.DockFlow, d.SpotKind)
 		}),
 		TypeLocationSlotDecommissioned: on(func(ctx context.Context, e ce.Event, d slotData) error {
 			if err := requireNonBlank(e, "locationCode", d.LocationCode); err != nil {

@@ -110,10 +110,10 @@ func (w *world) seedSite(t *testing.T) {
 	must(w.yard.ApplyZone(ctx, itID("seed"), "WH1-YARD", "WH1"))
 	must(w.yard.ApplyZone(ctx, itID("seed"), "WH1-DOCK", "WH1"))
 	for _, code := range []string{"WH1-SPOT-01", "WH1-SPOT-02", "WH1-SPOT-03", "WH1-SPOT-04", "WH1-SPOT-05", "WH1-SPOT-06"} {
-		must(w.yard.ApplySlot(ctx, itID("seed"), code, "WH1-YARD", "Yard", ""))
+		must(w.yard.ApplySlot(ctx, itID("seed"), code, "WH1-YARD", "Yard", "", ""))
 	}
 	for _, code := range []string{"WH1-DOCK-IN-01", "WH1-DOCK-IN-02", "WH1-DOCK-IN-03", "WH1-DOCK-IN-04", "WH1-DOCK-IN-05"} {
-		must(w.yard.ApplySlot(ctx, itID("seed"), code, "WH1-DOCK", "Dock", "Both"))
+		must(w.yard.ApplySlot(ctx, itID("seed"), code, "WH1-DOCK", "Dock", "Both", ""))
 	}
 }
 

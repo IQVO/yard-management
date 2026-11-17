@@ -45,9 +45,12 @@ type Deps struct {
 	Moves        ports.MoveRepo
 	Checks       ports.CheckRepo
 	Policies     ports.PolicyRepo
+	Inspections  ports.InspectionRepo
+	Templates    ports.TemplateRepo
 	Locations    ports.Locations
 	Appointments ports.Appointments
 	Closures     ports.Closures
+	Carriers     ports.Carriers
 	Asns         ports.Asns
 	Receipts     ports.Receipts
 	Locks        ports.LocationLock
@@ -55,11 +58,15 @@ type Deps struct {
 	ApptFeed     ports.AppointmentFeed
 	LocationFeed ports.LocationFeed
 	ClosureFeed  ports.ClosureFeed
+	CarrierFeed  ports.CarrierFeed
 	AsnFeed      ports.AsnFeed
 	ReceiptFeed  ports.ReceiptFeed
 	Events       ports.EventPublisher
 	IDs          ports.IDGen
 	Clock        ports.Clock
+	// Metrics records the business outcome of every gate check-in (Tier 2 of the
+	// fleet metrics convention). Optional: nil records nothing.
+	Metrics ports.CheckInMetrics
 }
 
 // Yard is the application service of the yard-management context.

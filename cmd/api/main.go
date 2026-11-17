@@ -32,6 +32,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -42,6 +43,7 @@ import (
 	"time"
 
 	inboundhttp "github.com/claudioed/yard-management/internal/adapters/inbound/http"
+	"github.com/claudioed/yard-management/internal/adapters/outbound/telemetry"
 )
 
 // shutdownTimeout bounds the HTTP server's graceful drain.
@@ -64,10 +66,19 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("invalid configuration: %w", err)
 	}
+	// Telemetry comes up before the router is built (otelchimetric binds the
+	// global MeterProvider at construction) and is flushed last.
+	tel := loadTelemetryEnv(os.Getenv)
+	flushTelemetry, err := startTelemetry(logger, tel)
+	if err != nil {
+		return err
+	}
+	defer flushTelemetry()
 	rt, err := wire(ctx, cfg, os.Getenv, logger)
 	if err != nil {
 		return err
 	}
+	rt.server.Logger, rt.server.ServiceName = logger, tel.serviceName
 	// The pool closes LAST, after the HTTP drain and the consumers' stop.
 	defer rt.close()
 
@@ -121,9 +132,14 @@ func serve(ctx context.Context, logger *slog.Logger, httpServer *http.Server, ln
 	return errors.Join(consumerErr, httpServer.Shutdown(shutdownCtx))
 }
 
-// newLogger builds the JSON logger; LOG_LEVEL debug|info|warn|warning|error
+// newLogger builds the JSON logger on stdout; LOG_LEVEL debug|info|warn|warning|error
 // (case-insensitive).
-func newLogger(level string) *slog.Logger {
+func newLogger(level string) *slog.Logger { return newLoggerTo(os.Stdout, level) }
+
+// newLoggerTo writes the JSON logger to w. The handler is wrapped so a record
+// written with a span-carrying context (the *Context slog variants) also
+// carries trace_id and span_id.
+func newLoggerTo(w io.Writer, level string) *slog.Logger {
 	var lvl slog.Level
 	switch strings.ToLower(level) {
 	case "debug":
@@ -135,5 +151,5 @@ func newLogger(level string) *slog.Logger {
 	default:
 		lvl = slog.LevelInfo
 	}
-	return slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: lvl}))
+	return slog.New(telemetry.WithTraceContext(slog.NewJSONHandler(w, &slog.HandlerOptions{Level: lvl})))
 }

@@ -15,11 +15,14 @@ the dock doors. It is a **Supporting** subdomain (see
 [Subdomain classification](/docs/ddd/subdomain-classification)) in the **WMS**
 area; CloudEvents type segment `wms`.
 
-Status: **built on develop, registered in warehouse-infra develop, not applied to
-the cluster**. The repository has the code, the Helm chart and the CI, and
+Status: **built on develop, registered in warehouse-infra develop and applied to the
+k3s cluster at `v0.1.2`**. The repository has the code, the Helm chart and the CI,
 `warehouse-infra` `origin/develop` registers it (a `terraform/apps.yaml` entry, helm
-values, dashboard and alert rules, the image pinned at v0.1.1), but no pod of it
-runs yet; see [Registration in warehouse-infra](/docs/operations/runbook#registration-in-warehouse-infra).
+values, dashboard and alert rules, the image pinned at `v0.1.2`), and read-only on
+2026-11-10 the Argo CD application is Synced and Healthy with a ready `api` pod and a
+ready `relay` pod. MCP, the analytics projector and reports, and the two sweep
+CronJobs are switched off in infra until capacity is freed; see
+[What runs on the k3s cluster](/docs/operations/runbook#what-runs-on-the-k3s-cluster).
 
 ## What it owns
 
@@ -32,15 +35,15 @@ runs yet; see [Registration in warehouse-infra](/docs/operations/runbook#registr
 | Dwell: a sweep raises `TrailerDwellExceeded` once per trailer and threshold crossing | `POST /dwell-sweeps` |
 | Yard checks (audits) with discrepancies (`YardCheck`) | `/yard-checks` |
 | Per-site rules: appointment required, holding spots, parking zones, dwell thresholds, lease length, seal mismatch action `FLAG` or `REJECT` (`YardPolicy`) | `PUT /sites/{siteId}/yard-policy` |
-| Yard facts for everyone else: nine integration events and ten analytics-only events | [Event catalogue](/docs/api-reference/events) |
+| Yard facts for everyone else: thirteen integration events and ten analytics-only events | [Event catalogue](/docs/api-reference/events) |
 | Yard KPIs: dwell, door utilisation, hostler productivity, turn time, detention exposure, exception rates | `/reports/*` ([ADR 0011](/docs/adr/0011-kpi-standard-reports)) |
-| Agent access: eight read tools and six approval-gated write tools | [MCP tools](/docs/mcp/tools) |
+| Agent access: ten read tools and eleven approval-gated write tools | [MCP tools](/docs/mcp/tools) |
 
 ## What it does not own
 
 - **The door calendar**: bookings, opening hours, no-shows, overlap rules and
   ETA risk belong to `dock-scheduling`. yard-management keeps event-fed local
-  copies of appointments and door closures and never calls it.
+  copies of appointments, door closures and carriers and never calls it.
 - **Locations**: `facility-layout` registers the Yard and Dock slots; here they are
   a local copy fed by `warehouse.facility.events`.
 - **Receiving**: ASNs and receipts belong to `inbound-receiving`; the yard keeps
@@ -113,8 +116,8 @@ and door release from `yard-management` events
   unless the site's policy requires an appointment. A seal mismatch at the gate
   always raises an exception; whether it also rejects the visit is site policy.
 - **A visit leaves only when its trailers are released.** Every trailer taken
-  out must be off the door and without an open move, and every loaded outbound
-  trailer must carry a seal.
+  out must have no open move and be parked, or docked with its door work done (a
+  live visit leaves from its door), and every loaded outbound trailer must carry a seal.
 
 ## Actors
 
@@ -126,9 +129,9 @@ and door release from `yard-management` events
 | Yard supervisor | Person (console) | Requests and cancels moves, places and releases holds, records seals, declares the yard policy, runs yard checks. |
 | Dock planner | Person (console) | Not an actor here: declares door hours and closures in `dock-scheduling`. This context only reads the closures. |
 | Scheduler (cron) | Kubernetes CronJob | Calls `POST /dwell-sweeps` and `POST /move-lease-sweeps`. |
-| `dock-scheduling` | Sibling context (upstream and downstream) | Publishes appointments and door closures; consumes visit check-in and trailer docking and undocking. |
+| `dock-scheduling` | Sibling context (upstream and downstream) | Publishes appointments, door closures and the carrier registry; consumes visit check-in and trailer docking and undocking. |
 | `facility-layout` | Fleet context (upstream) | Publishes the Yard and Dock slots and the zone-to-site mapping. |
-| `inbound-receiving` | Fleet context (upstream and downstream) | Publishes ASNs and receipts. It does not consume `TrailerDocked` as built; the optional consumer was not built. |
+| `inbound-receiving` | Fleet context (upstream and downstream) | Publishes ASNs and receipts. It consumes only `VisitCheckedIn` from this context (its ADR 0021, group `inbound-receiving-visit-arrivals`); it does not consume `TrailerDocked`, which its consumer commits past. |
 | `exception-management` | Fleet context (downstream) | Opens problem cases from rejected visits, seal exceptions, dwell breaches and yard-check discrepancies (merged on develop). |
 | `outbound-shipping` | Fleet context (downstream) | Confirms a shipment when the trailer leaves: reads `TrailerDocked`, `DoorWorkCompleted` and `TrailerDeparted` (merged on develop, not deployed). |
 
@@ -143,8 +146,8 @@ The business decisions the context enforces:
    when the move is requested.
 4. Moves are pulled by hostlers (claim-next with a lease), never pushed, as in
    `fulfillment-execution`.
-5. A visit checks out only when every trailer it takes is released (not docked,
-   no open move) and every loaded trailer of a live-load or pickup visit carries a seal.
+5. A visit checks out only when every trailer it takes is released (no open move, and parked or
+   docked with door work done) and every loaded trailer of a live-load or pickup visit carries a seal.
 6. Walk-ins are allowed into a holding spot unless the site's policy requires an
    appointment.
 7. A seal mismatch at the gate raises `SealExceptionRaised`; whether it also

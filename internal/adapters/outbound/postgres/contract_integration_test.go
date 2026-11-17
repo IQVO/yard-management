@@ -21,6 +21,7 @@ func TestRepoContract(t *testing.T) {
 		return repocontract.Store{
 			UoW: postgres.NewUnitOfWork(pool), Visits: postgres.NewVisits(pool), Trailers: postgres.NewTrailers(pool), Moves: postgres.NewMoves(pool),
 			Checks: postgres.NewChecks(pool), Policies: postgres.NewPolicies(pool),
+			Inspections: postgres.NewInspections(pool), Templates: postgres.NewTemplates(pool),
 			Locations: locations, LocationFeed: locations, Appointments: appointments, ApptFeed: appointments,
 			Closures: closures, ClosureFeed: closures, Asns: asns, AsnFeed: asns, Receipts: receipts, ReceiptFeed: receipts,
 			Processed: postgres.NewProcessedEvents(pool), Idempotency: postgres.NewIdempotencyStore(pool), Events: postgres.NewOutbox(pool),

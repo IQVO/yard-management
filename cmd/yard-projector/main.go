@@ -28,6 +28,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -42,6 +43,7 @@ import (
 	inboundkafka "github.com/claudioed/yard-management/internal/adapters/inbound/kafka"
 	"github.com/claudioed/yard-management/internal/adapters/outbound/analyticsstore"
 	outboundkafka "github.com/claudioed/yard-management/internal/adapters/outbound/kafka"
+	"github.com/claudioed/yard-management/internal/adapters/outbound/telemetry"
 )
 
 // shutdownTimeout bounds the admin server drain and the wait for the consumer
@@ -121,6 +123,14 @@ func run(ctx context.Context, getenv func(string) string) error {
 	logger := newLogger(cfg.logLevel)
 	slog.SetDefault(logger)
 
+	// Telemetry comes up before the admin router is built and is flushed last.
+	tel := loadTelemetryEnv(getenv)
+	flushTelemetry, err := startTelemetry(logger, tel)
+	if err != nil {
+		return err
+	}
+	defer flushTelemetry()
+
 	pool, err := openAnalyticsPool(ctx, cfg.analyticsURL)
 	if err != nil {
 		return err
@@ -141,7 +151,7 @@ func run(ctx context.Context, getenv func(string) string) error {
 		inboundhttp.Dependency{Name: "postgres", Check: pool.Ping},
 		inboundhttp.Dependency{Name: "kafka", Check: outboundkafka.NewBrokerCheck(cfg.brokers).Check},
 	)
-	admin := &http.Server{Addr: cfg.adminAddr, Handler: inboundhttp.NewAdminRouter(readiness), ReadHeaderTimeout: 5 * time.Second}
+	admin := &http.Server{Addr: cfg.adminAddr, Handler: inboundhttp.NewAdminRouter(readiness, logger, tel.serviceName), ReadHeaderTimeout: 5 * time.Second}
 	adminErr := make(chan error, 1)
 	go func() {
 		logger.Info("projector admin server listening", "addr", cfg.adminAddr)
@@ -209,7 +219,13 @@ func openAnalyticsPool(ctx context.Context, url string) (*pgxpool.Pool, error) {
 	return pool, nil
 }
 
-func newLogger(level string) *slog.Logger {
+// newLogger builds the JSON logger on stdout.
+func newLogger(level string) *slog.Logger { return newLoggerTo(os.Stdout, level) }
+
+// newLoggerTo writes the JSON logger to w. The handler is wrapped so a record
+// written with a span-carrying context (the *Context slog variants) also
+// carries trace_id and span_id.
+func newLoggerTo(w io.Writer, level string) *slog.Logger {
 	var lvl slog.Level
 	switch strings.ToLower(level) {
 	case "debug":
@@ -221,5 +237,5 @@ func newLogger(level string) *slog.Logger {
 	default:
 		lvl = slog.LevelInfo
 	}
-	return slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: lvl}))
+	return slog.New(telemetry.WithTraceContext(slog.NewJSONHandler(w, &slog.HandlerOptions{Level: lvl})))
 }

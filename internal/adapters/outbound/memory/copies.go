@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"slices"
 	"sort"
 	"time"
 
@@ -39,10 +40,10 @@ func (l *Locations) ApplyZone(_ context.Context, zoneID, siteCode string) error 
 }
 
 // ApplySlot implements ports.LocationFeed: a slot is (re)registered active.
-func (l *Locations) ApplySlot(_ context.Context, code, zoneID string, kind shared.LocationKind, dockFlow string) error {
+func (l *Locations) ApplySlot(_ context.Context, code, zoneID string, kind shared.LocationKind, dockFlow string, spotKind shared.SpotKind) error {
 	l.s.mu.Lock()
 	defer l.s.mu.Unlock()
-	l.s.st.locations[code] = views.LocationInfo{Code: code, ZoneID: zoneID, SiteCode: l.s.st.zones[zoneID], Kind: kind, DockFlow: dockFlow, Active: true}
+	l.s.st.locations[code] = views.LocationInfo{Code: code, ZoneID: zoneID, SiteCode: l.s.st.zones[zoneID], Kind: kind, DockFlow: dockFlow, SpotKind: spotKind, Active: true}
 	return nil
 }
 
@@ -80,7 +81,7 @@ func (l *Locations) ListBySite(_ context.Context, siteID string) ([]views.Locati
 }
 
 // FreeSpots implements ports.Locations.
-func (l *Locations) FreeSpots(ctx context.Context, siteID string, zoneIDs []string, limit int) ([]string, error) {
+func (l *Locations) FreeSpots(ctx context.Context, siteID string, zoneIDs []string, kinds []shared.SpotKind, limit int) ([]string, error) {
 	spots, _ := l.ListBySite(ctx, siteID)
 	l.s.mu.Lock()
 	defer l.s.mu.Unlock()
@@ -95,7 +96,7 @@ func (l *Locations) FreeSpots(ctx context.Context, siteID string, zoneIDs []stri
 	}
 	var out []string
 	for _, loc := range spots {
-		if loc.Kind != shared.Spot || taken[shared.Location{Kind: shared.Spot, Code: loc.Code}] || !inZones(loc.ZoneID, zoneIDs) {
+		if loc.Kind != shared.Spot || taken[shared.Location{Kind: shared.Spot, Code: loc.Code}] || !inZones(loc.ZoneID, zoneIDs) || !inKinds(loc.SpotKind, kinds) {
 			continue
 		}
 		if out = append(out, loc.Code); len(out) == limit {
@@ -103,6 +104,10 @@ func (l *Locations) FreeSpots(ctx context.Context, siteID string, zoneIDs []stri
 		}
 	}
 	return out, nil
+}
+
+func inKinds(kind shared.SpotKind, kinds []shared.SpotKind) bool {
+	return len(kinds) == 0 || slices.Contains(kinds, kind)
 }
 
 func inZones(zone string, zones []string) bool {

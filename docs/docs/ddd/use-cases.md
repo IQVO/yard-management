@@ -24,12 +24,15 @@ repositories and views and raise nothing.
 | RejectAtGate | `RejectAtGate` (`gate_checkin.go`) | `POST /visit-rejections` |
 | CheckOutVisit | `CheckOutVisit` (`gate_checkout.go`) | `POST /visits/{visitId}/check-outs` |
 | StartDoorWork, CompleteDoorWork | `StartDoorWork`, `CompleteDoorWork` (`doors.go`) | `POST /trailers/{trailerId}/door-work-starts`, `…/door-work-completions`; `CompleteDoorWork` also from `ReceiptClosed` |
+| SecureTrailer, ReleaseTrailerSecuring | `SecureTrailer`, `ReleaseTrailerSecuring` (`doors.go`) | `POST /trailers/{trailerId}/securings`, `…/securing-releases` (ADR 0013) |
+| OpenInspection, RecordInspectionItem, CompleteInspection | `OpenInspection`, `RecordInspectionItem`, `CompleteInspection` (`inspections.go`) | `POST /trailers/{trailerId}/inspections`, `PUT /inspections/{inspectionId}/items/{itemCode}`, `POST /inspections/{inspectionId}/completions` (ADR 0015) |
 | RecordSeal, PlaceHold, ReleaseHold | `RecordSeal`, `PlaceHold`, `ReleaseHold` (`doors.go`) | `POST /trailers/{trailerId}/seals`, `…/holds`, `…/hold-releases` |
 | DwellSweep | `SweepDwell` (`checks_policy.go`) | `POST /dwell-sweeps` (CronJob) |
 | RequestMove, ClaimNextMove, CompleteMove, CancelMove | `RequestMove`, `ClaimNextMove`, `CompleteMove`, `CancelMove` (`moves.go`) | `POST /moves`, `/moves/claims`, `/moves/{moveId}/completions`, `/moves/{moveId}/cancellations` |
 | ExpireLease | `SweepMoveLeases` (`moves.go`) | `POST /move-lease-sweeps` (CronJob) |
 | OpenYardCheck, RecordObservation, CloseYardCheck | `OpenYardCheck`, `RecordObservation`, `CloseYardCheck` (`checks_policy.go`) | `POST /yard-checks`, `…/observations`, `…/closures` |
 | DeclareYardPolicy | `DeclareYardPolicy` (`checks_policy.go`) | `PUT /sites/{siteId}/yard-policy` |
+| ClassifyTrailer | `ClassifyTrailer` (`doors.go`) | `POST /trailers/{trailerId}/classifications` |
 | Event-driven reactions | `ApplyZone`, `ApplySlot`, `DecommissionSlot`, `ApplyAppointment`, `ScheduleClosure`, `LiftClosure`, `RegisterAsn`, `CancelAsn`, `OpenReceipt`, `CloseReceipt` (`consumers.go`) | the three Kafka consumers |
 
 Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/server.go`, `internal/adapters/inbound/mcp/tools_write.go`.
@@ -58,11 +61,11 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
   `ErrUnexplainedDestination`) is **422**; a malformed request is **400**. The problem `type` slug is the
   kebab case of the name without `Err` (`ErrLocationOccupied` becomes
   `location-occupied`). Errors added as built: `ErrNoFreeSpot` (409), `ErrTrailerNotOnHold` (409),
-  `ErrLeaseNotExpired`.
+  `ErrLeaseNotExpired`, `ErrStalePolicy` (412 `precondition-failed`).
 - **Idempotency.** Every state-changing `POST` and `PUT` takes an `Idempotency-Key`
   header; a replay with the same key returns the first response (`idempotency_keys`); sweeps are
   naturally idempotent. Mutable aggregates carry a `version`; a `GET` of one aggregate returns a weak ETag of
-  it, `PUT /sites/{siteId}/yard-policy` honours `If-Match`, and a stale write is `ErrConcurrentModification`. Every
+  it, `PUT /sites/{siteId}/yard-policy` honours `If-Match`, and a stale `If-Match` is `ErrStalePolicy` (412 `precondition-failed`). Every
   Kafka consumer is idempotent on the CloudEvents `id` (inbox).
 - **Kafka-driven errors** have no HTTP status. A policy refusal is logged and counted,
   the event is marked processed, and nothing is retried; an infrastructure failure
@@ -86,28 +89,42 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
   1. Read the site's `YardPolicy` (`require_appointment`, `holding_spot_codes`,
      `parking_zone_ids`, `seal_mismatch_action`).
   2. Validate the carrier; refuse a second `CHECKED_IN` visit for the plate.
-  3. If the site requires appointments, the named appointment must be `BOOKED` for this
-     site in `AppointmentView`.
+  3. A named appointment must be in this site's `AppointmentView` copy and cover exactly one trailer of the visit,
+     otherwise `ErrUnknownAppointment` (an appointment of another site is unknown here). If the site requires
+     appointments, the visit must name a `BOOKED` one (`ErrAppointmentRequired`); on a site that does not, a named
+     appointment that is not `BOOKED` (cancelled, no-show) is dropped and the visit is a walk-in.
   4. Create `YardVisit` in `CHECKED_IN`.
   5. For each trailer brought in, `RecordArrival` (below).
   6. `SealCheckAtGate`: compare a recorded seal with the appointment's
-     `expected_seal_number`; a mismatch raises `SealExceptionRaised`, and under
+     `expected_seal_number`; a match ends the seal `VERIFIED`, a mismatch ends it `MISMATCH` and raises `SealExceptionRaised`, and under
      `REJECT` the visit is recorded `REJECTED` instead, with `VisitRejected(SEAL_MISMATCH)` and a
      `SealExceptionRaised` that has no trailer (decision Y-5).
   7. `DirectOnCheckIn` and `VisitingDriverMove`: for each trailer in, create the first
      move, `CLAIMED`, performer `VISITING_DRIVER`, no lease. Destination: a door when the
      appointment's door is free, not closed and flow-compatible (reason `TO_DOOR`); the
      holding spot when it is a walk-in or the arrival is earlier than the tolerance
-     (`TO_HOLDING`); otherwise the first free spot of the parking zones by location code.
+     (`TO_HOLDING`: the first free spot of `holding_spot_codes` in order, and when the holding spots are all taken the
+     first free spot of the parking zones); otherwise the first free spot of the parking zones by location code. Only
+     when no spot at all is free is the refusal `ErrNoFreeSpot`. A trailer that
+     declares a hazard class or a temperature-control need is offered only the spots its rule allows (ADR 0014):
+     a HAZMAT spot, or a REEFER_PLUG spot where the site has any.
   8. Save and write `VisitCheckedIn` to the outbox, one transaction.
 
 | Error | HTTP | Problem `type` slug |
 | --- | --- | --- |
 | `ErrInvalidCarrier` | 422 | `invalid-carrier` |
 | `ErrVisitAlreadyOpen` | 409 | `visit-already-open` |
+| `ErrUnknownAppointment` (not in this site's local copy, or the visit does not bring exactly one trailer) | 422 | `unknown-appointment` |
 | `ErrAppointmentRequired` | 409 | `appointment-required` |
 | `ErrTrailerAlreadyOnSite` (from `RecordArrival`) | 409 | `trailer-already-on-site` |
+| `ErrSealClassTooLow` (site `minimumSealClass`; ADR 0012) | 409 | `seal-class-too-low` |
+| `ErrCarrierSuspended` (carrier suspended in dock-scheduling and the site policy `suspendedCarrierAction` is `REJECT`; the REJECTED visit is committed first; ADR 0016) | 409 | `carrier-suspended` |
 | `ErrDestinationReserved` (first move) | 409 | `destination-reserved` |
+| `ErrInvalidUnitNumber` (ISO 6346 check; ADR 0012) | 422 | `invalid-unit-number` |
+| `ErrInvalidSealClass` (ADR 0012) | 422 | `invalid-seal-class` |
+| `ErrInvalidHazmatClass` (ADR 0014) | 422 | `invalid-hazmat-class` |
+| `ErrInvalidUNNumber` (ADR 0014) | 422 | `invalid-un-number` |
+| `ErrPlacementRuleViolated` (a trailer with a hazard class at a site with no HAZMAT spot; ADR 0014) | 409 | `placement-rule-violated` |
 | `ErrValidation` | 422 | `validation` |
 
 - **Events emitted:** `VisitCheckedIn`; `SealExceptionRaised` when the seal mismatches;
@@ -160,15 +177,15 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
 | --- | --- | --- |
 | `ErrTrailerNotReleased` | 409 | `trailer-not-released` |
 | `ErrSealRequired` | 409 | `seal-required` |
-| `ErrDoorWorkOpen` (from `Depart`) | 409 | `door-work-open` |
-| `ErrIllegalTransition` | 409 | `illegal-transition` |
+| `ErrDoorWorkOpen` (from `Depart`; not reached through this route: a `DOCKED` trailer with door work not `DONE` is not released and `trailer-not-released` answers first) | 409 | `door-work-open` |
+| `ErrIllegalTransition` (the visit is not `CHECKED_IN`) | 409 | `illegal-transition` |
 | `ErrNotFound` | 404 | `not-found` |
 | `ErrConcurrentModification` | 409 | `concurrent-modification` |
 
 - **Events emitted:** `VisitCheckedOut` (analytics only), `TrailerDeparted` (integration, read by
   `outbound-shipping`), `TrailerUndocked`.
-- **Idempotency:** `Idempotency-Key`; a visit already `CHECKED_OUT` is returned
-  unchanged (this page's reading).
+- **Idempotency:** `Idempotency-Key`: a repeat under the same key replays the first answer; the same call under a
+  new key on a visit already `CHECKED_OUT` is `409 illegal-transition`.
 
 ## Trailer
 
@@ -205,6 +222,7 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
 | Error | HTTP | Problem `type` slug |
 | --- | --- | --- |
 | `ErrIllegalTransition` | 409 | `illegal-transition` |
+| `ErrTrailerStillSecured` (a `DOCKED` trailer that is secured; ADR 0013) | 409 | `trailer-still-secured` |
 
 - **Events emitted:** `TrailerUndocked` when leaving a door (reading).
 - **Idempotency:** none of its own; the claim's.
@@ -245,19 +263,85 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
 - **Preconditions:** the trailer is `DOCKED` and its door work is `WAITING`.
 - **Main flow:**
   1. Load the trailer.
-  2. Set `DoorWork` to `IN_PROGRESS`.
-  3. Save and write `DoorWorkStarted` (`started_at`) to the outbox. The driver wait KPI
+  2. Under the site policy `requireSecuringBeforeDoorWork` (default off) the trailer must be secured
+     (ADR 0013); `AutoCompleteUnload` does not use this check.
+  3. Set `DoorWork` to `IN_PROGRESS`.
+  4. Save and write `DoorWorkStarted` (`started_at`) to the outbox. The driver wait KPI
      is arrival to this instant.
 
 | Error | HTTP | Problem `type` slug |
 | --- | --- | --- |
 | `ErrNotFound` | 404 | `not-found` |
 | `ErrIllegalTransition` (not `DOCKED`) | 409 | `illegal-transition` |
+| `ErrTrailerOnHold` | 409 | `trailer-on-hold` |
+| `ErrTrailerNotSecured` (policy on and the trailer is not secured; ADR 0013) | 409 | `trailer-not-secured` |
 | `ErrConcurrentModification` | 409 | `concurrent-modification` |
 
 - **Events emitted:** `DoorWorkStarted` (analytics only).
-- **Idempotency:** `Idempotency-Key`; door work already `IN_PROGRESS` is returned
-  unchanged (this page's reading). A held trailer's door work does not start (`ErrTrailerOnHold`).
+- **Idempotency:** `Idempotency-Key`: a repeat under the same key replays the first answer; door work already
+  `IN_PROGRESS` (or `DONE`) under a new key is `409 illegal-transition`, only `WAITING` starts. A held trailer's door
+  work does not start (`ErrTrailerOnHold`).
+
+### SecureTrailer
+
+- **Actor / trigger:** dock operator (floor client); MCP `secure_trailer` behind an approval.
+- **Inbound adapter:** REST `POST /trailers/{trailerId}/securings` (body `method` `RESTRAINT` or `WHEEL_CHOCKS`, `securerRef?`).
+- **Preconditions:** the trailer is `DOCKED` and has no open move.
+- **Main flow:**
+  1. Load the trailer.
+  2. Record `securedBy`, `securedAt` and `securerRef`. The same method again is a no-op (nothing saved or raised).
+  3. Save and write `TrailerSecured` to the outbox.
+
+| Error | HTTP | Problem `type` slug |
+| --- | --- | --- |
+| `ErrIllegalTransition` (not `DOCKED`, or secured another way) | 409 | `illegal-transition` |
+| `ErrTrailerHasOpenMove` | 409 | `trailer-has-open-move` |
+| `ErrValidation` (method) | 422 | `validation` |
+
+- **Events emitted:** `TrailerSecured` (integration, ADR 0013).
+- **Idempotency:** `Idempotency-Key`; the same method is returned unchanged.
+
+### ReleaseTrailerSecuring
+
+- **Actor / trigger:** dock operator (floor client); MCP `release_securing` behind an approval.
+- **Inbound adapter:** REST `POST /trailers/{trailerId}/securing-releases`.
+- **Preconditions:** the trailer is secured and its door work is not `IN_PROGRESS`.
+- **Main flow:**
+  1. Clear `securedBy`, `securedAt` and `securerRef`.
+  2. Save and write `TrailerSecuringReleased`.
+  3. Run `ClearDoorAfterWork` (a `DROP` trailer whose door work is done gets its `FROM_DOOR` move, which was withheld while it was secured).
+
+| Error | HTTP | Problem `type` slug |
+| --- | --- | --- |
+| `ErrTrailerNotSecured` | 409 | `trailer-not-secured` |
+| `ErrDoorWorkOpen` (door work `IN_PROGRESS`) | 409 | `door-work-open` |
+
+- **Events emitted:** `TrailerSecuringReleased` (integration, ADR 0013).
+- **Idempotency:** `Idempotency-Key`.
+
+### OpenInspection, RecordInspectionItem, CompleteInspection
+
+- **Actor / trigger:** inspector (floor client); MCP `open_inspection`, `record_inspection_item`, `complete_inspection` behind an approval.
+- **Inbound adapter:** REST `POST /trailers/{trailerId}/inspections` (`templateId`, `gate`, optional `templateVersion`, `visitId`,
+  `performerRef`), `PUT /inspections/{inspectionId}/items/{itemCode}` (`result`, `note?`, `evidenceRefs?`),
+  `POST /inspections/{inspectionId}/completions` (`conditionGrade?`). Templates: `GET /inspection-templates[/{id}[/versions/{n}]]`,
+  `PUT /inspection-templates/{id}/versions/{n}`.
+- **Main flow:** open snapshots the template version into a new `OPEN` inspection (one open per trailer, template and gate); each record
+  replaces one item's result; completion needs every required item answered, ends `PASSED` or `FAILED` and, in the same unit of work,
+  holds the trailer when it failed and the trailer carries no hold.
+- **Gates:** `RequestMove` to a door and the move of a check-in (`PRE_DOCK`), `StartDoorWork` on a trailer that is being loaded
+  (`PRE_LOAD`) and `CheckOutVisit` taking a trailer (`PRE_DEPARTURE`) ask the site policy `requiredInspections`; `AutoCompleteUnload`
+  asks nothing.
+
+| Error | HTTP | Problem `type` slug |
+| --- | --- | --- |
+| `ErrInspectionRequired` / `ErrInspectionFailed` (at a gate) | 409 | `inspection-required` / `inspection-failed` |
+| `ErrInspectionClosed`, `ErrRequiredItemPending`, `ErrInspectionAlreadyOpen` | 409 | `inspection-closed`, `required-item-pending`, `inspection-already-open` |
+| `ErrUnknownItem`, `ErrNotApplicableNotAllowed`, `ErrUnknownTemplate` | 422 | `unknown-item`, `not-applicable-not-allowed`, `unknown-template` |
+| `ErrTemplateVersionImmutable`, `ErrTemplateIsBuiltIn` | 409 | `template-version-immutable`, `template-is-built-in` |
+
+- **Events emitted:** `InspectionCompleted` and, when failed, `InspectionFailed` then `TrailerHeld` (ADR 0015).
+- **Idempotency:** `Idempotency-Key`; the version of the inspection is the ETag.
 
 ### CompleteDoorWork
 
@@ -277,12 +361,12 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
 | Error | HTTP | Problem `type` slug |
 | --- | --- | --- |
 | `ErrNotFound` | 404 | `not-found` |
-| `ErrIllegalTransition` (not `DOCKED`) | 409 | `illegal-transition` |
+| `ErrIllegalTransition` (not `DOCKED`, or door work not `IN_PROGRESS`) | 409 | `illegal-transition` |
 | `ErrConcurrentModification` | 409 | `concurrent-modification` |
 
 - **Events emitted:** `DoorWorkCompleted` (integration since 2026-11-09, read by `outbound-shipping`).
-- **Idempotency:** `Idempotency-Key`, inbox for the policy; completing `DONE` work is
-  a no-op.
+- **Idempotency:** `Idempotency-Key`, inbox for the policy; a repeat under the same key replays the first answer,
+  completing `DONE` work under a new key is `409 illegal-transition`.
 - **Settled gap:** `AutoCompleteUnload` joins through `receipt_id` from `ReceiptOpened` and completes door work
   (from `WAITING` or `IN_PROGRESS`) once every ASN on the trailer has a closed receipt (decision Y-7).
 
@@ -292,10 +376,12 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
 - **Inbound adapter:** REST `POST /trailers/{trailerId}/seals` (body: seal number).
 - **Preconditions:** the trailer is on site.
 - **Main flow:**
-  1. Set `Seal{number, INTACT}`.
-  2. If the trailer's appointment has an `expected_seal_number` that differs, raise
-     `SealExceptionRaised` (`SealCheckAtGate`; the comparison happens when the seal arrives, decision Y-13).
-  3. Save with the version check.
+  1. Set `Seal{number, INTACT}` (or `APPLIED`), with the optional ISO 17712 class; a class below the site's
+     `minimum_seal_class` is `ErrSealClassTooLow` (409 `seal-class-too-low`), an unknown one
+     `ErrInvalidSealClass` (422 `invalid-seal-class`).
+  2. Save with the version check. Recording a seal compares nothing: the expected seal of the appointment is compared
+     only at check-in (`SealCheckAtGate` in `CheckInVisit`, decision Y-13, assumption A9; ADR 0012), so a seal
+     recorded here stays `INTACT` or `APPLIED` whatever the appointment expected.
 
 | Error | HTTP | Problem `type` slug |
 | --- | --- | --- |
@@ -304,8 +390,7 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
 | `ErrIllegalTransition` (`DEPARTED`) | 409 | `illegal-transition` |
 | `ErrConcurrentModification` | 409 | `concurrent-modification` |
 
-- **Events emitted:** `SealExceptionRaised` (consumed by `exception-management`) on
-  mismatch; none otherwise.
+- **Events emitted:** none (`SealExceptionRaised` comes only from the check-in).
 - **Idempotency:** `Idempotency-Key`.
 
 ### BreakSeal
@@ -316,7 +401,7 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
 - **Main flow:** set `Seal.state` to `BROKEN`, place a `SEAL_BROKEN` hold and save (decision Y-6, assumption A10).
 - **Errors:** `ErrNotFound`, `ErrIllegalTransition`.
 - **Events emitted:** `TrailerHeld` (analytics only).
-- **Idempotency:** a seal already `BROKEN` is unchanged.
+- **Idempotency:** a seal already `BROKEN`, or a trailer with no seal, is `409 illegal-transition` under a new key.
 
 ### PlaceHold
 
@@ -334,6 +419,7 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
 | --- | --- | --- |
 | `ErrNotFound` | 404 | `not-found` |
 | `ErrValidation` (unknown reason) | 422 | `validation` |
+| `ErrTrailerOnHold` (already held) | 409 | `trailer-on-hold` |
 | `ErrIllegalTransition` (`DEPARTED`) | 409 | `illegal-transition` |
 | `ErrConcurrentModification` | 409 | `concurrent-modification` |
 
@@ -350,12 +436,12 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
 | Error | HTTP | Problem `type` slug |
 | --- | --- | --- |
 | `ErrNotFound` | 404 | `not-found` |
-| `ErrIllegalTransition` (not held) | 409 | `illegal-transition` |
+| `ErrTrailerNotOnHold` (not held) | 409 | `trailer-not-on-hold` |
 | `ErrConcurrentModification` | 409 | `concurrent-modification` |
 
 - **Events emitted:** `TrailerHoldReleased` (analytics only).
-- **Idempotency:** `Idempotency-Key`; a trailer not held is returned unchanged
-  (this page's reading).
+- **Idempotency:** `Idempotency-Key`: a repeat under the same key replays the first answer; releasing a trailer that
+  is not held under a new key is `409 trailer-not-on-hold`.
 
 ### RecordLoadState
 
@@ -379,6 +465,7 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
 | Error | HTTP | Problem `type` slug |
 | --- | --- | --- |
 | `ErrDoorWorkOpen` | 409 | `door-work-open` |
+| `ErrTrailerStillSecured` (a `DOCKED` trailer that is still secured; ADR 0013) | 409 | `trailer-still-secured` |
 | `ErrIllegalTransition` (`IN_MOVE` or already `DEPARTED`) | 409 | `illegal-transition` |
 
 - **Events emitted:** `TrailerDeparted` (analytics), `TrailerUndocked` (integration, for
@@ -393,7 +480,8 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
 - **Main flow:**
   1. For each trailer on site, compare its dwell (now minus `ArrivedAt`) with the
      `dwell_threshold_minutes` of its `TrailerKind` in the site's `YardPolicy`.
-  2. For each trailer that crossed its threshold and has not been reported for it, write
+  2. For each trailer whose dwell has reached its threshold (dwell is at or above it: the alert fires AT the
+     threshold) and has not been reported for it, write
      `TrailerDwellExceeded` (`dwell_minutes`, `threshold_minutes`, `location_code`).
   3. Return the count raised.
 
@@ -420,13 +508,17 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
   2. Refuse if the trailer has another `REQUESTED` or `CLAIMED` move.
   3. Under the destination's advisory lock: the destination is free
      (`Occupancy.CheckFree`) and no other open move names it; reserve it.
+  3a. For a yard spot, a trailer that carries a hazard class or needs temperature control must meet its
+     placement rule (`ErrPlacementRuleViolated`, 409 `placement-rule-violated`, ADR 0014); a door is exempt.
   4. Create `YardMove` in `REQUESTED`, performer `HOSTLER`.
   5. Save and write `YardMoveRequested` to the outbox.
 
 | Error | HTTP | Problem `type` slug |
 | --- | --- | --- |
 | `ErrTrailerHasOpenMove` | 409 | `trailer-has-open-move` |
+| `ErrTrailerStillSecured` (the trailer is secured at its door; ADR 0013) | 409 | `trailer-still-secured` |
 | `ErrDestinationReserved` | 409 | `destination-reserved` |
+| `ErrPlacementRuleViolated` (ADR 0014) | 409 | `placement-rule-violated` |
 | `ErrNotFound` (trailer) | 404 | `not-found` |
 | `ErrValidation` | 422 | `validation` |
 
@@ -488,7 +580,7 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
 
 - **Events emitted:** `YardMoveCompleted` (analytics), `TrailerParked` or
   `TrailerDocked`.
-- **Idempotency:** `Idempotency-Key`; a `COMPLETED` move is returned unchanged.
+- **Idempotency:** `Idempotency-Key`: a repeat under the same key replays the first answer; completing a `COMPLETED` move under a new key is `409 illegal-transition`.
 
 ### CancelMove
 
@@ -509,8 +601,8 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
 | `ErrConcurrentModification` | 409 | `concurrent-modification` |
 
 - **Events emitted:** `YardMoveCancelled` (analytics only).
-- **Idempotency:** `Idempotency-Key`, inbox for the policy; a `CANCELLED` move is
-  returned unchanged.
+- **Idempotency:** `Idempotency-Key`, inbox for the policy; a repeat under the same key replays the first answer,
+  cancelling a `CANCELLED` move under a new key is `409 illegal-transition`.
 - **Settled gaps:** cancelling a `CLAIMED` hostler move runs `ReturnToOrigin` in the same unit of work, so the
   trailer goes back where it was (decision Y-1); the policy finds the move through the `appointment_id` the move
   carries (decision X3).
@@ -521,7 +613,7 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
 - **Inbound adapter:** REST `POST /move-lease-sweeps`.
 - **Preconditions:** none.
 - **Main flow:**
-  1. Select `CLAIMED` moves whose `Lease.expires_at` is in the past.
+  1. Select `CLAIMED` moves whose `Lease.expires_at` is at or before now (the lease expires AT `expires_at`).
   2. For each, transition `CLAIMED → REQUESTED` and clear the lease; its destination
      stays reserved.
   3. Return the count.
@@ -595,7 +687,7 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
 
 - **Events emitted:** `YardCheckClosed` (consumed by `exception-management`, one case
   per discrepancy).
-- **Idempotency:** `Idempotency-Key`; a `CLOSED` check is returned unchanged.
+- **Idempotency:** `Idempotency-Key`: a repeat under the same key replays the first answer; closing a `CLOSED` check under a new key is `409 illegal-transition`.
 
 ## YardPolicy
 
@@ -608,17 +700,21 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
      thresholds and lease are positive.
   2. Replace the policy of the site: `require_appointment`, `holding_spot_codes`,
      `parking_zone_ids`, `dwell_threshold_minutes` per kind, `lease_seconds`,
-     `seal_mismatch_action`, optional `free_time_minutes`.
+     `seal_mismatch_action`, optional `free_time_minutes`, optional `minimum_seal_class`, optional
+     `require_securing_before_door_work` (default false, ADR 0013), optional
+     `allow_hazmat_on_unclassified_spots` (default false, ADR 0014).
   3. Save.
 
 | Error | HTTP | Problem `type` slug |
 | --- | --- | --- |
 | `ErrUnknownLocation` | 422 | `unknown-location` |
 | `ErrValidation` | 422 | `validation` |
+| `ErrStalePolicy` (`If-Match` is not the policy's current version; no `If-Match` is unconditional) | 412 | `precondition-failed` |
 | `ErrConcurrentModification` | 409 | `concurrent-modification` |
 
 - **Events emitted:** none (`YardPolicy.events: []`).
-- **Idempotency:** `PUT` replaces; the same body is a no-op; `Idempotency-Key`.
+- **Idempotency:** `PUT` replaces, and every accepted `PUT` raises the policy `version` by one, an identical body
+  included (it is not a no-op); a repeat under the same `Idempotency-Key` replays the first answer.
 
 ## Event-driven reactions that are not commands
 

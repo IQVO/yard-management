@@ -7,6 +7,7 @@ import (
 	"github.com/claudioed/yard-management/internal/adapters/inbound/http/page"
 	"github.com/claudioed/yard-management/internal/application/ports"
 	"github.com/claudioed/yard-management/internal/application/usecases"
+	"github.com/claudioed/yard-management/internal/domain/inspection"
 	"github.com/claudioed/yard-management/internal/domain/shared"
 	"github.com/claudioed/yard-management/internal/domain/trailer"
 	"github.com/claudioed/yard-management/internal/domain/yardcheck"
@@ -82,19 +83,33 @@ var problemCatalogue = []struct {
 	{usecases.ErrMoveNotFound, notFound("move-not-found", "Move not found")},
 	{usecases.ErrYardCheckNotFound, notFound("yard-check-not-found", "Yard check not found")},
 	{usecases.ErrSiteNotFound, notFound("site-not-found", "Site not found")},
+	{usecases.ErrInspectionNotFound, notFound("inspection-not-found", "Inspection not found")},
+	{usecases.ErrTemplateNotFound, notFound("template-not-found", "Inspection template not found")},
 	{usecases.ErrNoClaimableMove, notFound("no-claimable-move", "No move waits for a hostler")},
 
 	{yardvisit.ErrVisitAlreadyOpen, conflict("visit-already-open", "A visit is already open for this tractor plate")},
 	{yardvisit.ErrAppointmentRequired, conflict("appointment-required", "An appointment is required at this site")},
 	{yardvisit.ErrTrailerNotReleased, conflict("trailer-not-released", "A trailer is not released")},
 	{yardvisit.ErrSealRequired, conflict("seal-required", "A loaded outbound trailer needs a seal")},
+	{yardvisit.ErrCarrierSuspended, conflict("carrier-suspended", "The carrier is suspended")},
 	{trailer.ErrLocationOccupied, conflict("location-occupied", "The location already holds a trailer")},
 	{trailer.ErrDoorClosed, conflict("door-closed", "The door is closed")},
 	{trailer.ErrDoorFlowMismatch, conflict("door-flow-mismatch", "The door flow does not match the trailer")},
 	{trailer.ErrTrailerOnHold, conflict("trailer-on-hold", "The trailer is on hold")},
 	{trailer.ErrTrailerNotOnHold, conflict("trailer-not-on-hold", "The trailer is not on hold")},
 	{trailer.ErrDoorWorkOpen, conflict("door-work-open", "Door work is not done")},
+	{trailer.ErrTrailerNotSecured, conflict("trailer-not-secured", "The trailer is not secured")},
+	{trailer.ErrTrailerStillSecured, conflict("trailer-still-secured", "The trailer is still secured")},
 	{trailer.ErrTrailerAlreadyOnSite, conflict("trailer-already-on-site", "The trailer is already on site")},
+	{trailer.ErrPlacementRuleViolated, conflict("placement-rule-violated", "The spot is not allowed for what the trailer carries")},
+	{shared.ErrSealClassTooLow, conflict("seal-class-too-low", "The seal class is below the minimum of the site")},
+	{inspection.ErrInspectionRequired, conflict("inspection-required", "A passed inspection is required first")},
+	{inspection.ErrInspectionFailed, conflict("inspection-failed", "The latest inspection failed")},
+	{inspection.ErrInspectionClosed, conflict("inspection-closed", "The inspection is already completed")},
+	{inspection.ErrRequiredItemPending, conflict("required-item-pending", "A required item has no result yet")},
+	{inspection.ErrInspectionAlreadyOpen, conflict("inspection-already-open", "An inspection is already open for this trailer, template and gate")},
+	{inspection.ErrTemplateVersionImmutable, conflict("template-version-immutable", "A published template version never changes")},
+	{inspection.ErrTemplateIsBuiltIn, conflict("template-is-built-in", "A built-in template is read-only")},
 	{yardmove.ErrTrailerHasOpenMove, conflict("trailer-has-open-move", "The trailer already has an open move")},
 	{yardmove.ErrDestinationReserved, conflict("destination-reserved", "The destination is reserved by another open move")},
 	{yardmove.ErrHostlerBusy, conflict("hostler-busy", "The hostler already holds a claimed move")},
@@ -110,6 +125,13 @@ var problemCatalogue = []struct {
 
 	{shared.ErrInvalidCarrier, unprocessable("invalid-carrier", "The carrier is invalid")},
 	{shared.ErrUnknownLocation, unprocessable("unknown-location", "Unknown location")},
+	{shared.ErrInvalidUnitNumber, unprocessable("invalid-unit-number", "The unit number is invalid")},
+	{shared.ErrInvalidSealClass, unprocessable("invalid-seal-class", "The seal class is invalid")},
+	{shared.ErrInvalidHazmatClass, unprocessable("invalid-hazmat-class", "The hazmat class is invalid")},
+	{shared.ErrInvalidUNNumber, unprocessable("invalid-un-number", "The UN number is invalid")},
+	{inspection.ErrUnknownItem, unprocessable("unknown-item", "The inspection has no such item")},
+	{inspection.ErrNotApplicableNotAllowed, unprocessable("not-applicable-not-allowed", "The item cannot be marked not applicable")},
+	{inspection.ErrUnknownTemplate, unprocessable("unknown-template", "Unknown inspection template")},
 	{yardvisit.ErrUnknownAppointment, unprocessable("unknown-appointment", "Unknown appointment")},
 	{yardmove.ErrUnexplainedDestination, unprocessable("unexplained-destination", "A location other than the destination needs an explanation")},
 	{shared.ErrValidation, unprocessable("validation", "Validation failed")},

@@ -21,6 +21,8 @@ const (
 	AggregTrailer = "trailer"
 	AggregMove    = "yardmove"
 	AggregCheck   = "yardcheck"
+	// AggregInspection is the compliance inspection (ADR 0015).
+	AggregInspection = "inspection"
 )
 
 // Header is one Kafka message header of an encoded row.

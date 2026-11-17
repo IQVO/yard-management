@@ -1,0 +1,1 @@
+{"parameters":[{"name":"templateId","in":"path","required":true,"description":"The template id, lowercase letters, digits and hyphens.","schema":{"type":"string","minLength":1,"maxLength":128}}]}

@@ -1,0 +1,70 @@
+---
+id: record-inspection-item
+title: "Record an inspection item (RecordInspectionItem)"
+description: "Records what the inspector found at one item of an OPEN inspection: `PASS`, `FAIL` or `NOT_APPLICABLE` (only where the template item has `allowNotApplicable`, else 422 `not-applicable-not-allowed`), with an optional note (500 characters) and opaque evidence references (strings that point at photos or documents held elsewhere; at most 20, each at most 256 characters, no binary). Recording again replaces the earlier result. A completed inspection is final: 409 `inspection-closed`; an item the snapshot does not have is 422 `unknown-item`. Raises nothing."
+sidebar_label: "Record an inspection item (RecordInspectionItem)"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "put api-method"
+info_path: docs/api-reference/rest/yard-management-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Record an inspection item (RecordInspectionItem)"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"put"}
+  path={"/inspections/{inspectionId}/items/{itemCode}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Records what the inspector found at one item of an OPEN inspection: `PASS`, `FAIL` or `NOT_APPLICABLE` (only where the template item has `allowNotApplicable`, else 422 `not-applicable-not-allowed`), with an optional note (500 characters) and opaque evidence references (strings that point at photos or documents held elsewhere; at most 20, each at most 256 characters, no binary). Recording again replaces the earlier result. A completed inspection is final: 409 `inspection-closed`; an item the snapshot does not have is 422 `unknown-item`. Raises nothing.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./record-inspection-item.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./record-inspection-item.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./record-inspection-item.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

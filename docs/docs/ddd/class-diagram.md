@@ -93,6 +93,12 @@ classDiagram
         <<ValueObject>>
         reason HoldReason
     }
+    class Securing {
+        <<ValueObject>>
+        method RESTRAINT or WHEEL_CHOCKS
+        securedAt timestamp
+        securerRef string
+    }
     class Location {
         <<ValueObject>>
         kind SPOT or DOOR
@@ -110,6 +116,14 @@ classDiagram
     Trailer *-- Contents
     Trailer *-- Seal
     Trailer *-- Hold
+    Trailer *-- Securing
+    class Classification {
+        <<ValueObject>>
+        hazmatClass string
+        unNumber string
+        requiresTemperatureControl bool
+    }
+    Trailer *-- Classification
     Trailer *-- Location
     Trailer ..> Occupancy : uses at ArriveAt
 ```
@@ -119,7 +133,7 @@ Source: `internal/domain/trailer/trailer.go`, `internal/domain/trailer/work.go`,
 Omitted: the error variables (see
 [Aggregate Design Canvas](/docs/ddd/aggregate-design-canvas)),
 `HoldReason` (`DAMAGED`, `SEAL_BROKEN`, `NOT_FOUND`, `QUALITY`, `SECURITY`) and
-`SealState` (`INTACT`, `BROKEN`, `NONE`) enumerations, read accessors. `ArriveAt`
+`SealState` (`NONE`, `INTACT`, `BROKEN`, `APPLIED`, `VERIFIED`, `MISMATCH`; ADR 0012) enumerations, read accessors. `ArriveAt`
 receives the facts it cannot know alone (closure, door flow, active slot) from the use
 case; `Occupancy.CheckFree` runs under a per-location advisory lock, with a partial
 unique index as backstop. `RecordArrival` is drawn as a constructor; it creates the trailer `IN_MOVE`
@@ -560,7 +574,7 @@ All paths are under `internal/` (`internal/adapters/inbound/{http,kafka,mcp}`,
 `internal/application/usecases`, `internal/domain`, `internal/application/ports`,
 `internal/adapters/outbound/{postgres,kafka,analyticsstore,memory,system}`). The service has five binaries under
 `cmd/` (`api`, `mcp`, `relay`, `yard-projector`, `yard-reports`); `http` is the `api` binary and `mcp` serves the
-14 tools of the service's MCP server (8 reads, 6 L3 writes). The ports are named as in `ports.go`: the five
+21 tools of the service's MCP server (10 reads, 11 L3 writes). The ports are named as in `ports.go`: the five
 repositories, the read ports `Locations`, `Appointments`, `Closures`, `Asns` and `Receipts` with a feed each,
 `LocationLock`, `EventPublisher`, `ProcessedEvents`, `IDGen`, `Clock`, `IdempotencyStore` and `UnitOfWork`. The
 KPI reports read an analytics store (`analyticsstore`) fed from the analytics topic. The dashed arrows mean every use case

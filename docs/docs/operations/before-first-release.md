@@ -14,9 +14,11 @@ packaging was missing or wrong when that moment came. Work through this list on 
 branch, **before** the first `develop` → `main` PR. Delete a row only when the service
 really does not have that part, and say so in the PR.
 
-Status: **built on develop, registered in warehouse-infra develop, not applied to the
-cluster**: `warehouse-infra` `terraform/apps.yaml` on `origin/develop` has the entry (PR 193,
-commit `b4b827e`) and the images are pinned (commit `c42c475`), but no pod runs. The checklist
+Status: **built on develop, registered in warehouse-infra develop and applied to the k3s
+cluster at `v0.1.2` (api and relay only)**: `warehouse-infra` `terraform/apps.yaml` on
+`origin/develop` has the entry (PR 193, commit `b4b827e`), the images are pinned at
+`v0.1.2` (commit `05fd28b`), and read-only on 2026-11-10 the Argo application is Synced and
+Healthy with the api and relay pods Ready. The checklist
 below is the template's; the section after it records what `origin/develop` of this repository
 shows for each row, and the last section records the platform registration.
 
@@ -30,7 +32,7 @@ the fleet reference). The chart is NOT generated: it is shaped by what the servi
 | # | Item | Done when | Guarded by |
 |---|------|-----------|------------|
 | 1 | **Real runtime only.** `cmd/api` wires Postgres and Kafka; the in-memory adapters (`internal/adapters/outbound/memory`) are test doubles. No `*_MODE`/permissive fallback, no default that boots "healthy" without `DATABASE_URL` or `KAFKA_BROKERS`. | `cmd/**` has no import of the memory package; the binary exits at boot on missing `DATABASE_URL`, `KAFKA_BROKERS` or a consumer group id. | `TestRuntimeBinaryHasNoInMemoryAdapters` (`internal/architecture/runtime_no_memory_fitness_test.go`). The boot-error behaviour has no generic sensor: cover it in `cmd/api` tests and in the chart test (row 8). |
-| 2 | **No Go file at the repo root.** The godog runner and steps live in `features/` (`package features_test`, `Paths: "."`), binaries in `cmd/<name>/`, everything else in `internal/`. | `ls *.go` at the root prints nothing; `make bdd` still finds `TestFeatures`. | `TestNoGoFilesAtRepoRoot` (`internal/architecture/no_go_files_at_root_fitness_test.go`). |
+| 2 | **No Go file at the repo root.** The godog runner and steps live in `internal/bdd` over the Gherkin files in `features/`, binaries in `cmd/<name>/`, everything else in `internal/`. | `ls *.go` at the root prints nothing; `make bdd` still finds `TestFeatures`. | `TestNoGoFilesAtRepoRoot` (`internal/architecture/no_go_files_at_root_fitness_test.go`). |
 | 3 | **`Dockerfile` builds every `cmd/*`.** Generated; confirm `ENTRYPOINT ["./api"]` matches your main binary and `EXPOSE` matches `HTTP_ADDR`. | `docker build .` succeeds locally; `docker run --rm <image> /app/api` starts (or exits with the intended config error). | `trivy-scan` job builds the image on every PR to `main`/`develop`; `docker-publish` on push to `main`. |
 | 4 | **`.dockerignore`** excludes docs, charts, harness, tests output. Generated. | Build context is small; `.git`, `.claude/`, `docs/`, `charts/` are not sent. | none: review once. |
 | 5 | **Helm chart `charts/yard-management/`** with `Chart.yaml` `name: yard-management`. The chart directory name, the `Chart.yaml` name and the `helm package` file name in the `release` job must all be `yard-management`. | `helm lint charts/yard-management` and `helm template` with the required values both pass. | `helm-lint` (PRs) and the `release` job (packages `yard-management-<version>.tgz`). |
@@ -68,6 +70,7 @@ Read from the repository; nothing here was run (no Docker, `helm` or `make vuln`
 
 Sweeps are part of the packaging too: the chart's two CronJobs (`sweeps-cronjob.yaml`) are the
 only scheduler of `POST /dwell-sweeps` and `POST /move-lease-sweeps` ([Runbook](/docs/operations/runbook#sweeps)).
+On k3s they are switched off in `warehouse-infra` (read 2026-11-10: no CronJob exists).
 
 ## Platform registration in warehouse-infra
 
@@ -80,8 +83,8 @@ State on its `origin/develop`:
 | `helm-values/yard-management.yaml` (stable `yard-management-*` consumer groups, `existingSecret` wiring, reports and MCP routes, relay, sweeps, Kong plugins) | Done | PR 193, commit `b4b827e`. |
 | Dashboard and alert rules | Done | PR 193, commit `b4b827e`: `terraform/dashboards/contexts/yard-management.json` and six rules in `terraform/alerting/warehouse-alert-rules.json` (see [Observability](/docs/operations/observability#dashboards-and-alerts)). |
 | Chart lint and selector check in `warehouse-infra` CI | Done | PR 193, commit `b4b827e` (`.github/workflows/ci.yml`, `scripts/check-chart-selectors.py`). |
-| Image pinned | Done | Commit `c42c475` pins `yard-management` at `b106934-arm64`, this repository's `v0.1.1` commit on `main`. |
-| Yard-domain Kafka topics pre-created before the first sync | Documented, not done | `docs/kafka-topics-yard-dock.md` in `warehouse-infra` (PR 193) gives the command; no pod has been synced, and whether the topics exist on the broker was not checked. |
-| Applied to the k3s cluster | Not done | `kubectl get pods -n warehouse-systems` lists no `yard-management` pod (checked 2026-11-09). |
+| Image pinned | Done | Commit `c42c475` pinned `yard-management` at `b106934-arm64` (`v0.1.1`); commit `05fd28b` (#200, "chore(images): pin dock-scheduling and yard-management at v0.1.2") moved it to `da1e30e-arm64`, the commit of this repository's `v0.1.2` tag. |
+| Yard-domain Kafka topics pre-created before the first sync | Not verified | `docs/kafka-topics-yard-dock.md` in `warehouse-infra` (PR 193) gives the command. The first sync has happened (Argo operation `Succeeded` 2026-11-10T03:11:50Z), but whether the topics were pre-created, or exist now, was not checked: a topic listing needs `kubectl exec`. The api log (read 2026-11-10) names partitions of `warehouse.dock-scheduling.events`, `warehouse.inbound-receiving.events` and `warehouse.facility.events`, so the broker answered for those. |
+| Applied to the k3s cluster | Done (api and relay only) | Read-only on 2026-11-10: `kubectl get application yard-management -n argocd` is `Synced` and `Healthy` (last operation `Succeeded` 2026-11-10T03:11:50Z); pods `yard-management-7576f566cd-db8mn` and `yard-management-relay-55d57f45b5-drgpm` are `1/1 Running` with 0 restarts on `ghcr.io/iqvo/warehouse-infra/yard-management:da1e30e-arm64`, the `v0.1.2` commit. MCP, analytics and the sweeps are switched off by `warehouse-infra` commit `89c9592`. See the [runbook](/docs/operations/runbook#what-runs-on-the-k3s-cluster). |
 
-The service is **built on develop, registered in warehouse-infra develop, not applied to the cluster.** The ADR bodies in `docs/adr/` are not edited by this update.
+The service is **built on develop, registered in warehouse-infra develop and applied to the k3s cluster at `v0.1.2` (api and relay only).** Consumer lag and topic contents are not verified. The ADR bodies in `docs/adr/` are not edited by this update.

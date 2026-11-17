@@ -26,10 +26,10 @@ type Env struct {
 // Deps wires every port of the use cases to the store.
 func Deps(s *memory.Store) usecases.Deps {
 	return usecases.Deps{
-		UoW: s, Visits: s.Visits(), Trailers: s.Trailers(), Moves: s.Moves(), Checks: s.Checks(), Policies: s.Policies(),
+		UoW: s, Visits: s.Visits(), Trailers: s.Trailers(), Moves: s.Moves(), Checks: s.Checks(), Policies: s.Policies(), Inspections: s.Inspections(), Templates: s.Templates(),
 		Locations: s.Locations(), Appointments: s.Appointments(), Closures: s.Closures(), Asns: s.Asns(), Receipts: s.Receipts(),
 		Locks: s, Processed: s, ApptFeed: s.Appointments(), LocationFeed: s.Locations(), ClosureFeed: s.Closures(), AsnFeed: s.Asns(),
-		ReceiptFeed: s.Receipts(), Events: s, IDs: s, Clock: s,
+		ReceiptFeed: s.Receipts(), Carriers: s.Carriers(), CarrierFeed: s.Carriers(), Events: s, IDs: s, Clock: s,
 	}
 }
 
@@ -51,10 +51,18 @@ func (e *Env) Site(siteCode string, spots []string, doors map[string]string) {
 	must(feed.ApplyZone(e.Ctx, siteCode+"-yard", siteCode))
 	must(feed.ApplyZone(e.Ctx, siteCode+"-dock", siteCode))
 	for _, code := range spots {
-		must(feed.ApplySlot(e.Ctx, code, siteCode+"-yard", shared.Spot, ""))
+		must(feed.ApplySlot(e.Ctx, code, siteCode+"-yard", shared.Spot, "", shared.SpotKindUnknown))
 	}
 	for code, flow := range doors {
-		must(feed.ApplySlot(e.Ctx, code, siteCode+"-dock", shared.Door, flow))
+		must(feed.ApplySlot(e.Ctx, code, siteCode+"-dock", shared.Door, flow, shared.SpotKindUnknown))
+	}
+}
+
+// SpotKind registers the spot code of siteCode again with the facility-layout
+// spotKind kind, as a LocationSlotRegistered event carrying it would (ADR 0014).
+func (e *Env) SpotKind(siteCode, code string, kind shared.SpotKind) {
+	if err := e.Store.Locations().ApplySlot(e.Ctx, code, siteCode+"-yard", shared.Spot, "", kind); err != nil {
+		panic(err)
 	}
 }
 

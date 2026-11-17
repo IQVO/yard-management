@@ -77,3 +77,12 @@ Rescheduled carries `previous_door_code`; the copy relies on `appointment_id`, `
 - dock-scheduling consumes VisitCheckedIn, TrailerDocked, TrailerUndocked and VisitRejected; inbound-receiving may consume
   TrailerDocked; exception-management consumes VisitRejected, SealExceptionRaised, TrailerDwellExceeded and
   YardCheckClosed.
+
+## Addendum 2026-11-13: current state
+
+- The consumed set is sixteen types, not thirteen. ADR 0016 added `CarrierRegistered`, `CarrierSuspended` and `CarrierReinstated` on
+  `warehouse.dock-scheduling.events`, handled by the dock-scheduling consumer (`internal/adapters/inbound/kafka/dock_scheduling_consumer.go`) into a `carriers`
+  local copy.
+- The Consequences bullet that says inbound-receiving "may consume TrailerDocked" did not happen. inbound-receiving's consumer reads only `VisitCheckedIn` from this
+  service's integration topic (inbound-receiving `internal/adapters/inbound/kafka/visit_arrival_consumer.go`, its ADR 0021); `TrailerDocked` is read by
+  dock-scheduling and outbound-shipping.

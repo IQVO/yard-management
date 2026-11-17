@@ -137,6 +137,26 @@ const sidebars: SidebarsConfig = {
           label: '0011 Yard KPI standard v1: turn time, detention exposure and exce',
           href: '/docs/adr/0011-kpi-standard-reports',
         },
+        {
+          type: 'link',
+          label: '0012 Standard identifiers at the gate: ISO 6346, ISO 17712, seal state',
+          href: '/docs/adr/0012-standard-identifiers-at-the-gate',
+        },
+        {
+          type: 'link',
+          label: '0013 Dock safety interlock: secured before door work, released before leaving',
+          href: '/docs/adr/0013-dock-safety-interlock',
+        },
+        {
+          type: 'link',
+          label: '0014 Hazmat and reefer placement: spot kind, hazard class, temperature control',
+          href: '/docs/adr/0014-hazmat-and-reefer-placement',
+        },
+        {
+          type: 'link',
+          label: '0015 Compliance inspections: checklist templates, gate on dock, load and departure',
+          href: '/docs/adr/0015-compliance-inspections',
+        },
       ],
     },
   ],

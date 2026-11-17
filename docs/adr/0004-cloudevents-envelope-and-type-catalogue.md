@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (2026-11-05); stream split refined by ADR 0010 (DoorWorkCompleted and TrailerDeparted also on the integration topic).
+Accepted (2026-11-05); stream split refined by ADR 0010 (DoorWorkCompleted and TrailerDeparted also on the integration topic) and ADR 0013 (TrailerSecured and TrailerSecuringReleased, both integration) and ADR 0015 (InspectionCompleted and InspectionFailed, both integration).
 
 ## Context
 
@@ -26,14 +26,14 @@ Every Kafka message in the fleet is a CloudEvents 1.0 event in structured mode (
 
 ### Streams
 
-Nine types are integration events on `warehouse.yard-management.events` (the original seven plus DoorWorkCompleted and TrailerDeparted, ADR 0010) and are mirrored on
+Thirteen types are integration events on `warehouse.yard-management.events` (the original seven plus DoorWorkCompleted and TrailerDeparted, ADR 0010, TrailerSecured and TrailerSecuringReleased, ADR 0013, and InspectionCompleted and InspectionFailed, ADR 0015) and are mirrored on
 `warehouse.yard-management.analytics` (same `id`, same `type`, byte-identical `data`, analytics `dataschema`). The other
 ten are analytics-only: they go ONLY to `warehouse.yard-management.analytics`. A row the encoder cannot encode is written
 verbatim to `warehouse.yard-management.events.dlq`. Both topics have 8 partitions.
 
 ### Published
 
-`<entity>` is the raising aggregate, lowercase: `yardvisit`, `trailer`, `yardmove` or `yardcheck`.
+`<entity>` is the raising aggregate, lowercase: `yardvisit`, `trailer`, `yardmove`, `yardcheck` or `inspection` (ADR 0015).
 
 | type | stream | raised when | key |
 |---|---|---|---|
@@ -46,10 +46,14 @@ verbatim to `warehouse.yard-management.events.dlq`. Both topics have 8 partition
 | `com.warehouse.wms.yard-management.trailer.DoorWorkStarted` | analytics | unloading or loading begins | `trailer_id` |
 | `com.warehouse.wms.yard-management.trailer.DoorWorkCompleted` | events + analytics | door work is done (outbound-shipping, ADR 0010) | `trailer_id` |
 | `com.warehouse.wms.yard-management.trailer.TrailerDeparted` | events + analytics | a trailer leaves the site (outbound-shipping, ADR 0010) | `trailer_id` |
+| `com.warehouse.wms.yard-management.trailer.TrailerSecured` | events + analytics | a docked trailer is secured by a restraint or wheel chocks (no consumer yet, ADR 0013) | `trailer_id` |
+| `com.warehouse.wms.yard-management.trailer.TrailerSecuringReleased` | events + analytics | the securing is released (no consumer yet, ADR 0013) | `trailer_id` |
 | `com.warehouse.wms.yard-management.trailer.SealExceptionRaised` | events + analytics | gate seal differs from the expected one (exception-management) | `trailer_id` (visit id when no trailer) |
 | `com.warehouse.wms.yard-management.trailer.TrailerDwellExceeded` | events + analytics | dwell crossed the kind's threshold (exception-management) | `trailer_id` |
 | `com.warehouse.wms.yard-management.trailer.TrailerHeld` | analytics | a hold is placed | `trailer_id` |
 | `com.warehouse.wms.yard-management.trailer.TrailerHoldReleased` | analytics | a hold is released | `trailer_id` |
+| `com.warehouse.wms.yard-management.inspection.InspectionCompleted` | events + analytics | a compliance inspection ends, PASSED or FAILED (no consumer yet: the audit record, ADR 0015) | `inspection_id` |
+| `com.warehouse.wms.yard-management.inspection.InspectionFailed` | events + analytics | an inspection ends FAILED on a required item (exception-management, ADR 0015) | `inspection_id` |
 | `com.warehouse.wms.yard-management.yardmove.YardMoveRequested` | analytics | a move is requested | `move_id` |
 | `com.warehouse.wms.yard-management.yardmove.YardMoveClaimed` | analytics | a hostler claims a move | `move_id` |
 | `com.warehouse.wms.yard-management.yardmove.YardMoveLeaseExpired` | analytics | a lease ran out | `move_id` |
@@ -86,3 +90,11 @@ The projector reads this service's own analytics topic with `ANALYTICS_CONSUMER_
 
 - Consumers need nothing but this catalogue and `apis/asyncapi.yaml`; there is no shared Go code.
 - The analytics stream is the only source of the KPI reports; the integration topic stays small.
+
+## Addendum 2026-11-13: current state
+
+- The Published table lists inbound-receiving as a consumer of `TrailerDocked` and only dock-scheduling for `VisitCheckedIn`. As built, `TrailerDocked` is read by
+  dock-scheduling and outbound-shipping, and `VisitCheckedIn` by dock-scheduling and inbound-receiving (inbound-receiving
+  `internal/adapters/inbound/kafka/visit_arrival_consumer.go`, its ADR 0021).
+- The Consumed table lists thirteen types; ADR 0016 added `CarrierRegistered`, `CarrierSuspended` and `CarrierReinstated` on `warehouse.dock-scheduling.events`,
+  sixteen in all (`internal/adapters/inbound/kafka/dock_scheduling_consumer.go`).

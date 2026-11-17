@@ -19,6 +19,13 @@ type trailerInRequest struct {
 	Kind        string `json:"kind"`
 	LoadState   string `json:"loadState"`
 	SealNumber  string `json:"sealNumber"`
+	// UnitNumberScheme (ISO6346) and SealClass (I, S or H) are optional.
+	UnitNumberScheme string `json:"unitNumberScheme"`
+	SealClass        string `json:"sealClass"`
+	// HazmatClass, UNNumber and RequiresTemperatureControl are optional (ADR 0014).
+	HazmatClass                string `json:"hazmatClass"`
+	UNNumber                   string `json:"unNumber"`
+	RequiresTemperatureControl bool   `json:"requiresTemperatureControl"`
 }
 
 type checkInRequest struct {
@@ -40,6 +47,8 @@ func (q checkInRequest) input() usecases.CheckInInput {
 	for _, t := range q.Trailers {
 		in.Trailers = append(in.Trailers, usecases.TrailerInput{
 			UnitNumber: t.UnitNumber, CarrierSCAC: t.CarrierSCAC, Kind: t.Kind, LoadState: t.LoadState, SealNumber: t.SealNumber,
+			UnitNumberScheme: t.UnitNumberScheme, SealClass: t.SealClass,
+			HazmatClass: t.HazmatClass, UNNumber: t.UNNumber, RequiresTemperatureControl: t.RequiresTemperatureControl,
 		})
 	}
 	return in
@@ -129,6 +138,22 @@ func (q holdRequest) reason() trailer.HoldReason { return trailer.HoldReason(q.R
 type sealRequest struct {
 	State      string `json:"state"`
 	SealNumber string `json:"sealNumber"`
+	SealClass  string `json:"sealClass"`
+}
+
+// securingRequest is the body of POST /trailers/{trailerId}/securings:
+// Method is RESTRAINT or WHEEL_CHOCKS, SecurerRef optional (ADR 0013).
+type securingRequest struct {
+	Method     string `json:"method"`
+	SecurerRef string `json:"securerRef"`
+}
+
+// classificationRequest is the body of POST /trailers/{trailerId}/classifications:
+// what the trailer carries, a full replacement (ADR 0014).
+type classificationRequest struct {
+	HazmatClass                string `json:"hazmatClass"`
+	UNNumber                   string `json:"unNumber"`
+	RequiresTemperatureControl bool   `json:"requiresTemperatureControl"`
 }
 
 type openYardCheckRequest struct {
@@ -148,6 +173,15 @@ type declarePolicyRequest struct {
 	LeaseSeconds          int              `json:"leaseSeconds"`
 	SealMismatchAction    string           `json:"sealMismatchAction"`
 	FreeTimeMinutes       int              `json:"freeTimeMinutes"`
+	MinimumSealClass      string           `json:"minimumSealClass"`
+	// RequireSecuringBeforeDoorWork is optional and false when left out (ADR 0013).
+	RequireSecuringBeforeDoorWork bool `json:"requireSecuringBeforeDoorWork"`
+	// AllowHazmatOnUnclassifiedSpots is optional and false when left out (ADR 0014).
+	AllowHazmatOnUnclassifiedSpots bool `json:"allowHazmatOnUnclassifiedSpots"`
+	// RequiredInspections is optional; left out it is empty (ADR 0015).
+	RequiredInspections []inspectionRuleRequest `json:"requiredInspections"`
+	// SuspendedCarrierAction is optional: NONE, FLAG or REJECT; left out it is NONE (ADR 0016).
+	SuspendedCarrierAction string `json:"suspendedCarrierAction"`
 }
 
 func (q declarePolicyRequest) input() yardpolicy.DeclareInput {
@@ -158,7 +192,9 @@ func (q declarePolicyRequest) input() yardpolicy.DeclareInput {
 	return yardpolicy.DeclareInput{
 		RequireAppointment: q.RequireAppointment, HoldingSpotCodes: q.HoldingSpotCodes, ParkingZoneIDs: q.ParkingZoneIDs,
 		DwellThresholdMinutes: dwell, LeaseSeconds: q.LeaseSeconds, SealMismatchAction: yardpolicy.SealAction(q.SealMismatchAction),
-		FreeTimeMinutes: q.FreeTimeMinutes,
+		FreeTimeMinutes: q.FreeTimeMinutes, MinimumSealClass: shared.SealClass(q.MinimumSealClass),
+		RequireSecuringBeforeDoorWork: q.RequireSecuringBeforeDoorWork, AllowHazmatOnUnclassifiedSpots: q.AllowHazmatOnUnclassifiedSpots,
+		RequiredInspections: inspectionRules(q.RequiredInspections), SuspendedCarrierAction: yardpolicy.CarrierAction(q.SuspendedCarrierAction),
 	}
 }
 

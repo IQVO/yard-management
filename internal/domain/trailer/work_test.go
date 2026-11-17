@@ -282,3 +282,30 @@ func TestSweepDwellSkipsDepartedAndAlertsInMove(t *testing.T) {
 		t.Fatalf("no location is null: %v", d["location_code"])
 	}
 }
+
+func TestLoadingTellsALoadFromAnUnload(t *testing.T) {
+	cases := []struct {
+		name string
+		mod  func(*trailer.ArrivalInput)
+		want bool
+	}{
+		{"inbound content is an unload", func(in *trailer.ArrivalInput) { in.ASNNumbers, in.Load = []string{"ASN-1"}, shared.LoadLoaded }, false},
+		{"a loaded trailer with no direction is not a load", func(in *trailer.ArrivalInput) { in.ASNNumbers, in.Load = nil, shared.LoadLoaded }, false},
+		{"an outbound reference is a load", func(in *trailer.ArrivalInput) {
+			in.ASNNumbers, in.OutboundRef, in.Load = nil, "SHP-1", shared.LoadLoaded
+		}, true},
+		{"a live load is a load", func(in *trailer.ArrivalInput) {
+			in.ASNNumbers, in.Purpose, in.Load = nil, shared.PurposeLiveLoad, shared.LoadPartial
+		}, true},
+		{"a pickup is a load", func(in *trailer.ArrivalInput) {
+			in.ASNNumbers, in.Purpose, in.Load = nil, shared.PurposePickup, shared.LoadLoaded
+		}, true},
+		{"an empty trailer is there to be loaded", func(in *trailer.ArrivalInput) { in.Load = shared.LoadEmpty }, true},
+		{"an unloaded trailer that came with ASNs is empty again", func(in *trailer.ArrivalInput) { in.ASNNumbers, in.Load = []string{"ASN-1"}, shared.LoadEmpty }, true},
+	}
+	for _, c := range cases {
+		if got := newTrailer(t, c.mod).Loading(); got != c.want {
+			t.Errorf("%s: Loading() = %v, want %v", c.name, got, c.want)
+		}
+	}
+}

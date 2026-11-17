@@ -21,7 +21,8 @@ const EnvDockSchedulingGroup = "DOCK_SCHEDULING_CONSUMER_GROUP"
 
 // The only dock-scheduling types the consumer acts on, byte-identical to the
 // producer's AsyncAPI. DockAppointmentCheckedIn / Completed are analytics only
-// and deliberately not consumed (X4).
+// and deliberately not consumed (X4). The carrier registry events feed the
+// CarrierView local copy (ADR 0016).
 const (
 	TypeDockAppointmentBooked      = "com.warehouse.wms.dock-scheduling.dockappointment.DockAppointmentBooked"
 	TypeDockAppointmentRescheduled = "com.warehouse.wms.dock-scheduling.dockappointment.DockAppointmentRescheduled"
@@ -29,6 +30,9 @@ const (
 	TypeDockAppointmentNoShow      = "com.warehouse.wms.dock-scheduling.dockappointment.DockAppointmentNoShow"
 	TypeDoorClosureScheduled       = "com.warehouse.wms.dock-scheduling.dockcalendar.DoorClosureScheduled"
 	TypeDoorClosureLifted          = "com.warehouse.wms.dock-scheduling.dockcalendar.DoorClosureLifted"
+	TypeCarrierRegistered          = "com.warehouse.wms.dock-scheduling.carrier.CarrierRegistered"
+	TypeCarrierSuspended           = "com.warehouse.wms.dock-scheduling.carrier.CarrierSuspended"
+	TypeCarrierReinstated          = "com.warehouse.wms.dock-scheduling.carrier.CarrierReinstated"
 )
 
 // DockSchedulingUseCases are the use cases the dock-scheduling consumer drives;
@@ -37,6 +41,9 @@ type DockSchedulingUseCases interface {
 	ApplyAppointment(ctx context.Context, eventID string, f usecases.AppointmentFact) error
 	ScheduleClosure(ctx context.Context, eventID string, c views.Closure) error
 	LiftClosure(ctx context.Context, eventID, closureID string) error
+	ApplyCarrierRegistered(ctx context.Context, eventID string, c views.Carrier, at time.Time) error
+	ApplyCarrierSuspended(ctx context.Context, eventID, scac, reason string, version int64, at time.Time) error
+	ApplyCarrierReinstated(ctx context.Context, eventID, scac string, version int64, at time.Time) error
 }
 
 // appointmentData mirrors the union of the fields of the four appointment
@@ -126,11 +133,70 @@ type closureData struct {
 	To        time.Time `json:"to"`
 }
 
+// carrierData mirrors the union of the fields of the three carrier payloads
+// (snake_case); each event fills a subset and the rest default. A null reason,
+// suspended_at or reinstated_at decodes as the zero value, the repo's rule for
+// nullable payload fields.
+type carrierData struct {
+	SCAC         string    `json:"scac"`
+	Name         string    `json:"name"`
+	USDOT        string    `json:"usdot"`
+	MC           string    `json:"mc"`
+	Status       string    `json:"status"`
+	Reason       string    `json:"reason"`
+	SuspendedAt  time.Time `json:"suspended_at"`
+	ReinstatedAt time.Time `json:"reinstated_at"`
+	Version      int64     `json:"version"`
+}
+
+// requireCarrier is poison without a SCAC (the producer's key and the copy's
+// primary key) or a version: a carrier fact carrying neither can never apply.
+func requireCarrier(e ce.Event, d carrierData) error {
+	if err := requireNonBlank(e, "scac", d.SCAC); err != nil {
+		return err
+	}
+	return requireVersion(e, d.Version)
+}
+
+// applyCarrierRegistered folds CarrierRegistered, the whole carrier snapshot,
+// into the carrier copy (ADR 0016); the use case stamps the event time.
+func applyCarrierRegistered(uc DockSchedulingUseCases) HandlerFunc {
+	return on(func(ctx context.Context, e ce.Event, d carrierData) error {
+		if err := requireCarrier(e, d); err != nil {
+			return err
+		}
+		return uc.ApplyCarrierRegistered(ctx, e.ID(), views.Carrier{
+			SCAC: d.SCAC, Name: d.Name, USDOT: d.USDOT, MC: d.MC, Status: d.Status, Version: d.Version,
+		}, e.Time())
+	})
+}
+
+// applyCarrierSuspended folds CarrierSuspended; the payload's reason and the
+// event time reach the use case, the snapshot fields do not.
+func applyCarrierSuspended(uc DockSchedulingUseCases) HandlerFunc {
+	return on(func(ctx context.Context, e ce.Event, d carrierData) error {
+		if err := requireCarrier(e, d); err != nil {
+			return err
+		}
+		return uc.ApplyCarrierSuspended(ctx, e.ID(), d.SCAC, d.Reason, d.Version, e.Time())
+	})
+}
+
+// applyCarrierReinstated folds CarrierReinstated.
+func applyCarrierReinstated(uc DockSchedulingUseCases) HandlerFunc {
+	return on(func(ctx context.Context, e ce.Event, d carrierData) error {
+		if err := requireCarrier(e, d); err != nil {
+			return err
+		}
+		return uc.ApplyCarrierReinstated(ctx, e.ID(), d.SCAC, d.Version, e.Time())
+	})
+}
+
 // NewDockSchedulingConsumer consumes DockSchedulingTopic under groupID (from
-// DOCK_SCHEDULING_CONSUMER_GROUP, never a literal) and keeps the appointments
-// and door_closures local copies; Cancelled, NoShow and a reschedule to another
-// door also run NoShowFreesHolding. It does not dial; a blank group is an error
-// naming the variable.
+// DOCK_SCHEDULING_CONSUMER_GROUP, never a literal) and keeps the appointments,
+// door_closures and carriers local copies; Cancelled, NoShow and a reschedule
+// to another door also run NoShowFreesHolding. It does not dial; a blank group
+// is an error naming the variable.
 func NewDockSchedulingConsumer(f Factory, groupID string, uc DockSchedulingUseCases, logger *slog.Logger) (*Consumer, error) {
 	return NewDockSchedulingConsumerForTopic(f, DockSchedulingTopic, groupID, uc, logger)
 }
@@ -143,6 +209,9 @@ func NewDockSchedulingConsumerForTopic(f Factory, topic, groupID string, uc Dock
 		TypeDockAppointmentRescheduled: applyAppointment(uc, "", needDoorAndWindow),
 		TypeDockAppointmentCancelled:   applyAppointment(uc, views.ApptCancelled),
 		TypeDockAppointmentNoShow:      applyAppointment(uc, views.ApptNoShow),
+		TypeCarrierRegistered:          applyCarrierRegistered(uc),
+		TypeCarrierSuspended:           applyCarrierSuspended(uc),
+		TypeCarrierReinstated:          applyCarrierReinstated(uc),
 		TypeDoorClosureScheduled: on(func(ctx context.Context, e ce.Event, d closureData) error {
 			if err := requireNonBlank(e, "closure_id", d.ClosureID, "door_code", d.DoorCode); err != nil {
 				return err

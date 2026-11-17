@@ -25,13 +25,16 @@ func TrailerRepo(t *testing.T, newStore NewStore) {
 			_, err = s.Trailers.FindByAppointment(bg, "appt-404")
 			wantErr(t, err, ports.ErrNotFound)
 		},
-		"save then find round trips a trailer in every state": trailerRoundTrip,
-		"a spot or door holds at most one trailer":            trailerOneAtALocation,
-		"a trailer in a move or departed holds no location":   trailerFreesLocation,
-		"the unit is unique among the trailers on site":       trailerUnitOnSite,
-		"the version guard refuses stale writers":             trailerVersionGuard,
-		"finders and lists":                                   trailerFinders,
-		"list pages by keyset":                                trailerPages,
+		"the seal class, the unit number scheme and every seal state round trip": trailerIdentifiers,
+		"a securing round trips, and releasing it clears it":                     trailerSecuring,
+		"a classification round trips, and clearing it empties every column":     trailerClassification,
+		"save then find round trips a trailer in every state":                    trailerRoundTrip,
+		"a spot or door holds at most one trailer":                               trailerOneAtALocation,
+		"a trailer in a move or departed holds no location":                      trailerFreesLocation,
+		"the unit is unique among the trailers on site":                          trailerUnitOnSite,
+		"the version guard refuses stale writers":                                trailerVersionGuard,
+		"finders and lists":    trailerFinders,
+		"list pages by keyset": trailerPages,
 	})
 }
 
@@ -234,5 +237,78 @@ func trailerPages(t *testing.T, s Store) {
 	must(t, err)
 	if len(rest) != 1 || rest[0].ID() != "trl-3" {
 		t.Fatalf("second page = %d", len(rest))
+	}
+}
+
+// trailerIdentifiers: an ISO 6346 container with a class H seal, then the seal
+// walks through APPLIED and BROKEN; two more containers end VERIFIED and
+// MISMATCH at the gate; a free-form trailer keeps an empty scheme and class
+// (ADR 0012).
+func trailerIdentifiers(t *testing.T, s Store) {
+	check := func(tr *trailer.Trailer, state trailer.SealState) {
+		t.Helper()
+		got, err := s.Trailers.FindByID(bg, tr.ID())
+		must(t, err)
+		if !reflect.DeepEqual(got.Snapshot(), tr.Snapshot()) || got.SealState() != state {
+			t.Fatalf("round trip changed the state:\ngot  %+v\nwant %+v", got.Snapshot(), tr.Snapshot())
+		}
+	}
+	box := Container(t, "trl-1", "WH1", "CSQU3054383", 0)
+	must(t, s.Trailers.Save(bg, box))
+	check(box, trailer.SealIntact)
+	if sn := box.Snapshot(); sn.UnitScheme != shared.SchemeISO6346 || sn.SealClass != shared.SealClassHighSecurity {
+		t.Fatalf("scheme and class %+v", sn)
+	}
+	ArriveAt(t, box, spot("WH1-P1"), time.Minute)
+	must(t, s.Trailers.Save(bg, box))
+	must(t, box.RecordSealWith(trailer.SealRecord{Number: "SL-2", Class: shared.SealClassSecurity, State: trailer.SealApplied}))
+	must(t, s.Trailers.Save(bg, box))
+	check(box, trailer.SealApplied)
+	must(t, box.BreakSeal(T0.Add(5*time.Minute)))
+	must(t, s.Trailers.Save(bg, box))
+	check(box, trailer.SealBroken)
+
+	for _, c := range []struct {
+		id, unit, expected string
+		state              trailer.SealState
+	}{{"trl-2", "MSCU0000007", "SL-1", trailer.SealVerified}, {"trl-3", "ABCU0000070", "SL-9", trailer.SealMismatch}} {
+		tr := Container(t, c.id, "WH1", c.unit, 0)
+		tr.CheckSeal(c.expected, T0)
+		must(t, s.Trailers.Save(bg, tr))
+		check(tr, c.state)
+	}
+	van := Arrived(t, "trl-van", "WH1", "free form 7", 0)
+	must(t, s.Trailers.Save(bg, van))
+	got, err := s.Trailers.FindByID(bg, "trl-van")
+	must(t, err)
+	if sn := got.Snapshot(); sn.UnitScheme != "" || sn.SealClass != "" || sn.Number != "free form 7" {
+		t.Fatalf("a free-form trailer keeps no scheme and no class: %+v", sn)
+	}
+}
+
+// trailerSecuring: a docked trailer is secured by wheel chocks with a
+// performer, the securing survives the store, the version guard moves on, and
+// releasing it clears every securing column (ADR 0013).
+func trailerSecuring(t *testing.T, s Store) {
+	tr := Arrived(t, "trl-sec", "WH1", "SEC-1", 0)
+	must(t, s.Trailers.Save(bg, tr))
+	ArriveAt(t, tr, door("WH1-D1"), time.Minute)
+	must(t, s.Trailers.Save(bg, tr))
+	changed, err := tr.Secure(trailer.Securing{Method: trailer.SecuredByWheelChock, PerformerRef: "op-7"}, T0.Add(2*time.Minute))
+	if err != nil || !changed {
+		t.Fatalf("Secure: changed=%v err=%v", changed, err)
+	}
+	must(t, s.Trailers.Save(bg, tr))
+	got, err := s.Trailers.FindByID(bg, "trl-sec")
+	must(t, err)
+	if !reflect.DeepEqual(got.Snapshot(), tr.Snapshot()) || got.SecuredBy() != trailer.SecuredByWheelChock || !got.SecuredAt().Equal(T0.Add(2*time.Minute)) || got.Snapshot().SecurerRef != "op-7" {
+		t.Fatalf("round trip changed the securing:\ngot  %+v\nwant %+v", got.Snapshot(), tr.Snapshot())
+	}
+	must(t, tr.ReleaseSecuring(T0.Add(3*time.Minute)))
+	must(t, s.Trailers.Save(bg, tr))
+	got, err = s.Trailers.FindByID(bg, "trl-sec")
+	must(t, err)
+	if sn := got.Snapshot(); got.Secured() || sn.SecuredBy != "" || !sn.SecuredAt.IsZero() || sn.SecurerRef != "" || sn.Version != tr.Snapshot().Version {
+		t.Fatalf("a released trailer is not secured: %+v", sn)
 	}
 }

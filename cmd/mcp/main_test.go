@@ -54,7 +54,7 @@ func allUp() *inboundhttp.Readiness {
 
 func newTestServer(t *testing.T, readiness *inboundhttp.Readiness) *httptest.Server {
 	t.Helper()
-	srv := httptest.NewServer(routes(inboundmcp.Handler(inboundmcp.NewServer(memoryDeps())), readiness))
+	srv := httptest.NewServer(routes(inboundmcp.Handler(inboundmcp.NewServer(memoryDeps())), readiness, quietLogger(), defaultServiceName))
 	t.Cleanup(srv.Close)
 	return srv
 }
@@ -129,7 +129,7 @@ func TestRouter_ReadyzIsNotReadyWhileDraining(t *testing.T) {
 }
 
 // Both mount points speak Streamable HTTP, with no credentials, and a real
-// client lists all fourteen tools and calls a read and a write.
+// client lists all twenty-one tools and calls a read and a write.
 func TestStreamableHTTP_RootAndMCPPathsServeTools(t *testing.T) {
 	srv := newTestServer(t, allUp())
 	for _, path := range []string{"/", "/mcp"} {
@@ -158,8 +158,8 @@ func exerciseEndpoint(t *testing.T, endpoint string) {
 			writes++
 		}
 	}
-	if reads != 8 || writes != 6 {
-		t.Fatalf("tools = %d read + %d write, want 8 + 6", reads, writes)
+	if reads != 10 || writes != 11 {
+		t.Fatalf("tools = %d read + %d write, want 10 + 11", reads, writes)
 	}
 	res, err := session.CallTool(ctx, &sdk.CallToolParams{Name: "list_moves", Arguments: map[string]any{}})
 	if err != nil || res.IsError {
@@ -305,7 +305,7 @@ func TestServeStopsOnContextCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() {
-		done <- serve(ctx, quietLogger(), &http.Server{Handler: routes(http.NotFoundHandler(), allUp())}, ln, allUp(), 0)
+		done <- serve(ctx, quietLogger(), &http.Server{Handler: routes(http.NotFoundHandler(), allUp(), quietLogger(), defaultServiceName)}, ln, allUp(), 0)
 	}()
 	deadline := time.Now().Add(5 * time.Second)
 	for {

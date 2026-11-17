@@ -2,18 +2,18 @@
 id: aggregate-design-canvas
 title: Aggregate Design Canvas
 sidebar_label: Aggregate Design Canvas
-description: "The ddd-crew Aggregate Design Canvas for YardVisit, Trailer, YardMove, YardCheck and YardPolicy, with states, invariants, commands, events and estimates, the cross-aggregate occupancy rule, and the context's read models."
+description: "The ddd-crew Aggregate Design Canvas for YardVisit, Trailer, YardMove, YardCheck, Inspection and YardPolicy, with states, invariants, commands, events and estimates, the cross-aggregate occupancy rule, and the context's read models."
 ---
 
 # Aggregate Design Canvas
 
 
 Following the ddd-crew [Aggregate Design Canvas v1.1](https://github.com/ddd-crew/aggregate-design-canvas).
-The model has five aggregate roots: **YardVisit**, **Trailer**, **YardMove**,
-**YardCheck** and **YardPolicy**. Go packages, as built:
-`internal/domain/yardvisit`, `trailer`, `yardmove`, `yardcheck`, `yardpolicy`, plus `shared` (ids,
+The model has six aggregate roots: **YardVisit**, **Trailer**, **YardMove**,
+**YardCheck**, **Inspection** and **YardPolicy**. Go packages, as built:
+`internal/domain/yardvisit`, `trailer`, `yardmove`, `yardcheck`, `inspection`, `yardpolicy`, plus `shared` (ids,
 `Location`, `TrailerKind`, `LoadState`, `Purpose`, `SCAC`). Ids are `<prefix>-<uuid>`: `visit-`, `trl-`, `mv-`,
-`yck-`; the policy is keyed by the site code. The aggregates are pure Go: `Snapshot()` and `Restore()` are the
+`yck-`, `insp-`; the policy is keyed by the site code. The aggregates are pure Go: `Snapshot()` and `Restore()` are the
 persistence boundary and `Restore` re-validates.
 
 Common to all: every mutable aggregate carries an optimistic-concurrency
@@ -64,9 +64,14 @@ from-state). A refused `CheckInVisit` creates nothing; `RejectAtGate` is the com
 | --- | --- |
 | Carrier name non-blank, at most 100 characters; `scac` 2..4 upper-case letters when given | `ErrInvalidCarrier` |
 | At most one `CHECKED_IN` visit per tractor plate per site | `ErrVisitAlreadyOpen` |
+| A named appointment is in this site's local copy and the visit brings exactly one trailer | `ErrUnknownAppointment` |
 | When the site requires appointments, the named appointment is `BOOKED` for this site in the local copy | `ErrAppointmentRequired` |
-| Every trailer taken out is on site and released (not `DOCKED`, no open move) | `ErrTrailerNotReleased` |
+| Every trailer taken out is on site and released (no open move, and `PARKED` or `DOCKED` with door work `DONE`) | `ErrTrailerNotReleased` |
 | Every `LOADED` trailer taken out on an `OUTBOUND` purpose carries a seal | `ErrSealRequired` |
+| The unit number of a `CONTAINER` (or of a unit declared `ISO6346`) is an ISO 6346 number with a correct check digit; other units stay free-form | `ErrInvalidUnitNumber` |
+| A seal class is `I`, `S` or `H`; a seal below the site's `minimumSealClass`, or with no class, is refused | `ErrInvalidSealClass`, `ErrSealClassTooLow` |
+| A hazard class is a US DOT class or division, a UN number is `UN` and four digits and needs a hazard class (ADR 0014) | `ErrInvalidHazmatClass`, `ErrInvalidUNNumber`, `ErrValidation` |
+| A trailer with a hazard class is placed on a HAZMAT yard spot only (or, with no HAZMAT spot at the site and the policy `allowHazmatOnUnclassifiedSpots`, on a spot of unknown kind); a trailer that requires temperature control on a REEFER_PLUG spot where the site has any; doors are exempt (ADR 0014) | `ErrPlacementRuleViolated` |
 
 The last two read `Trailer` and `YardMove` state, so they cross the aggregate
 boundary; the use case loads the trailers and checks them in one unit of work.
@@ -81,8 +86,8 @@ The outbound purposes are `LIVE_LOAD` and `PICKUP` (decision Y-9), and a trailer
   or an arrival earlier than the tolerance goes `TO_HOLDING`.
 - **`VisitingDriverMove`** (this context): the first move of a trailer from the
   gate is created `CLAIMED` with performer `VISITING_DRIVER` (no lease).
-- **`SealCheckAtGate`** (this context): a recorded seal that differs from the
-  appointment's `expected_seal_number` raises `SealExceptionRaised`; `REJECT`
+- **`SealCheckAtGate`** (this context): at check-in (not at `RecordSeal`), a seal on the
+  trailer entry that differs from the appointment's `expected_seal_number` raises `SealExceptionRaised`; `REJECT`
   policy also rejects the visit.
 - **`ArrivalFromGate`** (`dock-scheduling`, a neighbour's reaction): on
   `VisitCheckedIn` naming an appointment, it records the arrival.
@@ -124,10 +129,11 @@ rejected visit).
 
 A towable unit on site (trailer, or container on a chassis): where it is, what
 it holds, its seal and hold. Value objects: `TrailerKind(DRY_VAN|REEFER|FLATBED|CONTAINER)`,
-`UnitNumber{carrier_scac, number}` (natural key on site), `LoadState(EMPTY|LOADED|PARTIAL)`,
-`Contents{asn_numbers[] inbound, outbound_ref?}`, `Seal{number, state INTACT|BROKEN|NONE}`,
+`UnitNumber{carrier_scac, number, scheme}` (natural key on site; ISO 6346 for a `CONTAINER` or a declared scheme, free-form otherwise; ADR 0012), `LoadState(EMPTY|LOADED|PARTIAL)`,
+`Contents{asn_numbers[] inbound, outbound_ref?}`, `Seal{number, state NONE|INTACT|BROKEN|APPLIED|VERIFIED|MISMATCH, class? I|S|H}`,
 `Hold{reason}`, `Location{kind SPOT|DOOR, code}`, `DoorWork(WAITING|IN_PROGRESS|DONE)`
-(only while `DOCKED`), `ArrivedAt` (the dwell clock start).
+(only while `DOCKED`), `Securing{method RESTRAINT|WHEEL_CHOCKS, secured_at, securer_ref?}` (only while `DOCKED`; the dock safety
+interlock, ADR 0013), `Classification{hazmat_class?, un_number?, requires_temperature_control}` (what the trailer carries, ADR 0014), `ArrivedAt` (the dwell clock start).
 
 `StartMoving` and `ArriveAt` are invoked only by the `YardMove` use cases (claim
 and complete), in the same unit of work as the move, the fleet precedent of
@@ -184,6 +190,8 @@ on the trailer has a closed receipt (decision Y-7); `CompleteDoorWork` by an ope
 | A `LOADED` inbound trailer docks only at an Inbound or Both door, an outbound one only at an Outbound or Both door | `ErrDoorFlowMismatch` |
 | A trailer on hold is not docked | `ErrTrailerOnHold` |
 | A `DOCKED` trailer departs only when its door work is `DONE` | `ErrDoorWorkOpen` |
+| Where the site policy `requireSecuringBeforeDoorWork` is on, door work starts only on a secured trailer (ADR 0013) | `ErrTrailerNotSecured` |
+| A secured trailer is not moved away from its door and does not depart until the securing is released; only a `DOCKED` trailer is secured (ADR 0013) | `ErrTrailerStillSecured` |
 | The natural key `(scac, number)` is unique among trailers on site | `ErrTrailerAlreadyOnSite` |
 
 The first three and the fourth read other state (other trailers, the
@@ -431,6 +439,57 @@ arrive as the supervisor walks the yard.
 *Estimate* (from the model): **one per site per shift**. Up to one observation per
 location; one event per instance.
 
+## Inspection
+
+### 1. Name
+
+`Inspection` (`inspection.Inspection`), identified by `inspectionId` (`insp-<uuid>`); its checklist is an immutable
+`inspection.Template` keyed by `(templateId, version)` (ADR 0015).
+
+### 2. Description
+
+A checklist filled in for a trailer on site. Value objects: `Gate(PRE_DOCK|PRE_LOAD|PRE_DEPARTURE|ON_DEMAND)`,
+`Item{code, text, required, allow_not_applicable, hold_reason, result PASS|FAIL|NOT_APPLICABLE, note?, evidence_refs[]}`
+(a **snapshot** of the template version taken at open), `ConditionGrade(CLEAN|DIRTY|ODOUR|DAMAGED)`, `performer_ref`.
+Built-in templates: `tractor-trailer-17-point`, `empty-container-7-point`, `reefer-pre-cool-and-sanitation`.
+
+### 3. State Transitions
+
+`OPEN` to `PASSED` or `FAILED` on completion, and no further change: `FAILED` when a required item failed.
+
+### 4. Enforced Invariants
+
+| Invariant | Error |
+| --- | --- |
+| Results change only while `OPEN`; completion is final | `ErrInspectionClosed` |
+| Every required item has a result before completion | `ErrRequiredItemPending` |
+| `NOT_APPLICABLE` only where the item allows it; the item must exist | `ErrNotApplicableNotAllowed`, `ErrUnknownItem` |
+| At most one `OPEN` inspection per trailer, template and gate (partial unique index) | `ErrInspectionAlreadyOpen` |
+| A published template version is never rewritten; built-ins are read-only | `ErrTemplateVersionImmutable`, `ErrTemplateIsBuiltIn` |
+| The template (version) named must exist | `ErrUnknownTemplate` |
+
+### 5. Corrective Policies
+
+A `FAILED` completion holds the trailer in the same unit of work (reason of the most severe failed required item; a trailer
+already held or departed is left as it is). Site policy `requiredInspections` makes the next step ask for a `PASSED` one:
+`ErrInspectionRequired` / `ErrInspectionFailed` (the latest completed inspection of the template at the gate decides).
+
+### 6. Handled Commands
+
+`OpenInspection`, `RecordInspectionItem`, `CompleteInspection`, `PublishInspectionTemplate`.
+
+### 7. Created Events
+
+`InspectionCompleted` (every completion) and, after it, `InspectionFailed` (a failed one); both integration, advisory (no `version`).
+
+### 8. Throughput
+
+A handful of inspections per trailer visit; the per-trailer reads behind each gate use the `(trailer_id, completed_at)` index.
+
+### 9. Size
+
+One row per inspection; the item snapshot is JSON of at most 100 items.
+
 ## YardPolicy
 
 ### 1. Name
@@ -443,7 +502,7 @@ The per-site yard rules every gate and move decision reads. Value objects:
 `require_appointment` (bool), `holding_spot_codes[]`, `parking_zone_ids[]`;
 `dwell_threshold_minutes` per `TrailerKind`, `lease_seconds`,
 `seal_mismatch_action` (`FLAG` or `REJECT`); `free_time_minutes` (detention clock,
-optional, no default). Defaults as built: `require_appointment` false, `seal_mismatch_action` `FLAG`,
+optional, no default); `minimum_seal_class` (`I`, `S` or `H`, optional: a lower class at check-in or record-seal is refused); `require_securing_before_door_work` (bool, default false: door work starts only on a secured trailer, ADR 0013); `required_inspections[]` (`{gate, template_id, purposes?, trailer_kinds?}`, default empty: a PASSED inspection before a door move, loading or check-out, ADR 0015); `allow_hazmat_on_unclassified_spots` (bool, default false, ADR 0014). Defaults as built: `require_appointment` false, `seal_mismatch_action` `FLAG`,
 `lease_seconds` 300, no free time and no dwell thresholds (a kind without a threshold is never alerted).
 
 ### 3. State Transitions

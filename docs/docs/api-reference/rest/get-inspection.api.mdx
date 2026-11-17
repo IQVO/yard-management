@@ -1,0 +1,70 @@
+---
+id: get-inspection
+title: "Get an inspection"
+description: "Returns the inspection with an `ETag` of its version (404 `inspection-not-found`)."
+sidebar_label: "Get an inspection"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "get api-method"
+info_path: docs/api-reference/rest/yard-management-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Get an inspection"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/inspections/{inspectionId}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Returns the inspection with an `ETag` of its version (404 `inspection-not-found`).
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./get-inspection.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./get-inspection.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./get-inspection.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

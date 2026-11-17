@@ -21,40 +21,58 @@ type Visit struct {
 	AppointmentID   *string        `json:"appointmentId"`
 	State           string         `json:"state"`
 	RejectionReason *string        `json:"rejectionReason"`
-	TrailersIn      []string       `json:"trailersIn"`
-	TrailersOut     []string       `json:"trailersOut"`
-	ArrivedAt       time.Time      `json:"arrivedAt"`
-	DepartedAt      *time.Time     `json:"departedAt"`
-	Version         int64          `json:"version"`
+	// CarrierFlag is SUSPENDED when the gate admitted the visit of a carrier the
+	// registry copy says is suspended (policy FLAG, ADR 0016); null otherwise.
+	CarrierFlag *string    `json:"carrierFlag"`
+	TrailersIn  []string   `json:"trailersIn"`
+	TrailersOut []string   `json:"trailersOut"`
+	ArrivedAt   time.Time  `json:"arrivedAt"`
+	DepartedAt  *time.Time `json:"departedAt"`
+	Version     int64      `json:"version"`
 }
 
 // Seal is the seal of a trailer.
 type Seal struct {
 	Number *string `json:"number"`
 	State  string  `json:"state"`
+	// Class is the ISO 17712 class (I, S or H), null when none was declared.
+	Class *string `json:"class"`
 }
 
 // Trailer is a Trailer as the API shows it.
 type Trailer struct {
-	TrailerID     string             `json:"trailerId"`
-	SiteID        string             `json:"siteId"`
-	UnitNumber    string             `json:"unitNumber"`
-	CarrierSCAC   *string            `json:"carrierScac"`
-	Kind          shared.TrailerKind `json:"kind"`
-	LoadState     shared.LoadState   `json:"loadState"`
-	State         string             `json:"state"`
-	Location      *shared.Location   `json:"location"`
-	DoorWork      *string            `json:"doorWork"`
-	Seal          Seal               `json:"seal"`
-	Hold          *string            `json:"hold"`
-	ASNNumbers    []string           `json:"asnNumbers"`
-	OutboundRef   *string            `json:"outboundRef"`
-	VisitID       *string            `json:"visitId"`
-	AppointmentID *string            `json:"appointmentId"`
-	ArrivedAt     time.Time          `json:"arrivedAt"`
-	DepartedAt    *time.Time         `json:"departedAt"`
-	OpenMoveID    *string            `json:"openMoveId"`
-	Version       int64              `json:"version"`
+	TrailerID  string `json:"trailerId"`
+	SiteID     string `json:"siteId"`
+	UnitNumber string `json:"unitNumber"`
+	// UnitNumberScheme is ISO6346 when the number was validated as an ISO 6346
+	// container number, null for a free-form one.
+	UnitNumberScheme *string            `json:"unitNumberScheme"`
+	CarrierSCAC      *string            `json:"carrierScac"`
+	Kind             shared.TrailerKind `json:"kind"`
+	LoadState        shared.LoadState   `json:"loadState"`
+	State            string             `json:"state"`
+	Location         *shared.Location   `json:"location"`
+	DoorWork         *string            `json:"doorWork"`
+	// SecuredAt, SecuredBy (RESTRAINT or WHEEL_CHOCKS) and SecurerRef are the
+	// dock safety interlock (ADR 0013); null while the trailer is not secured.
+	SecuredAt  *time.Time `json:"securedAt"`
+	SecuredBy  *string    `json:"securedBy"`
+	SecurerRef *string    `json:"securerRef"`
+	// HazmatClass, UNNumber and RequiresTemperatureControl are what the trailer
+	// carries (ADR 0014); null (false) when it declares none.
+	HazmatClass                *string    `json:"hazmatClass"`
+	UNNumber                   *string    `json:"unNumber"`
+	RequiresTemperatureControl bool       `json:"requiresTemperatureControl"`
+	Seal                       Seal       `json:"seal"`
+	Hold                       *string    `json:"hold"`
+	ASNNumbers                 []string   `json:"asnNumbers"`
+	OutboundRef                *string    `json:"outboundRef"`
+	VisitID                    *string    `json:"visitId"`
+	AppointmentID              *string    `json:"appointmentId"`
+	ArrivedAt                  time.Time  `json:"arrivedAt"`
+	DepartedAt                 *time.Time `json:"departedAt"`
+	OpenMoveID                 *string    `json:"openMoveId"`
+	Version                    int64      `json:"version"`
 }
 
 // Priority is the claim order of a move.
@@ -127,8 +145,38 @@ type YardPolicy struct {
 	LeaseSeconds          int              `json:"leaseSeconds"`
 	SealMismatchAction    string           `json:"sealMismatchAction"`
 	FreeTimeMinutes       *int             `json:"freeTimeMinutes"`
-	Version               int64            `json:"version"`
-	Declared              bool             `json:"declared"`
+	// MinimumSealClass is the lowest ISO 17712 class a seal may have; null =
+	// no minimum.
+	MinimumSealClass *string `json:"minimumSealClass"`
+	// RequireSecuringBeforeDoorWork: door work starts only on a secured
+	// trailer (ADR 0013); false = the behaviour before the interlock.
+	RequireSecuringBeforeDoorWork bool `json:"requireSecuringBeforeDoorWork"`
+	// AllowHazmatOnUnclassifiedSpots: a hazmat trailer may take a spot with no
+	// spotKind at a site with no HAZMAT spot (ADR 0014); false = refused.
+	AllowHazmatOnUnclassifiedSpots bool `json:"allowHazmatOnUnclassifiedSpots"`
+	// RequiredInspections are the inspections a trailer needs before it docks,
+	// loads or leaves (ADR 0015); empty = none, the behaviour before them.
+	RequiredInspections []InspectionRule `json:"requiredInspections"`
+	// SuspendedCarrierAction is what the gate does with a visit of a carrier
+	// the registry copy says is SUSPENDED: NONE (the default and the behaviour
+	// before the rule), FLAG or REJECT (ADR 0016).
+	SuspendedCarrierAction string `json:"suspendedCarrierAction"`
+	Version                int64  `json:"version"`
+	Declared               bool   `json:"declared"`
+}
+
+// InspectionRule is one entry of YardPolicy.requiredInspections.
+type InspectionRule struct {
+	Gate       string `json:"gate"`
+	TemplateID string `json:"templateId"`
+	// AppliesTo narrows the rule; an empty list means every purpose or kind.
+	AppliesTo InspectionAppliesTo `json:"appliesTo"`
+}
+
+// InspectionAppliesTo is the purpose and trailer kind filter of a rule.
+type InspectionAppliesTo struct {
+	Purposes     []string `json:"purposes"`
+	TrailerKinds []string `json:"trailerKinds"`
 }
 
 // BoardPlace is one spot or door of the yard board.
@@ -186,6 +234,9 @@ type LocationInfo struct {
 	SiteCode string // "" until the zone is known
 	Kind     shared.LocationKind
 	DockFlow string
+	// SpotKind is the facility-layout spotKind of a yard spot; empty when the
+	// slot was registered without one (ADR 0014).
+	SpotKind shared.SpotKind
 	Active   bool
 }
 
@@ -214,6 +265,25 @@ type Appointment struct {
 	Status           string
 	Version          int64
 }
+
+// Carrier is the local copy of one dock-scheduling carrier (ADR 0016). USDOT, MC and
+// Reason are "" when the producer sent null.
+type Carrier struct {
+	SCAC      string
+	Name      string
+	USDOT     string
+	MC        string
+	Status    string
+	Reason    string
+	Version   int64
+	UpdatedAt time.Time
+}
+
+// The carrier standings of the copy, the dock-scheduling carrier status values.
+const (
+	CarrierActive    = "ACTIVE"
+	CarrierSuspended = "SUSPENDED"
+)
 
 // Closure is the local copy of one door closure.
 type Closure struct {

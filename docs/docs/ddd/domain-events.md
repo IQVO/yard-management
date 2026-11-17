@@ -11,9 +11,9 @@ description: "Every event Yard Management publishes and consumes, with full Clou
 Every event this context publishes and consumes, from
 `contexts[yard-management].publishes` and `.consumes`. The envelope follows the
 yard [CloudEvents standard](https://iqvo.github.io/warehouse-docs/yard/strategic-design/event-standard-cloudevents).
-There are **nineteen published events** (nine integration, ten analytics only)
-and **thirteen consumed events**. The split is as built (service ADR 0004, refined by ADR 0010 on
-2026-11-09, which moved `DoorWorkCompleted` and `TrailerDeparted` to the integration topic); the AsyncAPI is
+There are **twenty-three published events** (thirteen integration, ten analytics only)
+and **sixteen consumed events** (nine from `dock-scheduling`, three from `facility-layout`, four from `inbound-receiving`). The split is as built (service ADR 0004, refined by ADR 0010 on
+2026-11-09, which moved `DoorWorkCompleted` and `TrailerDeparted` to the integration topic; ADR 0013 added `TrailerSecured` and `TrailerSecuringReleased`; ADR 0015 added `InspectionCompleted` and `InspectionFailed`); the AsyncAPI is
 version 3.0.0 and the topic of each channel is in its `address`.
 
 ## Envelope
@@ -23,8 +23,8 @@ version 3.0.0 and the topic of each channel is in its `address`.
 | `specversion` | `1.0` (structured JSON mode, mandatory on every Kafka message) |
 | `id` | unique per event; a redelivery carries the same `id` (the inbox dedupes on it) |
 | `source` | `/warehouse/yard-management` |
-| `type` | `com.warehouse.wms.yard-management.<entity>.<EventName>`; entity is the lower-case aggregate that raises it: `yardvisit`, `trailer`, `yardmove`, `yardcheck` |
-| `subject` | the aggregate root id: `visitId` for `yardvisit`, `trailerId` for `trailer`, `moveId` for `yardmove`, `yardCheckId` for `yardcheck` |
+| `type` | `com.warehouse.wms.yard-management.<entity>.<EventName>`; entity is the lower-case aggregate that raises it: `yardvisit`, `trailer`, `yardmove`, `yardcheck`, `inspection` |
+| `subject` | the aggregate root id: `visitId` for `yardvisit`, `trailerId` for `trailer`, `moveId` for `yardmove`, `yardCheckId` for `yardcheck`, `inspectionId` for `inspection` |
 | `time` | the instant the fact happened |
 | `datacontenttype` | `application/json`, payload fields in `snake_case` |
 | `dataschema` | `urn:warehouse:yard-management:events:<EventName>:v1` on the integration topic, `urn:warehouse:yard-management:analytics:<EventName>:v1` on its analytics twin |
@@ -48,11 +48,11 @@ Topic `warehouse.yard-management.events` (each message also goes, as a twin, to 
 
 | Event | Full `type` | `data` fields | Producing command / use case | Consumers |
 | --- | --- | --- | --- | --- |
-| `VisitCheckedIn` | `com.warehouse.wms.yard-management.yardvisit.VisitCheckedIn` | `visit_id`, `site_id`, `carrier`, `carrier_scac`, `purpose`, `appointment_id`, `trailers`, `arrived_at`, `version` | `CheckInVisit` | `dock-scheduling` |
+| `VisitCheckedIn` | `com.warehouse.wms.yard-management.yardvisit.VisitCheckedIn` | `visit_id`, `site_id`, `carrier`, `carrier_scac`, `purpose`, `appointment_id`, `carrier_flag`, `trailers`, `arrived_at`, `version` | `CheckInVisit` | `dock-scheduling`, `inbound-receiving` |
 | `VisitRejected` | `com.warehouse.wms.yard-management.yardvisit.VisitRejected` | `visit_id`, `site_id`, `carrier_scac`, `appointment_id`, `reason`, `rejected_at` | `RejectAtGate` (also the `REJECT` outcome of `SealCheckAtGate`) | `dock-scheduling`, `exception-management` |
 
 `reason` is a `RejectionReason`: `APPOINTMENT_REQUIRED`, `UNKNOWN_APPOINTMENT`,
-`SEAL_MISMATCH`, `TRAILER_ALREADY_ON_SITE` or `SITE_REQUEST`.
+`SEAL_MISMATCH`, `TRAILER_ALREADY_ON_SITE`, `SITE_REQUEST` or `CARRIER_SUSPENDED` (ADR 0016).
 
 ### Trailer events (key `trailerId`)
 
@@ -64,11 +64,22 @@ Topic `warehouse.yard-management.events` (each message also goes, as a twin, to 
 | `TrailerDwellExceeded` | `com.warehouse.wms.yard-management.trailer.TrailerDwellExceeded` | `trailer_id`, `site_id`, `kind`, `dwell_minutes`, `threshold_minutes`, `location_code` | `DwellSweep` | `exception-management` |
 | `DoorWorkCompleted` | `com.warehouse.wms.yard-management.trailer.DoorWorkCompleted` | `trailer_id`, `site_id`, `door_code`, `appointment_id`, `completed_at`, `load_state`, `version` | `CompleteDoorWork` (also `AutoCompleteUnload`) | `outbound-shipping` |
 | `TrailerDeparted` | `com.warehouse.wms.yard-management.trailer.TrailerDeparted` | `trailer_id`, `site_id`, `visit_id`, `departed_at`, `dwell_minutes`, `load_state`, `seal_number`, `version` | `Depart` | `outbound-shipping` |
+| `TrailerSecured` | `com.warehouse.wms.yard-management.trailer.TrailerSecured` | `trailer_id`, `site_id`, `door_code`, `method`, `secured_at`, `version` | `SecureTrailer` (not raised again for the same method) | none yet |
+| `TrailerSecuringReleased` | `com.warehouse.wms.yard-management.trailer.TrailerSecuringReleased` | `trailer_id`, `site_id`, `door_code`, `released_at`, `version` | `ReleaseTrailerSecuring` | none yet |
 
-`kind` in `TrailerDwellExceeded` is the `TrailerKind` whose threshold was crossed. `DoorWorkCompleted` and
+`TrailerDocked` and each `trailers` entry of `VisitCheckedIn` carry the optional `hazmat_class`, `un_number` (null when not declared) and `requires_temperature_control` (false when not declared), additive since ADR 0014; no new type. `method` in `TrailerSecured` is `RESTRAINT` (a vehicle restraint engaged) or `WHEEL_CHOCKS` (ADR 0013). `kind` in `TrailerDwellExceeded` is the `TrailerKind` whose threshold the dwell reached (the alert fires when dwell equals the threshold). `DoorWorkCompleted` and
 `TrailerDeparted` reached this topic on 2026-11-09 (service ADR 0010) because `outbound-shipping` confirms a shipment
 when the trailer physically leaves; messages raised before that stayed on the analytics topic. `SealExceptionRaised.trailer_id`
 is null when the visit was rejected at the gate (the CloudEvents subject is then the visit id).
+
+### Inspection events (key `inspectionId`)
+
+| Event | Full `type` | `data` fields | Producing command / use case | Consumers |
+| --- | --- | --- | --- | --- |
+| `InspectionCompleted` | `com.warehouse.wms.yard-management.inspection.InspectionCompleted` | `inspection_id`, `site_id`, `trailer_id`, `visit_id`, `template_id`, `template_version`, `gate`, `outcome`, `condition_grade`, `completed_at`, `failed_item_codes` | `CompleteInspection` | none yet (the audit record, ADR 0015) |
+| `InspectionFailed` | `com.warehouse.wms.yard-management.inspection.InspectionFailed` | `inspection_id`, `site_id`, `trailer_id`, `template_id`, `gate`, `failed_items`, `failed_at`, `hold_placed` | `CompleteInspection` ending FAILED (the `TrailerHeld` of its hold follows) | `exception-management` (planned) |
+
+Both are advisory (no `version`): an inspection is final once completed. `visit_id`, `condition_grade` and `failed_items[].note` are null when absent.
 
 ### Yard check events (key `yardCheckId`)
 
@@ -183,6 +194,9 @@ consumer has its own (`ANALYTICS_CONSUMER_GROUP`).
 | `com.warehouse.wms.dock-scheduling.dockappointment.DockAppointmentNoShow` | `appointment_id`, `site_id`, `door_code`, `direction`, `carrier_scac`, `window_end`, `version` | Marks it `NO_SHOW`; `NoShowFreesHolding` as above | As above |
 | `com.warehouse.wms.dock-scheduling.dockcalendar.DoorClosureScheduled` | `site_id`, `closure_id`, `door_code`, `from`, `to`, `reason`, `version` | Inserts the closure into `DoorClosureView` (`ErrDoorClosed`) | Upsert on `closure_id` |
 | `com.warehouse.wms.dock-scheduling.dockcalendar.DoorClosureLifted` | `site_id`, `closure_id`, `door_code`, `version` | Removes the closure from `DoorClosureView` | As above |
+| `com.warehouse.wms.dock-scheduling.carrier.CarrierRegistered` | `scac`, `name`, `usdot`, `mc`, `status`, `version` | Replaces the carrier in the `carriers` copy (the whole snapshot; service ADR 0016) | Apply only `version` above the stored one |
+| `com.warehouse.wms.dock-scheduling.carrier.CarrierSuspended` | `scac`, `reason`, `version` | Sets the carrier `SUSPENDED` with the reason; keeps its name and identifiers | As above |
+| `com.warehouse.wms.dock-scheduling.carrier.CarrierReinstated` | `scac`, `version` | Sets the carrier `ACTIVE` and clears the reason | As above |
 
 ### From `facility-layout` (topic `warehouse.facility.events`)
 
@@ -222,7 +236,7 @@ The gaps this page used to list are closed by the service's decisions (see the
   Y-6, `YM-G8`).
 - `VisitRejected` is consumed by `dock-scheduling`, which cancels the appointment with `TURNED_AWAY` (decision X2,
   `YM-G17`), and by `exception-management`.
-- The AsyncAPI description of `TrailerDocked` says `inbound-receiving` consumes it; on `develop` it does not (the optional
-  confirm of the door on an open receipt was not built), while `outbound-shipping` does. The upstream spec text is to be
-  corrected in the producer's repository.
+- `inbound-receiving` consumes `VisitCheckedIn` (its ADR 0021, `visit_arrival_consumer.go`) and no other type of this context; it does not consume
+  `TrailerDocked` (the optional confirm of the door on an open receipt was not built), while `outbound-shipping` does. The AsyncAPI
+  descriptions that named `inbound-receiving` as a consumer of `TrailerDocked` were corrected on 2026-11-13.
 - The consumed `lines` of `ASNRegistered` is used by no rule on these pages (gap `YM-G26`, accepted).

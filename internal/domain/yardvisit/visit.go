@@ -31,6 +31,10 @@ var (
 	// ErrSealRequired: a loaded trailer leaving on LIVE_LOAD or PICKUP carries
 	// no seal.
 	ErrSealRequired = errors.New("a loaded outbound trailer needs a seal")
+	// ErrCarrierSuspended: the carrier of the visit is SUSPENDED in the local
+	// copy of the dock-scheduling carrier registry and the site policy
+	// suspendedCarrierAction is REJECT (ADR 0016).
+	ErrCarrierSuspended = errors.New("the carrier is suspended")
 )
 
 // State is the lifecycle state of a visit.
@@ -53,12 +57,24 @@ const (
 	ReasonSealMismatch         RejectionReason = "SEAL_MISMATCH"
 	ReasonTrailerAlreadyOnSite RejectionReason = "TRAILER_ALREADY_ON_SITE"
 	ReasonSiteRequest          RejectionReason = "SITE_REQUEST"
+	ReasonCarrierSuspended     RejectionReason = "CARRIER_SUSPENDED"
 )
+
+// CarrierFlag annotates an admitted visit whose carrier the gate judged by
+// the carrier registry copy (ADR 0016). "" is no flag.
+type CarrierFlag string
+
+// FlagCarrierSuspended: the carrier was SUSPENDED at check-in and the site
+// policy suspendedCarrierAction is FLAG, so the visit was admitted and flagged.
+const FlagCarrierSuspended CarrierFlag = "SUSPENDED"
+
+// Valid reports whether f is no flag or a known flag.
+func (f CarrierFlag) Valid() bool { return f == "" || f == FlagCarrierSuspended }
 
 // Valid reports whether r is a rejection reason.
 func (r RejectionReason) Valid() bool {
 	switch r {
-	case ReasonAppointmentRequired, ReasonUnknownAppointment, ReasonSealMismatch, ReasonTrailerAlreadyOnSite, ReasonSiteRequest:
+	case ReasonAppointmentRequired, ReasonUnknownAppointment, ReasonSealMismatch, ReasonTrailerAlreadyOnSite, ReasonSiteRequest, ReasonCarrierSuspended:
 		return true
 	}
 	return false
@@ -72,6 +88,7 @@ type Visit struct {
 	appointmentID                   string
 	state                           State
 	reason                          RejectionReason
+	carrierFlag                     CarrierFlag
 	trailersIn, trailersOut         []string
 	arrivedAt, departedAt           time.Time
 	version                         int64
@@ -84,6 +101,16 @@ type TrailerRef struct {
 	ID, UnitNumber, SCAC string
 	Kind                 shared.TrailerKind
 	Load                 shared.LoadState
+	// UnitScheme is the numbering scheme the caller declared for the unit
+	// number ("" = none); SealClass the declared ISO 17712 class of its seal
+	// ("" = none). Both are optional and additive (ADR 0012).
+	UnitScheme shared.UnitScheme
+	SealClass  shared.SealClass
+	// HazmatClass, UNNumber and RequiresTemperatureControl are what the
+	// trailer carries (optional, ADR 0014): "" and false declare nothing.
+	HazmatClass                shared.HazmatClass
+	UNNumber                   shared.UNNumber
+	RequiresTemperatureControl bool
 }
 
 // Gate is what the local copies say about the site and the named appointment.
@@ -106,7 +133,9 @@ type CheckInInput struct {
 	AppointmentID string
 	Trailers      []TrailerRef
 	Gate          Gate
-	At            time.Time
+	// CarrierFlag annotates the admitted visit (ADR 0016); "" = none.
+	CarrierFlag CarrierFlag
+	At          time.Time
 }
 
 // CheckIn creates a CHECKED_IN visit at version 1 and raises VisitCheckedIn.
@@ -119,8 +148,12 @@ func CheckIn(in CheckInInput) (*Visit, error) {
 	if err := validateParty(in.ID, in.SiteID, in.Carrier, in.SCAC, in.TractorPlate, in.DriverRef, in.At); err != nil {
 		return nil, err
 	}
-	if err := validateTrailers(in); err != nil {
+	schemes, err := validateTrailers(in)
+	if err != nil {
 		return nil, err
+	}
+	if !in.CarrierFlag.Valid() {
+		return nil, shared.Invalid("carrier flag %q is not valid", in.CarrierFlag)
 	}
 	appointment := in.AppointmentID
 	named := appointment != ""
@@ -134,15 +167,20 @@ func CheckIn(in CheckInInput) (*Visit, error) {
 		appointment = ""
 	}
 	v := newVisit(in.ID, in.SiteID, in.Carrier, in.SCAC, in.TractorPlate, in.DriverRef, in.Purpose, appointment, in.At)
-	v.state = CheckedIn
+	v.state, v.carrierFlag = CheckedIn, in.CarrierFlag
 	refs := make([]VisitTrailer, 0, len(in.Trailers))
-	for _, tr := range in.Trailers {
+	for i, tr := range in.Trailers {
 		v.trailersIn = append(v.trailersIn, tr.ID)
-		refs = append(refs, VisitTrailer{TrailerID: tr.ID, UnitNumber: tr.UnitNumber, CarrierSCAC: shared.Str(tr.SCAC), Kind: tr.Kind, LoadState: tr.Load})
+		refs = append(refs, VisitTrailer{
+			TrailerID: tr.ID, UnitNumber: tr.UnitNumber, CarrierSCAC: shared.Str(tr.SCAC), Kind: tr.Kind, LoadState: tr.Load,
+			UnitNumberScheme: shared.Str(string(schemes[i])), SealClass: shared.Str(string(tr.SealClass)),
+			HazmatClass: shared.Str(string(tr.HazmatClass)), UNNumber: shared.Str(string(tr.UNNumber)), RequiresTemperatureControl: tr.RequiresTemperatureControl,
+		})
 	}
 	v.emit(VisitCheckedIn{
 		Header: v.header("VisitCheckedIn", in.At), VisitID: v.id, SiteID: v.site, Carrier: v.carrier, CarrierSCAC: shared.Str(v.scac), Purpose: v.purpose,
 		AppointmentID: shared.Str(v.appointmentID), Trailers: refs, ArrivedAt: shared.Stamp(in.At), Version: v.version,
+		CarrierFlag: flagPtr(v.carrierFlag),
 	})
 	return v, nil
 }
@@ -183,32 +221,73 @@ func validateParty(id, site, carrier, scac, plate, driver string, at time.Time) 
 	return nil
 }
 
-func validateTrailers(in CheckInInput) error {
+// validateTrailers checks the trailers a visit brings and returns the unit
+// number scheme each one was validated against ("" = free-form).
+func validateTrailers(in CheckInInput) ([]shared.UnitScheme, error) {
 	if !in.Purpose.Valid() {
-		return shared.Invalid("purpose %q is not valid", in.Purpose)
+		return nil, shared.Invalid("purpose %q is not valid", in.Purpose)
 	}
 	n := len(in.Trailers)
 	if in.Purpose == shared.PurposeBobtail && n > 0 {
-		return shared.Invalid("a BOBTAIL visit brings no trailer")
+		return nil, shared.Invalid("a BOBTAIL visit brings no trailer")
 	}
 	if n == 0 && in.Purpose != shared.PurposeBobtail && in.Purpose != shared.PurposePickup {
-		return shared.Invalid("a %s visit brings at least one trailer", in.Purpose)
+		return nil, shared.Invalid("a %s visit brings at least one trailer", in.Purpose)
 	}
 	seen := map[string]bool{}
+	schemes := make([]shared.UnitScheme, 0, n)
 	for _, tr := range in.Trailers {
-		if err := shared.Require("trailer id", tr.ID, 64); err != nil {
-			return err
+		scheme, err := validateTrailer(tr)
+		if err != nil {
+			return nil, err
 		}
-		if err := shared.Require("unit number", tr.UnitNumber, 64); err != nil {
-			return err
-		}
-		if err := shared.ValidateSCAC(tr.SCAC); err != nil {
-			return err
-		}
-		if !tr.Kind.Valid() || !tr.Load.Valid() || seen[tr.ID] {
-			return shared.Invalid("trailer %s: kind and load state must be valid and the trailer listed once", tr.ID)
+		if seen[tr.ID] {
+			return nil, shared.Invalid("trailer %s: kind and load state must be valid and the trailer listed once", tr.ID)
 		}
 		seen[tr.ID] = true
+		schemes = append(schemes, scheme)
+	}
+	return schemes, nil
+}
+
+func validateTrailer(tr TrailerRef) (shared.UnitScheme, error) {
+	if err := shared.Require("trailer id", tr.ID, 64); err != nil {
+		return "", err
+	}
+	if err := shared.Require("unit number", tr.UnitNumber, 64); err != nil {
+		return "", err
+	}
+	if err := shared.ValidateSCAC(tr.SCAC); err != nil {
+		return "", err
+	}
+	if !tr.Kind.Valid() || !tr.Load.Valid() {
+		return "", shared.Invalid("trailer %s: kind and load state must be valid and the trailer listed once", tr.ID)
+	}
+	unit, err := shared.NewUnitNumber(tr.UnitNumber, tr.Kind, tr.UnitScheme)
+	if err != nil {
+		return "", err
+	}
+	if _, err := shared.ParseSealClass(string(tr.SealClass)); err != nil {
+		return "", err
+	}
+	if err := validateContents(tr); err != nil {
+		return "", err
+	}
+	return unit.Scheme(), nil
+}
+
+// validateContents checks the optional classification of a trailer at the
+// gate: a known hazard class, a well-formed UN number, and a UN number only
+// with a hazard class (ADR 0014).
+func validateContents(tr TrailerRef) error {
+	if _, err := shared.ParseHazmatClass(string(tr.HazmatClass)); err != nil {
+		return err
+	}
+	if _, err := shared.ParseUNNumber(string(tr.UNNumber)); err != nil {
+		return err
+	}
+	if tr.UNNumber != "" && tr.HazmatClass == "" {
+		return shared.Invalid("trailer %s: a UN number %s needs a hazmat class", tr.ID, tr.UNNumber)
 	}
 	return nil
 }
@@ -316,3 +395,11 @@ func (v *Visit) AppointmentID() string { return v.appointmentID }
 
 // Version returns the optimistic-concurrency version.
 func (v *Visit) Version() int64 { return v.version }
+
+// CarrierFlag returns the carrier annotation of the visit ("" = none).
+func (v *Visit) CarrierFlag() CarrierFlag { return v.carrierFlag }
+
+// SCAC returns the SCAC the visit declared at the gate ("" = none).
+func (v *Visit) SCAC() string { return v.scac }
+
+func flagPtr(f CarrierFlag) *string { return shared.Str(string(f)) }

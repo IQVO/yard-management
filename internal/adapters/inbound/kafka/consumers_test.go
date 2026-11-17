@@ -2,6 +2,7 @@ package kafka_test
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -154,6 +155,31 @@ func TestFacilityExamplesMapToTheLocationCopy(t *testing.T) {
 	}
 	if got := uc.log(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("calls %v, want %v", got, want)
+	}
+}
+
+// ADR 0014: the optional spotKind (and the gln, which the yard ignores) of a
+// facility-layout slot reaches the use case; absent or null is "no kind", an
+// unknown kind is passed on for the use case to read as unknown.
+func TestFacilitySpotKindIsConsumedAndTolerated(t *testing.T) {
+	slot := func(id, code, extra string) []byte {
+		data := fmt.Sprintf(`{"eventName": "LocationSlotRegistered", "occurredAt": "2026-11-05T11:00:00Z", "locationCode": %q, "aisleId": "A1", "zoneId": "WH1-YARD", "locationType": "Slot", "role": "Yard"%s}`, code, extra)
+		return envelope(t, id, facilityLayoutSource, typeFLSlotRegistered, code, "events", data)
+	}
+	c, uc, fk := newConsumerFor(t, "facility",
+		slot("f-1", "S1", `, "spotKind": "HAZMAT", "gln": "0614141000012"`),
+		slot("f-2", "S2", `, "spotKind": null`),
+		slot("f-3", "S3", ``),
+		slot("f-4", "S4", `, "spotKind": "COLD_STORE"`))
+	drain(t, c)
+	want := []string{
+		"slot f-1 S1 WH1-YARD Yard  kind=HAZMAT",
+		"slot f-2 S2 WH1-YARD Yard ",
+		"slot f-3 S3 WH1-YARD Yard ",
+		"slot f-4 S4 WH1-YARD Yard  kind=COLD_STORE",
+	}
+	if got := uc.log(); !reflect.DeepEqual(got, want) || len(fk.dlq.letters()) != 0 {
+		t.Fatalf("calls %v, want %v; dead letters %v", got, want, fk.dlq.letters())
 	}
 }
 

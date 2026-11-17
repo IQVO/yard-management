@@ -7,14 +7,31 @@ import (
 	"github.com/claudioed/yard-management/internal/domain/shared"
 )
 
+// Loading reports whether door work on the trailer is a load (ADR 0015): its
+// direction is outbound (an outbound reference, or a LIVE_LOAD or PICKUP visit,
+// Y-9) or it is empty, because an empty trailer stands at a door to be loaded.
+// A trailer that carries inbound content is being unloaded.
+func (t *Trailer) Loading() bool { return t.direction() == outbound || t.load == shared.LoadEmpty }
+
 // StartDoorWork begins unloading or loading on a DOCKED trailer (WAITING to
-// IN_PROGRESS). A held trailer's door work is blocked until the release.
+// IN_PROGRESS) without the dock safety interlock: the policy-free form, used
+// by AutoCompleteUnload, which completes work that was done and starts none.
 func (t *Trailer) StartDoorWork(at time.Time) error {
+	return t.StartDoorWorkWith(DoorWorkRule{}, at)
+}
+
+// StartDoorWorkWith is StartDoorWork under the site policy r. A held
+// trailer's door work is blocked until the release (ErrTrailerOnHold); with
+// r.RequireSecured an unsecured trailer is ErrTrailerNotSecured (ADR 0013).
+func (t *Trailer) StartDoorWorkWith(r DoorWorkRule, at time.Time) error {
 	if t.state != Docked || t.work != WorkWaiting {
 		return t.illegal("StartDoorWork")
 	}
 	if t.hold != "" {
 		return fmt.Errorf("%w: %s", ErrTrailerOnHold, t.hold)
+	}
+	if r.RequireSecured && t.securedBy == "" {
+		return fmt.Errorf("%w: secure the trailer (restraint or wheel chocks) before door work starts", ErrTrailerNotSecured)
 	}
 	t.work = WorkInProgress
 	t.version++
@@ -56,34 +73,6 @@ func (t *Trailer) RecordLoadState(load shared.LoadState) error {
 	return nil
 }
 
-// RecordSeal records the seal found on the trailer's doors (INTACT).
-func (t *Trailer) RecordSeal(number string) error {
-	if t.state == Departed {
-		return t.illegal("RecordSeal")
-	}
-	if err := shared.Require("seal number", number, 64); err != nil {
-		return err
-	}
-	t.sealNumber, t.sealState = number, SealIntact
-	t.version++
-	return nil
-}
-
-// BreakSeal marks the seal BROKEN and places a SEAL_BROKEN hold (Y-6); an
-// existing hold is kept as it is. A trailer without a seal has nothing to break.
-func (t *Trailer) BreakSeal(at time.Time) error {
-	if t.state == Departed || t.sealState != SealIntact {
-		return t.illegal("BreakSeal")
-	}
-	t.sealState = SealBroken
-	t.version++
-	if t.hold == "" {
-		t.hold = HoldSealBroken
-		t.emit(t.held(at))
-	}
-	return nil
-}
-
 func (t *Trailer) held(at time.Time) TrailerHeld {
 	return TrailerHeld{Header: t.header("TrailerHeld", at), TrailerID: t.id, SiteID: t.site, Reason: t.hold, Version: t.version}
 }
@@ -115,21 +104,6 @@ func (t *Trailer) ReleaseHold(at time.Time) error {
 	t.version++
 	t.emit(TrailerHoldReleased{Header: t.header("TrailerHoldReleased", at), TrailerID: t.id, SiteID: t.site, Version: t.version})
 	return nil
-}
-
-// CheckSeal is SealCheckAtGate: when the recorded seal is INTACT and differs
-// from the appointment's expected seal it raises SealExceptionRaised and
-// reports true. No seal found, or no seal expected, raises nothing.
-func (t *Trailer) CheckSeal(expected string, at time.Time) bool {
-	if expected == "" || t.sealState != SealIntact || t.sealNumber == expected {
-		return false
-	}
-	trailerID := t.id
-	t.emit(SealExceptionRaised{
-		Header: t.header("SealExceptionRaised", at), TrailerID: &trailerID, SiteID: t.site, AppointmentID: shared.Str(t.appointmentID),
-		ExpectedSealNumber: expected, FoundSealNumber: t.sealNumber, RaisedAt: shared.Stamp(at),
-	})
-	return true
 }
 
 // DwellMinutes is the time on site so far (arrival to departure once gone).

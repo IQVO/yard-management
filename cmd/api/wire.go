@@ -89,7 +89,9 @@ func wire(ctx context.Context, cfg config, getenv func(string) string, logger *s
 		inboundhttp.Dependency{Name: "postgres", Check: pool.Ping},
 		inboundhttp.Dependency{Name: "kafka", Check: outboundkafka.NewBrokerCheck(cfg.brokers).Check},
 	)
-	yard := usecases.New(deps(pool, uow, locks, clock))
+	yardDeps := deps(pool, uow, locks, clock)
+	yardDeps.Metrics = checkInMetrics(logger)
+	yard := usecases.New(yardDeps)
 	server := &inboundhttp.Server{
 		Yard:             yard,
 		Idempotency:      inboundhttp.NewIdempotency(idem),
@@ -118,13 +120,15 @@ func wire(ctx context.Context, cfg config, getenv func(string) string, logger *s
 // deps wires every port of the use cases to its Postgres adapter.
 func deps(pool *pgxpool.Pool, uow *postgres.UnitOfWork, locks *postgres.Locks, clock *system.Clock) usecases.Deps {
 	locations, appointments, closures := postgres.NewLocations(pool), postgres.NewAppointments(pool), postgres.NewClosures(pool)
+	carriers := postgres.NewCarriers(pool)
 	asns, receipts := postgres.NewAsns(pool), postgres.NewReceipts(pool)
 	return usecases.Deps{
 		UoW: uow, Visits: postgres.NewVisits(pool), Trailers: postgres.NewTrailers(pool), Moves: postgres.NewMoves(pool),
 		Checks: postgres.NewChecks(pool), Policies: postgres.NewPolicies(pool),
-		Locations: locations, Appointments: appointments, Closures: closures, Asns: asns, Receipts: receipts,
+		Inspections: postgres.NewInspections(pool), Templates: postgres.NewTemplates(pool),
+		Locations: locations, Appointments: appointments, Closures: closures, Carriers: carriers, Asns: asns, Receipts: receipts,
 		Locks: locks, Processed: postgres.NewProcessedEvents(pool),
-		ApptFeed: appointments, LocationFeed: locations, ClosureFeed: closures, AsnFeed: asns, ReceiptFeed: receipts,
+		ApptFeed: appointments, LocationFeed: locations, ClosureFeed: closures, CarrierFeed: carriers, AsnFeed: asns, ReceiptFeed: receipts,
 		Events: postgres.NewOutbox(pool), IDs: system.NewIDGen(), Clock: clock,
 	}
 }

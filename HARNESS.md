@@ -42,6 +42,8 @@ three regulation categories: **maintainability**, **architecture fitness**,
 | `test` (`make coverage`: `go test -race`, 90% gate on domain + application) | maintainability | computational | PR, push to develop/main | yes | minutes |
 | `bdd` (godog/Gherkin, `features/`) | behaviour | computational | PR, push to develop/main | yes | seconds |
 | `integration` (testcontainers Postgres/Kafka) | behaviour | computational | PR, push to develop/main | yes | minutes |
+| `contract` (Schemathesis over `apis/openapi.yaml` against the service booted on testcontainers Postgres + Kafka; locally `make contract`; the known findings it excludes are listed with reasons in `cmd/api/contract_integration_test.go`) | behaviour | computational | PR, push to develop/main | yes | minutes |
+| `spec-breaking` (canonical kit, `docs/spec-breaking-kit.md` in warehouse-harness-template: oasdiff v1.38.0 `breaking --fail-on ERR` on `apis/openapi*.yaml` + `scripts/harness/asyncapi_breaking.py` on `apis/asyncapi.yaml`, both vs the PR's base SHA; names the pinning consumers) | maintainability | computational | PR touching `apis/**` | yes | seconds |
 | `mutation-fast` (gremlins on the fast domain-package subset; locally `make mutation`) | maintainability | computational | PR, push to develop/main | yes | minutes |
 | `mutation` (gremlins, full `internal/domain`) | maintainability | computational | weekly schedule (+ manual dispatch) | no (opens/closes a `harness:red` issue) | tens of minutes |
 | `drift` (deadcode, `go mod tidy -diff`, coverage-quality) | maintainability | computational | weekly schedule (+ manual dispatch) | no (opens/closes a `harness:red` issue) | minutes |

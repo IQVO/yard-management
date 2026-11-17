@@ -6,7 +6,7 @@ Yard Management (WMS-tier Supporting bounded context of the yard domain): Owns e
 
 This project is a domain-driven design study. It is not associated with, endorsed by or affiliated with any company, and it uses no company's code, data, logos or trademarks. All names, figures and examples are illustrative or synthetic.
 
-Status: built on develop, registered in warehouse-infra develop (`terraform/apps.yaml` entry, helm values, dashboard and alert rules, image pinned at v0.1.1), not applied to the k3s cluster (no pod runs yet). The design lives in the yard instance of
+Status: built on develop, registered in warehouse-infra develop (`terraform/apps.yaml` entry, helm values, dashboard and alert rules, image pinned at v0.1.2) and applied to the k3s cluster: read-only on 2026-11-10 the Argo CD application is Synced and Healthy and the `api` and `relay` pods run `v0.1.2` (MCP, analytics and the sweeps are switched off in infra; see the [runbook](https://iqvo.github.io/yard-management/docs/operations/runbook#what-runs-on-the-k3s-cluster)). The design lives in the yard instance of
 [warehouse-docs](https://iqvo.github.io/warehouse-docs/yard/contexts/yard-management/); `yard/model/model.yaml` there is the single source of truth.
 
 Runtime: Go, hexagonal, real PostgreSQL and Kafka only (`DATABASE_URL`, `KAFKA_BROKERS` are mandatory), CloudEvents 1.0 on every message
@@ -19,10 +19,34 @@ One image carries five binaries (`Dockerfile` builds every `cmd/*`; the image en
 | Binary | Role | Port |
 | --- | --- | --- |
 | `cmd/api` | REST API and the three Kafka consumers (dock-scheduling, facility-layout, inbound-receiving) | `:8080` |
-| `cmd/mcp` | MCP server, Streamable HTTP, eight read and six write tools | `:8090` |
+| `cmd/mcp` | MCP server, Streamable HTTP, ten read and eleven write tools | `:8090` |
 | `cmd/relay` | transactional outbox to Kafka (CloudEvents) | `:8081` (`/healthz`) |
 | `cmd/yard-projector` | writer of the `analytics` schema | `:8091` |
 | `cmd/yard-reports` | read-only `/reports/*` | `:8092` |
+
+## Observability
+
+Every binary exports OpenTelemetry traces and metrics over OTLP/gRPC to the Collector and writes JSON logs whose records carry `trace_id` and
+`span_id` under a span ([ADR 0017](docs/adr/0017-fleet-observability-standard.md)). Export never blocks: an unreachable Collector costs
+telemetry, not availability. The service has no Prometheus endpoint of its own.
+
+| Signal | Name | Emitted by |
+| --- | --- | --- |
+| Request duration histogram (`http.route` is the route pattern) | `http.server.request.duration` (`http_server_request_duration_seconds` in Prometheus) | api, mcp, yard-reports, yard-projector admin port |
+| Gate check-ins by `outcome` (`admitted`, `rejected`, `refused`) and `reason` | `yard.visits.checked_in` (`yard_visits_checked_in_total`) | api |
+| Go runtime metrics | `go.*` | every binary |
+| Server span per request, named after the route pattern | n/a | api, mcp, yard-reports, yard-projector admin port |
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `OTEL_SERVICE_NAME` | `yard-management`, `yard-management-mcp`, `-relay`, `-projector`, `-reports` | `service.name` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `localhost:4317` | Collector OTLP/gRPC endpoint |
+| `SERVICE_VERSION` | `dev` | `service.version` |
+| `ENVIRONMENT` | `local` | `deployment.environment.name` |
+
+The Helm chart renders all four on every component that runs a binary (`otel.*`, `environment`, `serviceVersion`). The trace context does
+not cross Kafka: the `outbox` table has no headers column. Details: the
+[Observability](https://iqvo.github.io/yard-management/docs/operations/observability) page.
 
 ## Develop
 
@@ -42,7 +66,8 @@ The documentation site of this service is published at <https://iqvo.github.io/y
 (built from `docs/` by `.github/workflows/docs.yml`; the decisions are in `docs/adr/`). The yard
 domain's design model stays in
 [warehouse-docs](https://iqvo.github.io/warehouse-docs/yard/contexts/yard-management/). Status: built on
-develop, registered in warehouse-infra develop, not applied to the cluster.
+develop, registered in warehouse-infra develop and applied to the k3s cluster at v0.1.2
+(api and relay only; read-only check on 2026-11-10).
 
 | Section | Pages |
 | --- | --- |

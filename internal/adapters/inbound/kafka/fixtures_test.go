@@ -22,6 +22,7 @@ const (
 	exampleAppointmentID  = "appt-123e4567-e89b-12d3-a456-426614174000"
 	exampleClosureID      = "clo-123e4567-e89b-12d3-a456-426614174001"
 	exampleReceiptID      = "rcpt-223e4567-e89b-12d3-a456-426614174000"
+	exampleSCAC           = "ACMF"
 	typeDSBooked          = "com.warehouse.wms.dock-scheduling.dockappointment.DockAppointmentBooked"
 	typeDSRescheduled     = "com.warehouse.wms.dock-scheduling.dockappointment.DockAppointmentRescheduled"
 	typeDSCancelled       = "com.warehouse.wms.dock-scheduling.dockappointment.DockAppointmentCancelled"
@@ -29,6 +30,9 @@ const (
 	typeDSCheckedIn       = "com.warehouse.wms.dock-scheduling.dockappointment.DockAppointmentCheckedIn"
 	typeDSClosureSched    = "com.warehouse.wms.dock-scheduling.dockcalendar.DoorClosureScheduled"
 	typeDSClosureLifted   = "com.warehouse.wms.dock-scheduling.dockcalendar.DoorClosureLifted"
+	typeCarrierRegistered = "com.warehouse.wms.dock-scheduling.carrier.CarrierRegistered"
+	typeCarrierSuspended  = "com.warehouse.wms.dock-scheduling.carrier.CarrierSuspended"
+	typeCarrierReinstated = "com.warehouse.wms.dock-scheduling.carrier.CarrierReinstated"
 	typeIRASNRegistered   = "com.warehouse.wms.inbound-receiving.asn.ASNRegistered"
 	typeIRASNCancelled    = "com.warehouse.wms.inbound-receiving.asn.ASNCancelled"
 	typeIRReceiptOpened   = "com.warehouse.wms.inbound-receiving.receipt.ReceiptOpened"
@@ -81,6 +85,12 @@ const (
 	dsClosureScheduledData = `{"site_id": "WH1", "closure_id": "clo-123e4567-e89b-12d3-a456-426614174001", "door_code": "WH1-DOCK-IN-01", "from": "2026-11-10T00:00:00Z", "to": "2026-11-11T00:00:00Z", "reason": "Leveller maintenance", "version": 3}`
 
 	dsClosureLiftedData = `{"site_id": "WH1", "closure_id": "clo-123e4567-e89b-12d3-a456-426614174001", "door_code": "WH1-DOCK-IN-01", "version": 4}`
+
+	dsCarrierRegisteredData = `{"scac": "ACMF", "name": "ACME Freight", "usdot": "1234567", "mc": "MC654321", "status": "ACTIVE", "reason": null, "suspended_at": null, "version": 1}`
+
+	dsCarrierSuspendedData = `{"scac": "ACMF", "reason": "insurance lapsed", "suspended_at": "2026-11-10T15:30:00Z", "version": 2}`
+
+	dsCarrierReinstatedData = `{"scac": "ACMF", "reinstated_at": "2026-11-10T16:00:00Z", "version": 3}`
 )
 
 func dsBooked(t testing.TB) []byte {
@@ -115,6 +125,18 @@ func dsClosureScheduled(t testing.TB) []byte {
 
 func dsClosureLifted(t testing.TB) []byte {
 	return envelope(t, "0000100e-1111-4222-8333-444455556666", dockSchedulingSource, typeDSClosureLifted, "WH1", "events", dsClosureLiftedData)
+}
+
+func dsCarrierRegistered(t testing.TB) []byte {
+	return envelope(t, "00001100-1111-4222-8333-444455556666", dockSchedulingSource, typeCarrierRegistered, exampleSCAC, "events", dsCarrierRegisteredData)
+}
+
+func dsCarrierSuspended(t testing.TB) []byte {
+	return envelope(t, "00001102-1111-4222-8333-444455556666", dockSchedulingSource, typeCarrierSuspended, exampleSCAC, "events", dsCarrierSuspendedData)
+}
+
+func dsCarrierReinstated(t testing.TB) []byte {
+	return envelope(t, "00001104-1111-4222-8333-444455556666", dockSchedulingSource, typeCarrierReinstated, exampleSCAC, "events", dsCarrierReinstatedData)
 }
 
 // --- inbound-receiving examples (data verbatim from the AsyncAPI) ---

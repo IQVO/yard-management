@@ -37,7 +37,7 @@ func visitView(v *yardvisit.Visit) views.Visit {
 	s := v.Snapshot()
 	return views.Visit{
 		VisitID: s.ID, SiteID: s.SiteID, Carrier: s.Carrier, CarrierSCAC: ptr(s.SCAC), TractorPlate: s.Plate, DriverRef: ptr(s.DriverRef),
-		Purpose: s.Purpose, AppointmentID: ptr(s.AppointmentID), State: string(s.State), RejectionReason: ptr(string(s.Reason)),
+		Purpose: s.Purpose, AppointmentID: ptr(s.AppointmentID), State: string(s.State), RejectionReason: ptr(string(s.Reason)), CarrierFlag: ptr(string(s.CarrierFlag)),
 		TrailersIn: strs(s.TrailersIn), TrailersOut: strs(s.TrailersOut), ArrivedAt: s.ArrivedAt, DepartedAt: tptr(s.DepartedAt), Version: s.Version,
 	}
 }
@@ -46,8 +46,10 @@ func trailerView(t *trailer.Trailer, openMoveID string) views.Trailer {
 	s := t.Snapshot()
 	return views.Trailer{
 		TrailerID: s.ID, SiteID: s.SiteID, UnitNumber: s.Number, CarrierSCAC: ptr(s.SCAC), Kind: s.Kind, LoadState: s.LoadState, State: string(s.State),
-		Location: s.Location.Ptr(), DoorWork: ptr(string(s.DoorWork)), Seal: views.Seal{Number: ptr(s.SealNumber), State: string(s.SealState)},
-		Hold: ptr(string(s.Hold)), ASNNumbers: strs(s.ASNNumbers), OutboundRef: ptr(s.OutboundRef), VisitID: ptr(s.VisitID),
+		Location: s.Location.Ptr(), DoorWork: ptr(string(s.DoorWork)), SecuredAt: tptr(s.SecuredAt), SecuredBy: ptr(string(s.SecuredBy)), SecurerRef: ptr(s.SecurerRef), HazmatClass: ptr(string(s.Classification.HazmatClass)), UNNumber: ptr(string(s.Classification.UNNumber)),
+		RequiresTemperatureControl: s.Classification.RequiresTemperatureControl, Seal: views.Seal{Number: ptr(s.SealNumber), State: string(s.SealState), Class: ptr(string(s.SealClass))},
+		UnitNumberScheme: ptr(string(s.UnitScheme)),
+		Hold:             ptr(string(s.Hold)), ASNNumbers: strs(s.ASNNumbers), OutboundRef: ptr(s.OutboundRef), VisitID: ptr(s.VisitID),
 		AppointmentID: ptr(s.AppointmentID), ArrivedAt: s.ArrivedAt, DepartedAt: tptr(s.DepartedAt), OpenMoveID: ptr(openMoveID), Version: s.Version,
 	}
 }
@@ -90,6 +92,7 @@ func policyView(p *yardpolicy.Policy) views.YardPolicy {
 	return views.YardPolicy{
 		SiteID: s.SiteID, RequireAppointment: s.RequireAppointment, HoldingSpotCodes: strs(s.HoldingSpotCodes), ParkingZoneIDs: strs(s.ParkingZoneIDs),
 		DwellThresholdMinutes: dwell, LeaseSeconds: s.LeaseSeconds, SealMismatchAction: string(s.SealMismatchAction), FreeTimeMinutes: free,
-		Version: s.Version, Declared: s.Declared,
+		MinimumSealClass: ptr(string(s.MinimumSealClass)), RequireSecuringBeforeDoorWork: s.RequireSecuring, AllowHazmatOnUnclassifiedSpots: s.AllowHazmatOnUnclassified, RequiredInspections: rulesView(s.RequiredInspections),
+		SuspendedCarrierAction: string(s.SuspendedCarrierAction), Version: s.Version, Declared: s.Declared,
 	}
 }

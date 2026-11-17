@@ -13,9 +13,9 @@ func seedSite(t *testing.T, s Store) {
 	must(t, s.LocationFeed.ApplyZone(bg, "z-yard", "WH1"))
 	must(t, s.LocationFeed.ApplyZone(bg, "z-dock", "WH1"))
 	for _, code := range []string{"WH1-P1", "WH1-P2", "WH1-P3"} {
-		must(t, s.LocationFeed.ApplySlot(bg, code, "z-yard", shared.Spot, ""))
+		must(t, s.LocationFeed.ApplySlot(bg, code, "z-yard", shared.Spot, "", shared.SpotKindUnknown))
 	}
-	must(t, s.LocationFeed.ApplySlot(bg, "WH1-D1", "z-dock", shared.Door, "Inbound"))
+	must(t, s.LocationFeed.ApplySlot(bg, "WH1-D1", "z-dock", shared.Door, "Inbound", shared.SpotKindUnknown))
 }
 
 // Locations runs the LocationView contract.
@@ -26,6 +26,7 @@ func Locations(t *testing.T, newStore NewStore) {
 		"a slot before its zone has no site until the zone arrives":  locationsCaseASlotBeforeItsZoneHasNoSiteUntilTheZoneArrives,
 		"slots list by site, active only, by code":                   locationsCaseSlotsListBySiteActiveOnlyByCode,
 		"free spots skip trailers, open-move reservations and doors": locationsCaseFreeSpotsSkipTrailersOpenMoveReservationsAndDoors,
+		"a spot kind is stored, replaced and filters the free spots": locationsCaseASpotKindIsStoredReplacedAndFiltersFreeSpots,
 	})
 }
 
@@ -45,7 +46,7 @@ func locationsCaseAnUnknownLocationIsNotFound(t *testing.T, s Store) {
 
 // locationsCaseASlotBeforeItsZoneHasNoSiteUntilTheZoneArrives: a slot before its zone has no site until the zone arrives.
 func locationsCaseASlotBeforeItsZoneHasNoSiteUntilTheZoneArrives(t *testing.T, s Store) {
-	must(t, s.LocationFeed.ApplySlot(bg, "WH1-P1", "z-yard", shared.Spot, ""))
+	must(t, s.LocationFeed.ApplySlot(bg, "WH1-P1", "z-yard", shared.Spot, "", shared.SpotKindUnknown))
 	info, ok, err := s.Locations.Get(bg, "WH1-P1")
 	must(t, err)
 	if !ok || info.SiteCode != "" || !info.Active || info.Kind != shared.Spot || info.ZoneID != "z-yard" {
@@ -70,7 +71,7 @@ func locationsCaseASlotBeforeItsZoneHasNoSiteUntilTheZoneArrives(t *testing.T, s
 // locationsCaseSlotsListBySiteActiveOnlyByCode: slots list by site, active only, by code.
 func locationsCaseSlotsListBySiteActiveOnlyByCode(t *testing.T, s Store) {
 	seedSite(t, s)
-	must(t, s.LocationFeed.ApplySlot(bg, "WH2-P1", "z-other", shared.Spot, ""))
+	must(t, s.LocationFeed.ApplySlot(bg, "WH2-P1", "z-other", shared.Spot, "", shared.SpotKindUnknown))
 	must(t, s.LocationFeed.Decommission(bg, "WH1-P2"))
 	must(t, s.LocationFeed.Decommission(bg, "NOPE")) // unknown: nothing happens
 	list, err := s.Locations.ListBySite(bg, "WH1")
@@ -90,7 +91,7 @@ func locationsCaseSlotsListBySiteActiveOnlyByCode(t *testing.T, s Store) {
 	if gone.Active {
 		t.Fatalf("decommissioned %+v", gone)
 	}
-	must(t, s.LocationFeed.ApplySlot(bg, "WH1-P2", "z-yard", shared.Spot, "")) // registering again reactivates
+	must(t, s.LocationFeed.ApplySlot(bg, "WH1-P2", "z-yard", shared.Spot, "", shared.SpotKindUnknown)) // registering again reactivates
 	again, _, _ := s.Locations.Get(bg, "WH1-P2")
 	if !again.Active {
 		t.Fatalf("re-registered %+v", again)
@@ -105,23 +106,60 @@ func locationsCaseFreeSpotsSkipTrailersOpenMoveReservationsAndDoors(t *testing.T
 	ArriveAt(t, tr, spot("WH1-P1"), time.Minute)
 	must(t, s.Trailers.Save(bg, tr))
 	must(t, s.Moves.Save(bg, NewMove(t, "mv-1", "trl-2", spot("WH1-P2"), 5, time.Time{}, 0)))
-	free, err := s.Locations.FreeSpots(bg, "WH1", nil, 10)
+	free, err := s.Locations.FreeSpots(bg, "WH1", nil, nil, 10)
 	must(t, err)
 	if !reflect.DeepEqual(free, []string{"WH1-P3"}) {
 		t.Fatalf("free = %v", free)
 	}
 	must(t, tr.StartMoving(T0.Add(2*time.Minute)))
 	must(t, s.Trailers.Save(bg, tr))
-	free, _ = s.Locations.FreeSpots(bg, "WH1", nil, 1)
+	free, _ = s.Locations.FreeSpots(bg, "WH1", nil, nil, 1)
 	if !reflect.DeepEqual(free, []string{"WH1-P1"}) {
 		t.Fatalf("a trailer in a move holds no spot, limit 1: %v", free)
 	}
-	none, _ := s.Locations.FreeSpots(bg, "WH1", []string{"z-nowhere"}, 10)
+	none, _ := s.Locations.FreeSpots(bg, "WH1", []string{"z-nowhere"}, nil, 10)
 	if len(none) != 0 {
 		t.Fatalf("zones restrict the spots: %v", none)
 	}
-	zoned, _ := s.Locations.FreeSpots(bg, "WH1", []string{"z-yard"}, 10)
+	zoned, _ := s.Locations.FreeSpots(bg, "WH1", []string{"z-yard"}, nil, 10)
 	if !reflect.DeepEqual(zoned, []string{"WH1-P1", "WH1-P3"}) {
 		t.Fatalf("zoned = %v", zoned)
+	}
+}
+
+// locationsCaseASpotKindIsStoredReplacedAndFiltersFreeSpots: the spotKind a slot
+// was registered with is read back, a later registration replaces it (also back
+// to none), and FreeSpots restricts to the kinds asked for, SpotKindUnknown
+// standing for the spots with no kind (ADR 0014).
+func locationsCaseASpotKindIsStoredReplacedAndFiltersFreeSpots(t *testing.T, s Store) {
+	seedSite(t, s)
+	must(t, s.LocationFeed.ApplySlot(bg, "WH1-P2", "z-yard", shared.Spot, "", shared.SpotKindReeferPlug))
+	must(t, s.LocationFeed.ApplySlot(bg, "WH1-P3", "z-yard", shared.Spot, "", shared.SpotKindHazmat))
+	for code, want := range map[string]shared.SpotKind{"WH1-P1": shared.SpotKindUnknown, "WH1-P2": shared.SpotKindReeferPlug, "WH1-P3": shared.SpotKindHazmat, "WH1-D1": shared.SpotKindUnknown} {
+		got, _, err := s.Locations.Get(bg, code)
+		must(t, err)
+		if got.SpotKind != want {
+			t.Fatalf("%s kind = %q, want %q", code, got.SpotKind, want)
+		}
+	}
+	for _, c := range []struct {
+		kinds []shared.SpotKind
+		want  []string
+	}{
+		{nil, []string{"WH1-P1", "WH1-P2", "WH1-P3"}},
+		{[]shared.SpotKind{shared.SpotKindHazmat}, []string{"WH1-P3"}},
+		{[]shared.SpotKind{shared.SpotKindUnknown}, []string{"WH1-P1"}},
+		{[]shared.SpotKind{shared.SpotKindUnknown, shared.SpotKindReeferPlug}, []string{"WH1-P1", "WH1-P2"}},
+		{[]shared.SpotKind{shared.SpotKindParking}, nil},
+	} {
+		free, err := s.Locations.FreeSpots(bg, "WH1", nil, c.kinds, 10)
+		must(t, err)
+		if len(free) != len(c.want) || len(c.want) > 0 && !reflect.DeepEqual(free, c.want) {
+			t.Fatalf("kinds %v: free = %v, want %v", c.kinds, free, c.want)
+		}
+	}
+	must(t, s.LocationFeed.ApplySlot(bg, "WH1-P3", "z-yard", shared.Spot, "", shared.SpotKindUnknown))
+	if got, _, _ := s.Locations.Get(bg, "WH1-P3"); got.SpotKind != shared.SpotKindUnknown {
+		t.Fatalf("a registration without a kind clears it: %+v", got)
 	}
 }

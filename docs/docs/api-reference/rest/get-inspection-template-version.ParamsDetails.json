@@ -1,0 +1,1 @@
+{"parameters":[{"name":"templateId","in":"path","required":true,"description":"The template id.","schema":{"type":"string","minLength":1,"maxLength":128}},{"name":"version","in":"path","required":true,"description":"The template version.","schema":{"type":"integer","minimum":1}}]}

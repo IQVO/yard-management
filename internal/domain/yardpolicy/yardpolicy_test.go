@@ -52,7 +52,7 @@ func TestDeclare(t *testing.T) {
 	want := yardpolicy.Snapshot{
 		SiteID: "WH1", RequireAppointment: true, HoldingSpotCodes: []string{"H1", "H2"}, ParkingZoneIDs: []string{"z1"},
 		DwellThresholdMinutes: map[shared.TrailerKind]int64{shared.KindDryVan: 1440, shared.KindReefer: 720},
-		LeaseSeconds:          120, SealMismatchAction: yardpolicy.Reject, FreeTimeMinutes: 90, Version: 2, Declared: true,
+		LeaseSeconds:          120, SealMismatchAction: yardpolicy.Reject, FreeTimeMinutes: 90, RequiredInspections: []yardpolicy.InspectionRule{}, SuspendedCarrierAction: yardpolicy.CarrierNone, Version: 2, Declared: true,
 	}
 	if got := p.Snapshot(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("declared\n got %+v\nwant %+v", got, want)
@@ -181,5 +181,75 @@ func TestRestoreRejectsCorruptRows(t *testing.T) {
 		if _, err := yardpolicy.Restore(s); err == nil {
 			t.Errorf("%s: Restore accepted a corrupt snapshot", name)
 		}
+	}
+}
+
+func TestMinimumSealClass(t *testing.T) {
+	p, _ := yardpolicy.Default("WH1")
+	if p.MinimumSealClass() != "" {
+		t.Fatal("the default policy has no minimum seal class")
+	}
+	in := declareInput()
+	in.MinimumSealClass = shared.SealClassHighSecurity
+	if err := p.Declare(in, known("H1", "H2")); err != nil {
+		t.Fatal(err)
+	}
+	if p.MinimumSealClass() != shared.SealClassHighSecurity || p.Snapshot().MinimumSealClass != shared.SealClassHighSecurity {
+		t.Fatalf("declared %+v", p.Snapshot())
+	}
+	restored, err := yardpolicy.Restore(p.Snapshot())
+	if err != nil || restored.MinimumSealClass() != shared.SealClassHighSecurity {
+		t.Fatalf("round trip: %v", err)
+	}
+	if err := p.Declare(declareInput(), known("H1", "H2")); err != nil || p.MinimumSealClass() != "" {
+		t.Fatalf("a replacement without the field clears the minimum: %v", err)
+	}
+	in.MinimumSealClass = "X"
+	if err := p.Declare(in, known("H1", "H2")); !errors.Is(err, shared.ErrInvalidSealClass) {
+		t.Errorf("unknown class: %v", err)
+	}
+}
+
+func TestRequireSecuringBeforeDoorWork(t *testing.T) {
+	p, _ := yardpolicy.Default("WH1")
+	if p.RequireSecuringBeforeDoorWork() {
+		t.Fatal("the default policy has the interlock off: door work starts as it always did")
+	}
+	in := declareInput()
+	in.RequireSecuringBeforeDoorWork = true
+	if err := p.Declare(in, known("H1", "H2")); err != nil {
+		t.Fatal(err)
+	}
+	if !p.RequireSecuringBeforeDoorWork() || !p.Snapshot().RequireSecuring {
+		t.Fatalf("declared %+v", p.Snapshot())
+	}
+	restored, err := yardpolicy.Restore(p.Snapshot())
+	if err != nil || !restored.RequireSecuringBeforeDoorWork() {
+		t.Fatalf("round trip: %v", err)
+	}
+	if err := p.Declare(declareInput(), known("H1", "H2")); err != nil || p.RequireSecuringBeforeDoorWork() {
+		t.Fatalf("a replacement without the field turns the interlock off: %v", err)
+	}
+}
+
+func TestAllowHazmatOnUnclassifiedSpots(t *testing.T) {
+	p, _ := yardpolicy.Default("WH1")
+	if p.AllowHazmatOnUnclassifiedSpots() {
+		t.Fatal("the default policy refuses a hazmat trailer on a spot with no kind")
+	}
+	in := declareInput()
+	in.AllowHazmatOnUnclassifiedSpots = true
+	if err := p.Declare(in, known("H1", "H2")); err != nil {
+		t.Fatal(err)
+	}
+	if !p.AllowHazmatOnUnclassifiedSpots() || !p.Snapshot().AllowHazmatOnUnclassified {
+		t.Fatalf("declared %+v", p.Snapshot())
+	}
+	restored, err := yardpolicy.Restore(p.Snapshot())
+	if err != nil || !restored.AllowHazmatOnUnclassifiedSpots() {
+		t.Fatalf("round trip: %v", err)
+	}
+	if err := p.Declare(declareInput(), known("H1", "H2")); err != nil || p.AllowHazmatOnUnclassifiedSpots() {
+		t.Fatalf("a replacement without the field turns it off: %v", err)
 	}
 }

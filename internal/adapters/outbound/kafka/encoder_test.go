@@ -11,6 +11,7 @@ import (
 	"github.com/claudioed/yard-management/internal/adapters/kafka/cloudevents"
 	outboundkafka "github.com/claudioed/yard-management/internal/adapters/outbound/kafka"
 	"github.com/claudioed/yard-management/internal/application/outbox"
+	"github.com/claudioed/yard-management/internal/domain/inspection"
 	"github.com/claudioed/yard-management/internal/domain/shared"
 	"github.com/claudioed/yard-management/internal/domain/trailer"
 	"github.com/claudioed/yard-management/internal/domain/yardcheck"
@@ -54,15 +55,15 @@ func goldenCases() []goldenCase {
 				Header: hdr("yardvisit", "VisitCheckedIn", "visit-1", at(14, 0)), VisitID: "visit-1", SiteID: "WH1", Carrier: "Acme Freight",
 				CarrierSCAC: shared.Str("ACME"), Purpose: shared.PurposeLiveUnload, AppointmentID: shared.Str("appt-1"),
 				Trailers: []yardvisit.VisitTrailer{
-					{TrailerID: "trl-1", UnitNumber: "T100", CarrierSCAC: shared.Str("ACME"), Kind: shared.KindDryVan, LoadState: shared.LoadLoaded},
-					{TrailerID: "trl-2", UnitNumber: "R200", Kind: shared.KindReefer, LoadState: shared.LoadEmpty},
+					{TrailerID: "trl-1", UnitNumber: "T100", CarrierSCAC: shared.Str("ACME"), Kind: shared.KindDryVan, LoadState: shared.LoadLoaded, RequiresTemperatureControl: true},
+					{TrailerID: "trl-2", UnitNumber: "CSQU3054383", Kind: shared.KindContainer, LoadState: shared.LoadEmpty, UnitNumberScheme: shared.Str("ISO6346"), SealClass: shared.Str("H"), HazmatClass: shared.Str("3"), UNNumber: shared.Str("UN1203")},
 				},
 				ArrivedAt: stamp(14, 0), Version: 1,
 			},
 			data: `{"visit_id":"visit-1","site_id":"WH1","carrier":"Acme Freight","carrier_scac":"ACME","purpose":"LIVE_UNLOAD","appointment_id":"appt-1",` +
-				`"trailers":[{"trailer_id":"trl-1","unit_number":"T100","carrier_scac":"ACME","kind":"DRY_VAN","load_state":"LOADED"},` +
-				`{"trailer_id":"trl-2","unit_number":"R200","carrier_scac":null,"kind":"REEFER","load_state":"EMPTY"}],` +
-				`"arrived_at":"2026-11-05T14:00:00Z","version":1}`,
+				`"trailers":[{"trailer_id":"trl-1","unit_number":"T100","carrier_scac":"ACME","kind":"DRY_VAN","load_state":"LOADED","unit_number_scheme":null,"seal_class":null,"hazmat_class":null,"un_number":null,"requires_temperature_control":true},` +
+				`{"trailer_id":"trl-2","unit_number":"CSQU3054383","carrier_scac":null,"kind":"CONTAINER","load_state":"EMPTY","unit_number_scheme":"ISO6346","seal_class":"H","hazmat_class":"3","un_number":"UN1203","requires_temperature_control":false}],` +
+				`"arrived_at":"2026-11-05T14:00:00Z","version":1,"carrier_flag":null}`,
 		},
 		{
 			name: "VisitRejected", integration: true, subject: "visit-2",
@@ -85,17 +86,17 @@ func goldenCases() []goldenCase {
 			event: trailer.TrailerDocked{
 				Header: hdr("trailer", "TrailerDocked", "trl-1", at(14, 20)), TrailerID: "trl-1", SiteID: "WH1", DoorCode: "WH1-D1",
 				AppointmentID: shared.Str("appt-1"), ASNNumbers: []string{"ASN-1", "ASN-2"}, VisitID: shared.Str("visit-1"),
-				DockedAt: stamp(14, 20), Version: 3,
+				DockedAt: stamp(14, 20), Version: 3, SealState: shared.Str("VERIFIED"), SealClass: shared.Str("H"), HazmatClass: shared.Str("2.1"), UNNumber: shared.Str("UN1075"),
 			},
-			data: `{"trailer_id":"trl-1","site_id":"WH1","door_code":"WH1-D1","appointment_id":"appt-1","asn_numbers":["ASN-1","ASN-2"],"visit_id":"visit-1","docked_at":"2026-11-05T14:20:00Z","version":3}`,
+			data: `{"trailer_id":"trl-1","site_id":"WH1","door_code":"WH1-D1","appointment_id":"appt-1","asn_numbers":["ASN-1","ASN-2"],"visit_id":"visit-1","docked_at":"2026-11-05T14:20:00Z","version":3,"seal_state":"VERIFIED","seal_class":"H","hazmat_class":"2.1","un_number":"UN1075","requires_temperature_control":false}`,
 		},
 		{
 			name: "TrailerDockedWithoutAppointment", integration: true, subject: "trl-3",
 			event: trailer.TrailerDocked{
 				Header: hdr("trailer", "TrailerDocked", "trl-3", at(14, 21)), TrailerID: "trl-3", SiteID: "WH1", DoorCode: "WH1-D2",
-				ASNNumbers: []string{}, DockedAt: stamp(14, 21), Version: 2,
+				ASNNumbers: []string{}, DockedAt: stamp(14, 21), Version: 2, RequiresTemperatureControl: true,
 			},
-			data: `{"trailer_id":"trl-3","site_id":"WH1","door_code":"WH1-D2","appointment_id":null,"asn_numbers":[],"visit_id":null,"docked_at":"2026-11-05T14:21:00Z","version":2}`,
+			data: `{"trailer_id":"trl-3","site_id":"WH1","door_code":"WH1-D2","appointment_id":null,"asn_numbers":[],"visit_id":null,"docked_at":"2026-11-05T14:21:00Z","version":2,"seal_state":null,"seal_class":null,"hazmat_class":null,"un_number":null,"requires_temperature_control":true}`,
 		},
 		{
 			name: "TrailerUndocked", integration: true, subject: "trl-1",
@@ -132,9 +133,9 @@ func goldenCases() []goldenCase {
 			name: "TrailerDeparted", integration: true, subject: "trl-1",
 			event: trailer.TrailerDeparted{
 				Header: hdr("trailer", "TrailerDeparted", "trl-1", at(15, 35)), TrailerID: "trl-1", SiteID: "WH1", VisitID: shared.Str("visit-1"),
-				DepartedAt: stamp(15, 35), DwellMinutes: 95, LoadState: shared.LoadEmpty, SealNumber: shared.Str("SL-1"), Version: 7,
+				DepartedAt: stamp(15, 35), DwellMinutes: 95, LoadState: shared.LoadEmpty, SealNumber: shared.Str("SL-1"), Version: 7, SealState: shared.Str("INTACT"),
 			},
-			data: `{"trailer_id":"trl-1","site_id":"WH1","visit_id":"visit-1","departed_at":"2026-11-05T15:35:00Z","dwell_minutes":95,"load_state":"EMPTY","seal_number":"SL-1","version":7}`,
+			data: `{"trailer_id":"trl-1","site_id":"WH1","visit_id":"visit-1","departed_at":"2026-11-05T15:35:00Z","dwell_minutes":95,"load_state":"EMPTY","seal_number":"SL-1","version":7,"seal_state":"INTACT","seal_class":null}`,
 		},
 		{
 			name: "SealExceptionRaised", integration: true, subject: "trl-1",
@@ -162,6 +163,22 @@ func goldenCases() []goldenCase {
 				Header: hdr("trailer", "TrailerHoldReleased", "trl-1", at(14, 45)), TrailerID: "trl-1", SiteID: "WH1", Version: 6,
 			},
 			data: `{"trailer_id":"trl-1","site_id":"WH1","version":6}`,
+		},
+		{
+			name: "TrailerSecured", integration: true, subject: "trl-1",
+			event: trailer.TrailerSecured{
+				Header: hdr("trailer", "TrailerSecured", "trl-1", at(14, 22)), TrailerID: "trl-1", SiteID: "WH1", DoorCode: "WH1-D1",
+				Method: trailer.SecuredByWheelChock, SecuredAt: stamp(14, 22), Version: 4,
+			},
+			data: `{"trailer_id":"trl-1","site_id":"WH1","door_code":"WH1-D1","method":"WHEEL_CHOCKS","secured_at":"2026-11-05T14:22:00Z","version":4}`,
+		},
+		{
+			name: "TrailerSecuringReleased", integration: true, subject: "trl-1",
+			event: trailer.TrailerSecuringReleased{
+				Header: hdr("trailer", "TrailerSecuringReleased", "trl-1", at(15, 8)), TrailerID: "trl-1", SiteID: "WH1", DoorCode: "WH1-D1",
+				ReleasedAt: stamp(15, 8), Version: 7,
+			},
+			data: `{"trailer_id":"trl-1","site_id":"WH1","door_code":"WH1-D1","released_at":"2026-11-05T15:08:00Z","version":7}`,
 		},
 		{
 			name: "TrailerDwellExceeded", integration: true, subject: "trl-2",
@@ -246,6 +263,39 @@ func goldenCases() []goldenCase {
 			data: `{"yard_check_id":"yck-1","site_id":"WH1","closed_at":"2026-11-05T17:00:00Z","discrepancies":[` +
 				`{"kind":"MISSING","location_code":"WH1-P1","trailer_id":"trl-1","unit_number":"T100"},` +
 				`{"kind":"UNEXPECTED","location_code":"WH1-P2","trailer_id":null,"unit_number":"ROGUE"}]}`,
+		},
+		{
+			name: "InspectionCompleted", integration: true, subject: "insp-1",
+			event: inspection.InspectionCompleted{
+				Header: hdr("inspection", "InspectionCompleted", "insp-1", at(18, 0)), InspectionID: "insp-1", SiteID: "WH1", TrailerID: "trl-1",
+				VisitID: shared.Str("visit-1"), TemplateID: "tractor-trailer-17-point", TemplateVersion: 1, Gate: "PRE_DOCK", Outcome: "FAILED",
+				ConditionGrade: shared.Str("DAMAGED"), CompletedAt: stamp(18, 0), FailedItemCodes: []string{"fifth-wheel", "pest-free"},
+			},
+			data: `{"inspection_id":"insp-1","site_id":"WH1","trailer_id":"trl-1","visit_id":"visit-1","template_id":"tractor-trailer-17-point","template_version":1,` +
+				`"gate":"PRE_DOCK","outcome":"FAILED","condition_grade":"DAMAGED","completed_at":"2026-11-05T18:00:00Z","failed_item_codes":["fifth-wheel","pest-free"]}`,
+		},
+		{
+			name: "InspectionCompletedPassedBare", integration: true, subject: "insp-2",
+			event: inspection.InspectionCompleted{
+				Header: hdr("inspection", "InspectionCompleted", "insp-2", at(18, 5)), InspectionID: "insp-2", SiteID: "WH1", TrailerID: "trl-2",
+				TemplateID: "yard-entry", TemplateVersion: 3, Gate: "ON_DEMAND", Outcome: "PASSED", CompletedAt: stamp(18, 5), FailedItemCodes: []string{},
+			},
+			data: `{"inspection_id":"insp-2","site_id":"WH1","trailer_id":"trl-2","visit_id":null,"template_id":"yard-entry","template_version":3,` +
+				`"gate":"ON_DEMAND","outcome":"PASSED","condition_grade":null,"completed_at":"2026-11-05T18:05:00Z","failed_item_codes":[]}`,
+		},
+		{
+			name: "InspectionFailed", integration: true, subject: "insp-1",
+			event: inspection.InspectionFailed{
+				Header: hdr("inspection", "InspectionFailed", "insp-1", at(18, 0)), InspectionID: "insp-1", SiteID: "WH1", TrailerID: "trl-1",
+				TemplateID: "tractor-trailer-17-point", Gate: "PRE_DOCK", FailedAt: stamp(18, 0), HoldPlaced: true,
+				FailedItems: []inspection.FailedItem{
+					{ItemCode: "fifth-wheel", Note: shared.Str("cracked weld"), Required: true},
+					{ItemCode: "pest-free", Required: true},
+				},
+			},
+			data: `{"inspection_id":"insp-1","site_id":"WH1","trailer_id":"trl-1","template_id":"tractor-trailer-17-point","gate":"PRE_DOCK",` +
+				`"failed_items":[{"item_code":"fifth-wheel","note":"cracked weld","required":true},{"item_code":"pest-free","note":null,"required":true}],` +
+				`"failed_at":"2026-11-05T18:00:00Z","hold_placed":true}`,
 		},
 		{
 			name: "YardCheckClosedClean", integration: true, subject: "yck-2",
@@ -386,8 +436,8 @@ func TestGoldenCasesCoverTheWholeCatalogue(t *testing.T) {
 		}
 	}
 	total, integration := outboundkafka.PublishedCount()
-	if total != 19 || integration != 9 {
-		t.Fatalf("the catalogue holds %d types (%d integration), ADR 0004 + 0010 say 19 (9)", total, integration)
+	if total != 23 || integration != 13 {
+		t.Fatalf("the catalogue holds %d types (%d integration), ADR 0004 + 0010 + 0013 + 0015 say 23 (13)", total, integration)
 	}
 	if len(covered) != total {
 		t.Errorf("golden cases cover %d of %d published types", len(covered), total)
@@ -395,7 +445,8 @@ func TestGoldenCasesCoverTheWholeCatalogue(t *testing.T) {
 	wantIntegration := []string{
 		"yardvisit.VisitCheckedIn", "yardvisit.VisitRejected", "trailer.TrailerDocked", "trailer.TrailerUndocked",
 		"trailer.SealExceptionRaised", "trailer.TrailerDwellExceeded", "yardcheck.YardCheckClosed",
-		"trailer.DoorWorkCompleted", "trailer.TrailerDeparted",
+		"trailer.DoorWorkCompleted", "trailer.TrailerDeparted", "trailer.TrailerSecured", "trailer.TrailerSecuringReleased",
+		"inspection.InspectionCompleted", "inspection.InspectionFailed",
 	}
 	for _, name := range wantIntegration {
 		parts := strings.SplitN(name, ".", 2)

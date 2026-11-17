@@ -18,6 +18,12 @@ import (
 // TrailerInput is a trailer a visit brings (G-B).
 type TrailerInput struct {
 	UnitNumber, CarrierSCAC, Kind, LoadState, SealNumber string
+	// UnitNumberScheme (ISO6346) and SealClass (I, S or H) are optional (ADR 0012).
+	UnitNumberScheme, SealClass string
+	// HazmatClass (US DOT class or division), UNNumber and
+	// RequiresTemperatureControl are optional (ADR 0014).
+	HazmatClass, UNNumber      string
+	RequiresTemperatureControl bool
 }
 
 // CheckInInput is the body of CheckInVisit (G-B).
@@ -30,14 +36,34 @@ type CheckInInput struct {
 // and runs DirectOnCheckIn (a VISITING_DRIVER move per trailer, created
 // CLAIMED) and SealCheckAtGate, all in one unit of work. A refused check-in
 // persists nothing. A seal mismatch under the REJECT policy records a
-// REJECTED visit instead (Y-5).
+// REJECTED visit instead (Y-5). A suspended carrier under the REJECT policy
+// (ADR 0016) records the REJECTED visit AND answers ErrCarrierSuspended: the
+// turn-away commits, then the refusal is returned.
+//
+// Every attempt is counted once, after its unit of work ended, through
+// Deps.Metrics (recordCheckIn).
 func (y *Yard) CheckInVisit(ctx context.Context, in CheckInInput) (views.CheckIn, error) {
-	var out views.CheckIn
+	out, err := y.checkInVisit(ctx, in)
+	y.recordCheckIn(ctx, out, err)
+	return out, err
+}
+
+func (y *Yard) checkInVisit(ctx context.Context, in CheckInInput) (views.CheckIn, error) {
+	var (
+		out     views.CheckIn
+		refusal error
+	)
 	err := y.atomically(ctx, func(ctx context.Context) (err error) {
 		out, err = y.checkIn(ctx, in)
+		if errors.Is(err, yardvisit.ErrCarrierSuspended) {
+			refusal, err = err, nil
+		}
 		return err
 	})
-	return out, err
+	if err != nil {
+		return out, err
+	}
+	return out, refusal
 }
 
 func (y *Yard) checkIn(ctx context.Context, in CheckInInput) (views.CheckIn, error) {
@@ -59,7 +85,12 @@ func (y *Yard) checkIn(ctx context.Context, in CheckInInput) (views.CheckIn, err
 	if err != nil {
 		return views.CheckIn{}, err
 	}
-	visit, err := yardvisit.CheckIn(yardvisit.CheckInInput{
+	scac := gateSCAC(in, appt)
+	suspended, err := y.carrierSuspended(ctx, pol, scac)
+	if err != nil {
+		return views.CheckIn{}, err
+	}
+	visit, err := yardvisit.CheckIn(yardvisit.CheckInInput{CarrierFlag: carrierFlagOf(pol, suspended),
 		ID: y.d.IDs.New("visit"), SiteID: in.SiteID, Carrier: in.Carrier, SCAC: in.CarrierSCAC, TractorPlate: in.TractorPlate, DriverRef: in.DriverRef,
 		Purpose: shared.Purpose(in.Purpose), AppointmentID: in.AppointmentID, Trailers: refs, At: now,
 		Gate: yardvisit.Gate{RequireAppointment: pol.RequireAppointment(), AppointmentKnown: appt != nil, AppointmentBooked: appt != nil && appt.Status == views.ApptBooked},
@@ -67,10 +98,13 @@ func (y *Yard) checkIn(ctx context.Context, in CheckInInput) (views.CheckIn, err
 	if err != nil {
 		return views.CheckIn{}, err
 	}
+	if suspended && pol.SuspendedCarrierAction() == yardpolicy.CarrierReject {
+		return views.CheckIn{}, y.rejectSuspendedCarrier(ctx, in, visit.ID(), scac, now)
+	}
 	if visit.AppointmentID() == "" {
 		appt = nil
 	}
-	trailers, mismatches, err := y.arrivals(ctx, visit, in, refs, appt, now)
+	trailers, mismatches, err := y.arrivals(ctx, visit, in, refs, appt, pol, now)
 	if err != nil {
 		return views.CheckIn{}, err
 	}
@@ -112,6 +146,8 @@ func (y *Yard) unitRefs(ctx context.Context, in CheckInInput) ([]yardvisit.Trail
 		seen[key] = true
 		refs = append(refs, yardvisit.TrailerRef{
 			ID: y.d.IDs.New("trl"), UnitNumber: tr.UnitNumber, SCAC: scac, Kind: shared.TrailerKind(tr.Kind), Load: shared.LoadState(tr.LoadState),
+			UnitScheme: shared.UnitScheme(tr.UnitNumberScheme), SealClass: shared.SealClass(tr.SealClass),
+			HazmatClass: shared.HazmatClass(tr.HazmatClass), UNNumber: shared.UNNumber(tr.UNNumber), RequiresTemperatureControl: tr.RequiresTemperatureControl,
 		})
 	}
 	return refs, nil
@@ -120,7 +156,7 @@ func (y *Yard) unitRefs(ctx context.Context, in CheckInInput) ([]yardvisit.Trail
 // arrivals records every trailer's arrival at the gate and runs the seal check
 // against the appointment's expected seal; it returns the trailers and the
 // found seal numbers that differ from the expected one.
-func (y *Yard) arrivals(ctx context.Context, v *yardvisit.Visit, in CheckInInput, refs []yardvisit.TrailerRef, appt *views.Appointment, now time.Time) ([]*trailer.Trailer, []string, error) {
+func (y *Yard) arrivals(ctx context.Context, v *yardvisit.Visit, in CheckInInput, refs []yardvisit.TrailerRef, appt *views.Appointment, pol *yardpolicy.Policy, now time.Time) ([]*trailer.Trailer, []string, error) {
 	var asns []string
 	var outbound string
 	if appt != nil {
@@ -139,6 +175,8 @@ func (y *Yard) arrivals(ctx context.Context, v *yardvisit.Visit, in CheckInInput
 		tr, err := trailer.RecordArrival(trailer.ArrivalInput{
 			ID: ref.ID, SiteID: v.SiteID(), SCAC: ref.SCAC, Number: ref.UnitNumber, Kind: ref.Kind, Load: ref.Load, ASNNumbers: asns, OutboundRef: outbound,
 			Purpose: v.Purpose(), SealNumber: in.Trailers[i].SealNumber, VisitID: v.ID(), AppointmentID: v.AppointmentID(), At: now,
+			UnitScheme: ref.UnitScheme, SealClass: ref.SealClass, MinimumSealClass: pol.MinimumSealClass(),
+			Classification: trailer.Classification{HazmatClass: ref.HazmatClass, UNNumber: ref.UNNumber, RequiresTemperatureControl: ref.RequiresTemperatureControl},
 		})
 		if err != nil {
 			return nil, nil, err

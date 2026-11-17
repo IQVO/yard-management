@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/claudioed/yard-management/internal/application/views"
+	"github.com/claudioed/yard-management/internal/domain/inspection"
 	"github.com/claudioed/yard-management/internal/domain/shared"
 	"github.com/claudioed/yard-management/internal/domain/trailer"
 	"github.com/claudioed/yard-management/internal/domain/yardcheck"
@@ -91,6 +92,35 @@ type CheckRepo interface {
 	FindByID(ctx context.Context, id string) (*yardcheck.Check, error)
 }
 
+// InspectionRepo persists Inspection aggregates (ADR 0015). Save maps the
+// partial unique index of one OPEN inspection per trailer, template and gate to
+// inspection.ErrInspectionAlreadyOpen.
+type InspectionRepo interface {
+	Save(ctx context.Context, i *inspection.Inspection) error
+	FindByID(ctx context.Context, id string) (*inspection.Inspection, error)
+	// FindOpen returns the OPEN inspection of the trailer for the template and gate, or ErrNotFound.
+	FindOpen(ctx context.Context, trailerID, templateID string, gate shared.Gate) (*inspection.Inspection, error)
+	// ListByTrailer returns at most limit inspections of the trailer, newest first by (opened at, id),
+	// strictly after the keyset position.
+	ListByTrailer(ctx context.Context, trailerID string, after *views.Key, limit int) ([]*inspection.Inspection, error)
+	// Completed returns the trailer's PASSED and FAILED inspections in the order they completed, which is
+	// what inspection.Judge reads.
+	Completed(ctx context.Context, trailerID string) ([]inspection.Record, error)
+}
+
+// TemplateRepo persists the CUSTOM InspectionTemplates (the built-in ones live in
+// code, inspection.BuiltIns). A template version is immutable: Save inserts and a
+// taken (id, version) is ErrConcurrentModification.
+type TemplateRepo interface {
+	Save(ctx context.Context, t *inspection.Template) error
+	// Find returns one version of a template, or ErrNotFound.
+	Find(ctx context.Context, id string, version int) (*inspection.Template, error)
+	// Latest returns the highest version of a template, or ErrNotFound.
+	Latest(ctx context.Context, id string) (*inspection.Template, error)
+	// ListLatest returns the latest version of at most limit templates, by id, strictly after afterID.
+	ListLatest(ctx context.Context, afterID string, limit int) ([]*inspection.Template, error)
+}
+
 // PolicyRepo persists the YardPolicy of a site (one row per site).
 type PolicyRepo interface {
 	// Save inserts a policy at its first declaration (version 2: the default is version 1) and
@@ -107,14 +137,17 @@ type Locations interface {
 	// ListBySite returns the active slots of the site, ordered by code.
 	ListBySite(ctx context.Context, siteID string) ([]views.LocationInfo, error)
 	// FreeSpots returns up to limit active Yard slots of the site, ordered by code, that hold no trailer and
-	// are reserved by no open move; zoneIDs, when not empty, restricts them to those zones.
-	FreeSpots(ctx context.Context, siteID string, zoneIDs []string, limit int) ([]string, error)
+	// are reserved by no open move; zoneIDs, when not empty, restricts them to those zones and kinds, when
+	// not empty, to spots of those kinds (shared.SpotKindUnknown selects the spots with no kind, ADR 0014).
+	FreeSpots(ctx context.Context, siteID string, zoneIDs []string, kinds []shared.SpotKind, limit int) ([]string, error)
 }
 
 // LocationFeed is the write side of the LocationView.
 type LocationFeed interface {
 	ApplyZone(ctx context.Context, zoneID, siteCode string) error
-	ApplySlot(ctx context.Context, code, zoneID string, kind shared.LocationKind, dockFlow string) error
+	// ApplySlot (re)registers a slot active; spotKind is the facility-layout spotKind of a Yard slot, empty when
+	// none was published (ADR 0014).
+	ApplySlot(ctx context.Context, code, zoneID string, kind shared.LocationKind, dockFlow string, spotKind shared.SpotKind) error
 	Decommission(ctx context.Context, code string) error
 }
 
@@ -136,6 +169,24 @@ type AppointmentFeed interface {
 	// MarkStatus sets a local status (CHECKED_IN, USED) of a BOOKED or CHECKED_IN appointment; ok=false when
 	// the appointment is unknown or already terminal.
 	MarkStatus(ctx context.Context, id, status string) (bool, error)
+}
+
+// Carriers is the read side of the CarrierView, the local copy of the dock-scheduling carrier
+// registry (ADR 0016).
+type Carriers interface {
+	// Get returns the copy of the carrier with the SCAC, or ok=false when it is not registered here.
+	Get(ctx context.Context, scac string) (views.Carrier, bool, error)
+}
+
+// CarrierFeed is the write side of the CarrierView. Every method is version-guarded: a fact whose version
+// is not higher than the stored one changes nothing, so a replay or a reordering never undoes a newer fact.
+type CarrierFeed interface {
+	// Register folds CarrierRegistered, the whole snapshot after a registration or an update.
+	Register(ctx context.Context, c views.Carrier) error
+	// Suspend folds CarrierSuspended: an unseen carrier is inserted with no name.
+	Suspend(ctx context.Context, scac, reason string, version int64, at time.Time) error
+	// Reinstate folds CarrierReinstated: an unseen carrier is inserted ACTIVE with no name.
+	Reinstate(ctx context.Context, scac string, version int64, at time.Time) error
 }
 
 // Closures is the DoorClosureView.
@@ -187,6 +238,22 @@ type LocationLock interface {
 // facts commit or roll back together.
 type EventPublisher interface {
 	Publish(ctx context.Context, events ...shared.Event) error
+}
+
+// CheckInMetrics records the business outcome of every gate check-in (Tier 2
+// of the fleet metrics convention, the instrument yard.visits.checked_in). Each
+// attempt calls exactly one method, after its unit of work ended. reason is the
+// problem slug of the failure (visit-already-open, seal-mismatch,
+// carrier-suspended, internal-error, ...), never free text. A nil
+// CheckInMetrics in the use case deps records nothing.
+type CheckInMetrics interface {
+	// CheckInAdmitted counts a visit recorded CHECKED_IN.
+	CheckInAdmitted(ctx context.Context)
+	// CheckInRejected counts a visit recorded REJECTED: the gate turned the
+	// truck away.
+	CheckInRejected(ctx context.Context, reason string)
+	// CheckInRefused counts a check-in that persisted nothing.
+	CheckInRefused(ctx context.Context, reason string)
 }
 
 // ProcessedEvents is the inbound consumers' idempotency guard: a consumed

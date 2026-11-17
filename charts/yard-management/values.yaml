@@ -157,6 +157,30 @@ database:
 kafka:
   brokers: ""
 
+# deployment.environment.name on every span, metric and log the service exports
+# (ENVIRONMENT). Set per cluster (local / staging / production).
+environment: "local"
+
+# service.version of every component (SERVICE_VERSION). Empty = image.tag, then
+# the chart appVersion; set it only to pin a label that differs from the tag.
+serviceVersion: ""
+
+# OpenTelemetry traces + metrics over OTLP/gRPC to a Collector (ADR 0017, the
+# fleet observability standard). Every component that runs a binary (api, mcp,
+# relay, projector, reports) gets OTEL_EXPORTER_OTLP_ENDPOINT and
+# OTEL_SERVICE_NAME while enabled; the sweeps CronJobs run busybox wget, not a
+# yard-management binary, so they get none. serviceName is the api's
+# OTEL_SERVICE_NAME; the other components render it with a suffix
+# (<serviceName>-mcp, -relay, -projector, -reports). Export never blocks: a
+# Collector that is down costs telemetry, nothing else. enabled=false renders
+# neither variable and the binaries keep their defaults. ENVIRONMENT,
+# SERVICE_VERSION, OTEL_EXPORTER_OTLP_ENDPOINT and OTEL_SERVICE_NAME belong to
+# the chart: extraEnv refuses them.
+otel:
+  enabled: true
+  endpoint: "otel-collector.observability.svc.cluster.local:4317"
+  serviceName: "yard-management"
+
 # Extra env vars appended to the api container as a raw list.
 extraEnv: []
 

@@ -24,7 +24,9 @@ while writing it, so the responses are described, not pasted.
 
 The platform has **one** Kafka broker and one k3s cluster. The kind cluster and
 the docker-compose Kafka are retired: do not set them up for this service.
-Connection details come from the platform; this repo ships no compose file.
+Connection details come from the platform; this repo ships no compose file. The service
+itself is applied to that cluster at `v0.1.2` (api and relay; read-only check on
+2026-11-10, see [What runs on the k3s cluster](/docs/operations/runbook#what-runs-on-the-k3s-cluster)).
 
 ## Make targets that need nothing but Go
 
@@ -32,7 +34,7 @@ Connection details come from the platform; this repo ships no compose file.
 make check        # fmt-check vet build lint test   (the fast pre-commit bundle)
 make check-all    # check + coverage + arch-test + bdd   (run before pushing)
 make test         # go test ./... -race   (unit + httptest + godog features)
-make bdd          # go test ./... -run TestFeatures -v   (7 feature files, 53 scenarios)
+make bdd          # go test ./... -run TestFeatures -v   (15 feature files, 231 scenario definitions, 328 executed)
 make arch-test    # go test ./internal/architecture/... -v   (fitness tests)
 make coverage     # test with -coverpkg domain+application, 90 % gate
 make build        # go build ./...

@@ -128,19 +128,19 @@ func TestHoldsBlockDoorWorkUntilReleased(t *testing.T) {
 func TestSealsAreRecordedAndABrokenSealPlacesAHold(t *testing.T) {
 	e := yardEnv()
 	tr := parked(t, e, "PLATE1", "T1")
-	sealed, err := e.Yard.RecordSeal(e.Ctx, tr.TrailerID, "INTACT", "SL-7")
+	sealed, err := e.Yard.RecordSeal(e.Ctx, tr.TrailerID, "INTACT", "SL-7", "")
 	must(t, err)
 	if sealed.Seal.State != "INTACT" || sealed.Seal.Number == nil || *sealed.Seal.Number != "SL-7" {
 		t.Fatalf("trailer %+v", sealed)
 	}
-	broken, err := e.Yard.RecordSeal(e.Ctx, tr.TrailerID, "BROKEN", "")
+	broken, err := e.Yard.RecordSeal(e.Ctx, tr.TrailerID, "BROKEN", "", "")
 	must(t, err)
 	if broken.Seal.State != "BROKEN" || broken.Hold == nil || *broken.Hold != "SEAL_BROKEN" {
 		t.Fatalf("a broken seal places a SEAL_BROKEN hold: %+v", broken)
 	}
-	_, err = e.Yard.RecordSeal(e.Ctx, tr.TrailerID, "WET", "")
+	_, err = e.Yard.RecordSeal(e.Ctx, tr.TrailerID, "WET", "", "")
 	is(t, err, shared.ErrValidation)
-	_, err = e.Yard.RecordSeal(e.Ctx, tr.TrailerID, "INTACT", " ")
+	_, err = e.Yard.RecordSeal(e.Ctx, tr.TrailerID, "INTACT", " ", "")
 	is(t, err, shared.ErrValidation)
 }
 
@@ -233,7 +233,7 @@ func TestCheckOutOfALoadedOutboundTrailerNeedsASeal(t *testing.T) {
 	ci, tr := arrived(t, e, func(in *usecases.CheckInInput) { in.Purpose = "LIVE_LOAD" })
 	_, err := e.Yard.CheckOutVisit(e.Ctx, ci.Visit.VisitID, []string{tr.TrailerID})
 	is(t, err, yardvisit.ErrSealRequired)
-	_, err = e.Yard.RecordSeal(e.Ctx, tr.TrailerID, "INTACT", "SL-3")
+	_, err = e.Yard.RecordSeal(e.Ctx, tr.TrailerID, "INTACT", "SL-3", "")
 	must(t, err)
 	out, err := e.Yard.CheckOutVisit(e.Ctx, ci.Visit.VisitID, []string{tr.TrailerID})
 	must(t, err)

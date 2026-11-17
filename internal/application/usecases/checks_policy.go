@@ -123,6 +123,9 @@ func (y *Yard) DeclareYardPolicy(ctx context.Context, in DeclarePolicyInput) (vi
 		if err := p.Declare(in.Policy, func(code string) bool { return spots[code] }); err != nil {
 			return err
 		}
+		if err := y.knownTemplates(ctx, p.RequiredInspections()); err != nil {
+			return err
+		}
 		if err := y.d.Policies.Save(ctx, p); err != nil {
 			return err
 		}

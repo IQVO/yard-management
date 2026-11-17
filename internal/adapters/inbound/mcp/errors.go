@@ -8,6 +8,7 @@ import (
 
 	"github.com/claudioed/yard-management/internal/application/ports"
 	"github.com/claudioed/yard-management/internal/application/usecases"
+	"github.com/claudioed/yard-management/internal/domain/inspection"
 	"github.com/claudioed/yard-management/internal/domain/shared"
 	"github.com/claudioed/yard-management/internal/domain/trailer"
 	"github.com/claudioed/yard-management/internal/domain/yardcheck"
@@ -54,6 +55,8 @@ var errorCatalogue = []struct {
 	{usecases.ErrMoveNotFound, problem{"move-not-found", http.StatusNotFound}},
 	{usecases.ErrYardCheckNotFound, problem{"yard-check-not-found", http.StatusNotFound}},
 	{usecases.ErrSiteNotFound, problem{"site-not-found", http.StatusNotFound}},
+	{usecases.ErrInspectionNotFound, problem{"inspection-not-found", http.StatusNotFound}},
+	{usecases.ErrTemplateNotFound, problem{"template-not-found", http.StatusNotFound}},
 
 	{yardvisit.ErrVisitAlreadyOpen, problem{"visit-already-open", http.StatusConflict}},
 	{trailer.ErrLocationOccupied, problem{"location-occupied", http.StatusConflict}},
@@ -62,6 +65,17 @@ var errorCatalogue = []struct {
 	{trailer.ErrTrailerOnHold, problem{"trailer-on-hold", http.StatusConflict}},
 	{trailer.ErrTrailerNotOnHold, problem{"trailer-not-on-hold", http.StatusConflict}},
 	{trailer.ErrDoorWorkOpen, problem{"door-work-open", http.StatusConflict}},
+	{trailer.ErrPlacementRuleViolated, problem{"placement-rule-violated", http.StatusConflict}},
+	{trailer.ErrTrailerNotSecured, problem{"trailer-not-secured", http.StatusConflict}},
+	{trailer.ErrTrailerStillSecured, problem{"trailer-still-secured", http.StatusConflict}},
+	{shared.ErrSealClassTooLow, problem{"seal-class-too-low", http.StatusConflict}},
+	{inspection.ErrInspectionRequired, problem{"inspection-required", http.StatusConflict}},
+	{inspection.ErrInspectionFailed, problem{"inspection-failed", http.StatusConflict}},
+	{inspection.ErrInspectionClosed, problem{"inspection-closed", http.StatusConflict}},
+	{inspection.ErrRequiredItemPending, problem{"required-item-pending", http.StatusConflict}},
+	{inspection.ErrInspectionAlreadyOpen, problem{"inspection-already-open", http.StatusConflict}},
+	{inspection.ErrTemplateVersionImmutable, problem{"template-version-immutable", http.StatusConflict}},
+	{inspection.ErrTemplateIsBuiltIn, problem{"template-is-built-in", http.StatusConflict}},
 	{yardmove.ErrTrailerHasOpenMove, problem{"trailer-has-open-move", http.StatusConflict}},
 	{yardmove.ErrDestinationReserved, problem{"destination-reserved", http.StatusConflict}},
 	{yardcheck.ErrYardCheckOpen, problem{"yard-check-open", http.StatusConflict}},
@@ -69,7 +83,14 @@ var errorCatalogue = []struct {
 	{shared.ErrIllegalTransition, problem{"illegal-transition", http.StatusConflict}},
 	{ports.ErrConcurrentModification, problem{"concurrent-modification", http.StatusConflict}},
 
+	{inspection.ErrUnknownItem, problem{"unknown-item", http.StatusUnprocessableEntity}},
+	{inspection.ErrNotApplicableNotAllowed, problem{"not-applicable-not-allowed", http.StatusUnprocessableEntity}},
+	{inspection.ErrUnknownTemplate, problem{"unknown-template", http.StatusUnprocessableEntity}},
 	{shared.ErrUnknownLocation, problem{"unknown-location", http.StatusUnprocessableEntity}},
+	{shared.ErrInvalidUnitNumber, problem{"invalid-unit-number", http.StatusUnprocessableEntity}},
+	{shared.ErrInvalidSealClass, problem{"invalid-seal-class", http.StatusUnprocessableEntity}},
+	{shared.ErrInvalidHazmatClass, problem{"invalid-hazmat-class", http.StatusUnprocessableEntity}},
+	{shared.ErrInvalidUNNumber, problem{"invalid-un-number", http.StatusUnprocessableEntity}},
 	{shared.ErrValidation, problem{"validation", http.StatusUnprocessableEntity}},
 }
 

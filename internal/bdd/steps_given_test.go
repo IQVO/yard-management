@@ -23,6 +23,11 @@ func initializeScenario(sc *godog.ScenarioContext) {
 	registerYardSteps(sc, w)
 	registerRequestSteps(sc, w)
 	registerThenSteps(sc, w)
+	registerIdentifierSteps(sc, w)
+	registerInterlockSteps(sc, w)
+	registerPlacementSteps(sc, w)
+	registerInspectionSteps(sc, w)
+	registerRuleSteps(sc, w)
 }
 
 func registerGivenSteps(sc *godog.ScenarioContext, w *world) {
@@ -119,8 +124,11 @@ func (w *world) givenClosure(door, hours string) error {
 }
 
 // givenParked checks a walk-in DROP visit in and has the driver park the trailer.
-func (w *world) givenParked(unit string) error {
-	r := w.checkIn(unit, "DROP", "PLATE-"+unit, unit, "DRY_VAN", "LOADED", "", "")
+func (w *world) givenParked(unit string) error { return w.parkedAs(unit, "DROP") }
+
+// parkedAs is givenParked for a visit of another purpose.
+func (w *world) parkedAs(unit, purpose string) error {
+	r := w.checkIn(unit, purpose, "PLATE-"+unit, unit, "DRY_VAN", "LOADED", "", "")
 	if err := w.must(r, http.StatusCreated, "check "+unit+" in"); err != nil {
 		return err
 	}
@@ -137,6 +145,11 @@ func (w *world) givenDocked(unit, door string) error {
 	if err := w.givenParked(unit); err != nil {
 		return err
 	}
+	return w.dockParked(unit, door)
+}
+
+// dockParked sends a parked trailer to the door and has a setup hostler deliver it.
+func (w *world) dockParked(unit, door string) error {
 	id, _ := w.trailerID(unit)
 	body := map[string]any{"trailerId": id, "to": map[string]string{"kind": "DOOR", "code": door}}
 	if err := w.must(w.call(http.MethodPost, "/moves", body, ""), http.StatusCreated, "request the move to "+door); err != nil {

@@ -127,7 +127,7 @@ sequenceDiagram
 Source: `internal/domain/yardvisit/visit.go`, `internal/domain/trailer/events.go`, `internal/adapters/outbound/kafka/encoder.go`, `internal/domain/shared/shared.go`.
 
 Omitted: the other reasons (`UNKNOWN_APPOINTMENT`, `TRAILER_ALREADY_ON_SITE`,
-`SITE_REQUEST`). A refused `CheckInVisit` (`ErrAppointmentRequired`) creates nothing, and `RejectAtGate` records a
+`SITE_REQUEST`, `CARRIER_SUSPENDED`). A refused `CheckInVisit` (`ErrAppointmentRequired`) creates nothing, and `RejectAtGate` records a
 `REJECTED` visit; the two-step flow shown is decision Y-5. `dock-scheduling` consumes `VisitRejected` and
 cancels a `BOOKED` appointment with the reason `TURNED_AWAY` (decision X2), so it no longer waits for the no-show
 sweep.

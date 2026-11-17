@@ -32,13 +32,16 @@ func (y *Yard) ApplyZone(ctx context.Context, eventID, zoneID, siteCode string) 
 
 // ApplySlot folds LocationSlotRegistered into the location copy. Role Yard is
 // a spot and role Dock a door; every other role is not the yard's business.
-func (y *Yard) ApplySlot(ctx context.Context, eventID, code, zoneID, role, dockFlow string) error {
+// spotKind is the facility-layout spotKind of a Yard slot (PARKING, HOLDING,
+// REEFER_PLUG, HAZMAT, STAGING_LANE); an absent or unknown value is stored as
+// "no kind", so a legacy spot is judged as it always was (ADR 0014).
+func (y *Yard) ApplySlot(ctx context.Context, eventID, code, zoneID, role, dockFlow, spotKind string) error {
 	return y.consume(ctx, eventID, func(ctx context.Context) error {
 		switch role {
 		case "Yard":
-			return y.d.LocationFeed.ApplySlot(ctx, code, zoneID, shared.Spot, "")
+			return y.d.LocationFeed.ApplySlot(ctx, code, zoneID, shared.Spot, "", shared.ParseSpotKind(spotKind))
 		case "Dock":
-			return y.d.LocationFeed.ApplySlot(ctx, code, zoneID, shared.Door, dockFlow)
+			return y.d.LocationFeed.ApplySlot(ctx, code, zoneID, shared.Door, dockFlow, shared.SpotKindUnknown)
 		}
 		return nil
 	})

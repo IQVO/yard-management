@@ -32,7 +32,7 @@ MUTATION_FULL_PKG  := ./internal/domain
 
 .DEFAULT_GOAL := help
 
-.PHONY: help build vet fmt fmt-check lint test coverage integration bdd arch-test mutation mutation-full vuln check check-all
+.PHONY: help build vet fmt fmt-check lint test coverage integration bdd arch-test mutation mutation-full vuln contract check check-all
 
 help:
 	@echo "yard-management — local quality gate (targets mirror .github/workflows/ci.yml)"
@@ -48,6 +48,7 @@ help:
 	@echo "  integration    go test -tags=integration ./... -race -count=1"
 	@echo "                 (testcontainers boots its own Postgres/Kafka; needs only Docker; not in check)"
 	@echo "  bdd            go test ./... -run TestFeatures -v — godog/Gherkin acceptance"
+	@echo "  contract       scripts/contract-test.sh — Schemathesis vs apis/openapi.yaml (needs st + Docker)"
 	@echo "  arch-test      go test ./internal/architecture/... -v — hexagonal fitness"
 	@echo "  mutation       gremlins on every internal/domain/* package, one run each — the fast blocking subset"
 	@echo "  mutation-full  gremlins on $(MUTATION_FULL_PKG) — the exhaustive scheduled run"
@@ -111,6 +112,13 @@ integration:
 
 bdd:
 	$(GO) test ./... -run TestFeatures -v
+
+# Property-based contract tests against apis/openapi.yaml — mirrors the
+# `contract` CI job. Boots the REAL service on testcontainers Postgres +
+# Kafka (cmd/api has no in-memory mode), so it needs Docker; `st` must be
+# on PATH. Not part of check/check-all.
+contract:
+	./scripts/contract-test.sh
 
 arch-test:
 	$(GO) test ./internal/architecture/... -v

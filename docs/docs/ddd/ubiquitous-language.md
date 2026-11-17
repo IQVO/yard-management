@@ -32,7 +32,10 @@ From `contexts[yard-management].ul`.
 | **Yard Move** | An instruction to take one trailer to a spot or a door. | `yardmove.Move` | **Dock Appointment** (a booking, not an instruction to move) |
 | **Door Work** | Unloading or loading while a trailer is docked; `WAITING`, `IN_PROGRESS`, `DONE`. | `trailer.DoorWork` | **Receipt** (`inbound-receiving`: the receiving of an ASN's goods) |
 | **Dwell** | Time on site from gate-in to gate-out (per trailer: arrival to departure). | `trailer.Trailer` | **Detention** |
-| **Seal** | The numbered seal on a trailer's doors; `INTACT`, `BROKEN` or `NONE`. | `trailer.SealState` | **Expected seal** (`expected_seal_number` on the appointment: what the carrier declared) |
+| **Seal** | The numbered seal on a trailer's doors; `NONE`, `INTACT` (present, not yet verified), `APPLIED` (recorded at the origin or dock), `VERIFIED` or `MISMATCH` (checked at the gate against the expected number) or `BROKEN`, with an optional ISO 17712 class `I`, `S` or `H` ([ADR 0012](/docs/adr/0012-standard-identifiers-at-the-gate)). | `trailer.SealState` | **Expected seal** (`expected_seal_number` on the appointment: what the carrier declared) |
+| **Classification** | What a trailer carries as far as placement is concerned: a US DOT hazard class or division, a UN number, and whether the load needs temperature control. A trailer that declares none is judged by no placement rule ([ADR 0014](/docs/adr/0014-hazmat-and-reefer-placement)). | `trailer.Classification` | **Contents** (the ASN numbers of an inbound trailer) |
+| **Spot kind** | The facility-layout `spotKind` of a yard spot (`PARKING`, `HOLDING`, `REEFER_PLUG`, `HAZMAT`, `STAGING_LANE`), consumed from `LocationSlotRegistered`; empty for a spot registered without one. | `shared.SpotKind` | **Zone** |
+| **Secured** | A `DOCKED` trailer held to the dock by a vehicle restraint or wheel chocks (`RESTRAINT`, `WHEEL_CHOCKS`); door work starts on it where the site policy requires it, and it does not leave its door until the securing is released ([ADR 0013](/docs/adr/0013-dock-safety-interlock)). | `trailer.SecuringMethod` | **Seal** (the numbered seal on the trailer's doors) |
 | **Yard Check** | A yard audit reconciling observed trailers with the model. | `yardcheck.Check` | — |
 | **Detention** | Carrier waiting time charged beyond the agreed free time; the free time is a site setting. | `yardpolicy.Policy` | **Dwell** (a duration; detention is the chargeable part beyond free time) |
 
@@ -61,7 +64,7 @@ From the `value_objects` and `states` of the aggregates.
 | **Lease** | The `hostler_ref` and `expires_at` of a claimed move. | field of `yardmove.Move` |
 | **Observation** | A `location_code` and optional `unit_number` recorded in a yard check. | `yardcheck.Observation` |
 | **Discrepancy** | `MISSING`, `UNEXPECTED` or `WRONG_LOCATION`, with the location and the trailer. | `yardcheck.Discrepancy` |
-| **Rejection Reason** | `APPOINTMENT_REQUIRED`, `UNKNOWN_APPOINTMENT`, `SEAL_MISMATCH`, `TRAILER_ALREADY_ON_SITE` or `SITE_REQUEST`. | `yardvisit.RejectionReason` |
+| **Rejection Reason** | `APPOINTMENT_REQUIRED`, `UNKNOWN_APPOINTMENT`, `SEAL_MISMATCH`, `TRAILER_ALREADY_ON_SITE`, `SITE_REQUEST` or `CARRIER_SUSPENDED`. | `yardvisit.RejectionReason` |
 | **Seal Mismatch Action** | `FLAG` or `REJECT`: site policy for a seal that differs from the expected one. | `yardpolicy.SealAction` |
 | **Free Time** | The detention clock in minutes; optional, with no default. | `yardpolicy.Policy` |
 
