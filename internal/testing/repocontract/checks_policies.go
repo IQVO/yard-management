@@ -87,6 +87,26 @@ func PolicyRepo(t *testing.T, newStore NewStore) {
 				t.Fatalf("stored %+v", got.Snapshot())
 			}
 		},
+		"the suspended-carrier action is stored and replaced (ADR 0016)": func(t *testing.T, s Store) {
+			declare := func(p *yardpolicy.Policy, action yardpolicy.CarrierAction) {
+				must(t, p.Declare(yardpolicy.DeclareInput{LeaseSeconds: 300, SealMismatchAction: yardpolicy.Flag, SuspendedCarrierAction: action}, func(string) bool { return true }))
+				must(t, s.Policies.Save(bg, p))
+			}
+			p, err := yardpolicy.Default("WH1")
+			must(t, err)
+			declare(p, yardpolicy.CarrierReject)
+			got, err := s.Policies.Find(bg, "WH1")
+			must(t, err)
+			if got.SuspendedCarrierAction() != yardpolicy.CarrierReject {
+				t.Fatalf("stored action %q, want REJECT: a declared lever must survive a save and a find", got.SuspendedCarrierAction())
+			}
+			declare(got, yardpolicy.CarrierFlag)
+			got, err = s.Policies.Find(bg, "WH1")
+			must(t, err)
+			if got.SuspendedCarrierAction() != yardpolicy.CarrierFlag || got.Version() != 3 {
+				t.Fatalf("after the replacement: action %q version %d, want FLAG at version 3", got.SuspendedCarrierAction(), got.Version())
+			}
+		},
 		"an empty declaration round trips": func(t *testing.T, s Store) {
 			p, err := yardpolicy.Default("WH1")
 			must(t, err)
