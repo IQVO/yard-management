@@ -35,13 +35,17 @@ func TestMigration0006KeepsExistingRowsAndGoesDown(t *testing.T) {
 		VALUES ('WH1', false, 300, 'FLAG', true, 2)`); err != nil {
 		t.Fatal(err)
 	}
-	if err := m.Migrate(6); err != nil {
-		t.Fatalf("migrate to 6: %v", err)
+	// The repositories read the latest schema (0007 added the suspended-carrier lever).
+	if err := m.Migrate(7); err != nil {
+		t.Fatalf("migrate to 7: %v", err)
 	}
 
 	p, err := postgres.NewPolicies(pool).Find(context.Background(), "WH1")
 	if err != nil || len(p.RequiredInspections()) != 0 {
 		t.Fatalf("the old policy requires no inspection: %v %v", err, p)
+	}
+	if err := m.Migrate(6); err != nil {
+		t.Fatalf("back to 6: %v", err)
 	}
 
 	if err := pgtest.Exec(pool, `INSERT INTO inspection_templates (template_id, version, title, items, published_at) VALUES ('yard-entry', 1, 'T', '[]'::jsonb, now())`); err != nil {
