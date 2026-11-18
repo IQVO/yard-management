@@ -32,7 +32,9 @@ touches a domain aggregate. Keep this list in sync with the spec by hand (it is 
 
 - Errors are RFC 7807 `application/problem+json`; the slug is the kebab-case domain error name (ADR 0002).
 - Every POST and PUT except the sweeps requires `Idempotency-Key`; the sweeps take it optionally (they are
-  naturally idempotent). A single-aggregate `GET` returns a weak `ETag` of its `version`;
+  naturally idempotent). A 4xx is stored under its key and its writes are rolled back, except an outcome refusal
+  (`outcomeRefusals` in `response.go`, today `carrier-suspended`, ADR 0016): the command committed state, so the
+  middleware commits it together with the stored answer. A single-aggregate `GET` returns a weak `ETag` of its `version`;
   `PUT /sites/{siteId}/yard-policy` honours `If-Match`.
 - A NUL character in the path is a 404 `resource-not-found`; in the query or body a 400 `malformed-request`,
   answered before the idempotency middleware records the key (`internal/adapters/inbound/http/nul.go`).

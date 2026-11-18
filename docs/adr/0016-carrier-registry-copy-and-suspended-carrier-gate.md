@@ -72,3 +72,37 @@ rules (an appointment that is required or unknown refuses first), then the carri
 - The copy is event-fed, so a carrier dock-scheduling has not yet published is treated as not suspended and its visit is admitted.
 - Only the check-in's `carrierScac` and the booked appointment's carrier are judged; the optional per-trailer `carrierScac` is not.
 - The MCP tool registry carries `suspendedCarrierAction` and `carrierFlag` (`internal/adapters/inbound/mcp/testdata/tool_registry.golden.json`).
+
+## Addendum 2026-11-18: the turn-away is now committed and stored under the key
+
+**What was wrong.** Section 3 promised that a `REJECT` check-in records a REJECTED visit and its `VisitRejected` event and then answers `409 carrier-suspended`, so
+the turn-away is on record although the call fails. That held in the use case (`checkInVisit` returns the refusal after its unit of work) and in the
+in-process tests, and it did not hold over REST, for two reasons that were found together:
+
+1. **The Idempotency-Key middleware rolled the turn-away back.** `serveInUnitOfWork` opens the request's unit of work first, and `postgres.UnitOfWork.Do` joins a
+   transaction that is already open (`if _, ok := pgtx.From(ctx); ok { return fn(ctx) }`), so the use case's own `atomically` never committed anything. Every
+   answer of 400 or above returned `errClientFailure` from `Do`, which rolled the whole transaction back, the REJECTED visit and its outbox row included, and
+   `storeRefusal` then stored the 409 on its own. The stored and returned answer said "recorded as REJECTED" and nothing was recorded. The MCP write wrapper
+   (`keyed`) has the same shape, but no MCP write tool checks a visit in (the eleven write tools are in ADR 0007 and ADR 0015), so no MCP call can answer
+   `carrier-suspended` and nothing changed there.
+2. **The Postgres policy repository never stored the lever.** `Policies.Save` and `scanPolicy` skipped `yard_policies.suspended_carrier_action`: the `PUT` echoed
+   `suspendedCarrierAction` from the aggregate, the row kept `NONE`, and the gate never fired on real Postgres (FLAG and REJECT alike). The repository now
+   writes and reads the column, and the repository contract has a case for it. (`yard_visits.carrier_flag` is a separate gap in the visit repository and is not
+   part of this change.)
+
+**What holds now.** An OUTCOME refusal, one where the command committed state and then answers an error that must be remembered, commits its writes and stores its
+answer under the Idempotency-Key in one transaction. A replay of the key returns the stored `409 carrier-suspended` with `Idempotency-Replayed: true` and records
+no second visit and no second event. Concurrent duplicates wait on the advisory lock `idempotency-key/<key>`, which the first request holds until its commit, then
+find the stored answer and replay it: the turn-away is recorded once.
+
+**How the middleware knows.** `writeError` marks the capturing response writer (`KeepWrites`) when the error is one of `outcomeRefusals`
+(`internal/adapters/inbound/http/response.go`), one visible list with a single entry today, `yardvisit.ErrCarrierSuspended`. For a marked answer
+`serveInUnitOfWork` saves the key row inside the handler's unit of work and commits, instead of returning `errClientFailure`. Every other 4xx behaves as before
+(rolled back, the refusal stored on its own), a 2xx commits with its key and a 5xx rolls back and is never stored. Extending the list is a decision of its own and needs an ADR;
+`TestOutcomeRefusalsListsExactlyTheSuspendedCarrier` pins it.
+
+**Operator impact.** Before this change a suspended carrier's REJECTED visit was never on record on a real deployment, because the lever was not stored. The cluster
+runs the image built from the v0.1.3 commit (`ghcr.io/iqvo/warehouse-infra/yard-management:36f42bd-arm64`, checked 2026-11-18), so on that deployment the
+suspended-carrier gate has been off: the column was never written, every stored policy has `suspended_carrier_action = 'NONE'`, no check-in was turned away or
+flagged for a suspended carrier and no wrong data was recorded. Nothing needs repairing, but a site that wants the rule must declare its policy again with
+`suspendedCarrierAction` after this fix is deployed.

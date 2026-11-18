@@ -59,7 +59,10 @@ type IdempotencyDeps struct {
 //     Idempotency-Replayed: true.
 //   - A 4xx answer is a refusal: the handler's partial writes are rolled back
 //     and the answer is stored on its own, so the same key and request
-//     replay the same refusal.
+//     replay the same refusal. The exception is an OUTCOME refusal
+//     (outcomeRefusals, today carrier-suspended): the command committed state
+//     that the 4xx tells about, so its writes commit with the stored answer in
+//     the one transaction and a replay returns the answer and records nothing.
 //   - A 5xx answer rolls everything back and is never stored: the same key
 //     can retry the real work.
 //   - The same key with another method, path or body is 409
@@ -149,9 +152,11 @@ func (c *keyedCall) serveInUnitOfWork(w http.ResponseWriter) {
 		switch {
 		case out.status() >= http.StatusInternalServerError:
 			return errServerFailure
-		case out.status() >= http.StatusBadRequest:
+		case out.status() >= http.StatusBadRequest && !out.keep:
 			return errClientFailure
 		}
+		// A 2xx answer, and an outcome refusal (outcomeRefusals): the handler's
+		// writes commit together with the key row, in this one transaction.
 		return c.d.Store.Save(ctx, c.record(out))
 	})
 	switch {
@@ -289,9 +294,16 @@ type capture struct {
 	header http.Header
 	code   int
 	body   bytes.Buffer
+	// keep is set by KeepWrites for an outcome refusal (outcomeRefusals).
+	keep bool
 }
 
 func newCapture() *capture { return &capture{header: http.Header{}} }
+
+// KeepWrites marks the response as the answer of a command that committed
+// state: the middleware commits the unit of work and stores the answer under
+// the key in it, instead of rolling the writes back (outcomeKeeper).
+func (c *capture) KeepWrites() { c.keep = true }
 
 func (c *capture) Header() http.Header { return c.header }
 

@@ -45,6 +45,8 @@ The key is required on every POST and PUT and optional on the sweeps (F6). The m
   the second replays the first answer.
 - A `4xx` is a refusal: the unit is rolled back (a refusal persists nothing) and the answer is stored on its own unit,
   so the same key and request replay the same refusal. A `5xx` rolls back and is never stored: the key can retry.
+  (Addendum 2026-11-18, ADR 0016: an outcome refusal, today only `409 carrier-suspended`, commits its writes and the stored
+  answer in the one unit of work instead; see `outcomeRefusals` in `response.go`.)
 - The key is global, looked up alone; another method, path or body is `409 idempotency-key-reused`. A replay carries
   `Idempotency-Replayed: true`; `Location` of a created visit and the `ETag` of a replaced policy are rebuilt from the
   stored body.
