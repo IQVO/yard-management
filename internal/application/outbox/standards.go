@@ -60,8 +60,7 @@ func withStandards(e shared.Event, data []byte) ([]byte, error) {
 	if len(data) == 2 {
 		sep = nil
 	}
-	out := make([]byte, 0, len(data)+len(extra))
-	out = append(out, data[:len(data)-1]...)
+	out := append([]byte(nil), data[:len(data)-1]...)
 	out = append(out, sep...)
 	out = append(out, extra[1:]...)
 	return out, nil
