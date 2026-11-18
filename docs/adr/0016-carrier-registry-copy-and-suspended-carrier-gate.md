@@ -101,5 +101,8 @@ find the stored answer and replay it: the turn-away is recorded once.
 (rolled back, the refusal stored on its own), a 2xx commits with its key and a 5xx rolls back and is never stored. Extending the list is a decision of its own and needs an ADR;
 `TestOutcomeRefusalsListsExactlyTheSuspendedCarrier` pins it.
 
-**Operator impact.** Before this change a suspended carrier's REJECTED visit was never on record on a real deployment, because the lever was not stored. v0.1.3 is
-released and not deployed to the cluster, so there is no deployed data to repair.
+**Operator impact.** Before this change a suspended carrier's REJECTED visit was never on record on a real deployment, because the lever was not stored. The cluster
+runs the image built from the v0.1.3 commit (`ghcr.io/iqvo/warehouse-infra/yard-management:36f42bd-arm64`, checked 2026-11-18), so on that deployment the
+suspended-carrier gate has been off: the column was never written, every stored policy has `suspended_carrier_action = 'NONE'`, no check-in was turned away or
+flagged for a suspended carrier and no wrong data was recorded. Nothing needs repairing, but a site that wants the rule must declare its policy again with
+`suspendedCarrierAction` after this fix is deployed.
