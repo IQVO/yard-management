@@ -24,13 +24,16 @@ from reading the tree.
 | Integration | `*_integration_test.go`, build tag `integration` | real Postgres and Kafka through testcontainers: the Postgres repositories (contract suite), the outbox relay, the Kafka consumers of the three topics, the analytics store (OLTP and KPI), `cmd/api`, `cmd/mcp`, `cmd/relay` entry points | Docker |
 | Mutation | `.gremlins.yaml`, `make mutation` | tests assert, not merely execute, on `internal/domain/*` | gremlins v0.6.0 |
 | Architecture fitness | `internal/architecture/*_test.go` | structural rules (below) | Go |
+| Spec/code parity (problem types) | `internal/adapters/inbound/http/spec_problems_test.go` | every problem type the REST adapter can answer is declared in `apis/openapi.yaml`, and every problem the spec shows is one the adapter writes, with its status and title | Go |
 | Contract lint | spectral on `apis/openapi.yaml` and `apis/asyncapi.yaml` (CI `api-lint`) | the specs follow the fleet rulesets | spectral |
 
 There are no consumer-driven contract tests against sibling services:
 yard-management calls no sibling (see [Integration](/docs/ecosystem/integration)).
 The consumed messages are covered by the Kafka consumer tests under
 `internal/adapters/inbound/kafka`, and `TestEventCatalogueMatchesContract` ties
-the produced catalogue to `apis/asyncapi.yaml`.
+the produced catalogue to `apis/asyncapi.yaml`. On the REST side
+`TestTheSpecDeclaresEveryProblemTypeTheAdapterAnswers` ties the problem types
+the adapter can answer to `apis/openapi.yaml`.
 
 ## Godog features
 
