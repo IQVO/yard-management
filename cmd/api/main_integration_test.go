@@ -44,6 +44,7 @@ func TestAPIOnRealPostgresAndKafka(t *testing.T) {
 		{"the reports show the work through the analytics read side", reportsFromTheProjection},
 		{"two moves to one door: exactly one wins", occupancyRace},
 		{"one Idempotency-Key runs once even when sent concurrently", concurrentKey},
+		{"a suspended carrier's turn-away is committed and stored under the key", suspendedCarrierTurnAway},
 		{"readiness turns 503 dependency-unavailable when Kafka stops", readinessWhenKafkaStops},
 		{"cancelling the context stops the process gracefully", gracefulStop},
 	} {
