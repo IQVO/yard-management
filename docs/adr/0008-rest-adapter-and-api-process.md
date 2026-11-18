@@ -83,6 +83,8 @@ RFC 3339 instants, `to` after `from`, at most 92 days (`400 invalid-report-range
 - The router is testable with the in-memory store (unit and BDD) and with real Postgres and Kafka (the `cmd/api`
   integration test) without a second set of handlers.
 - A handler never decides a business rule; a new domain error needs one line in the catalogue
-  (`internal/adapters/inbound/http/errors.go`) and a `TestEveryProblemHasAKebabSlugAndAnAllowedStatus` pass.
+  (`internal/adapters/inbound/http/errors.go`), a `TestEveryProblemHasAKebabSlugAndAnAllowedStatus` pass, and its slug
+  in `apis/openapi.yaml` on the operations that can answer it (`TestTheSpecDeclaresEveryProblemTypeTheAdapterAnswers`
+  fails until the spec names it).
 - The memory store serialises its outermost unit of work so concurrent requests behave as they do under the Postgres
   advisory locks; it stays a test double (the runtime-no-memory fitness test).

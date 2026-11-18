@@ -81,9 +81,11 @@ The write routes of this table are the REST side of the use cases on
   a 5xx rolls back and is never stored. The sweeps accept the key but do not
   need it (`internal/adapters/inbound/http/idempotency.go`).
 - **Versioning and conflicts.** Aggregates carry a `version`. A write that loses
-  a race is `409 concurrent-modification`. The yard policy has a weak `ETag`
-  of its version: `PUT` honours `If-Match`; a stale value is `412
-  precondition-failed`, an unparsable one `400 invalid-if-match`.
+  a race is `409 concurrent-modification`: any `POST` or `PUT` except the two
+  sweeps, which skip the trailer or move that changed. The refusal is stored
+  under its key like every 4xx, so re-read and retry with a new key. The yard
+  policy has a weak `ETag` of its version: `PUT` honours `If-Match`; a stale
+  value is `412 precondition-failed`, an unparsable one `400 invalid-if-match`.
 - **Paging.** List endpoints take `limit` (1 to 500, default 100) and the opaque
   `cursor` (the previous page's `nextCursor`); no `nextCursor` marks the last
   page. A parameter the operation does not declare is `400
@@ -97,9 +99,16 @@ The write routes of this table are the REST side of the use cases on
   request itself, 404 a missing resource, 409 a conflict with state or a lost
   race, 412 a stale `If-Match`, 422 a value or reference rule, 503
   `dependency-unavailable`, 500 `internal-error` (the cause only in the log).
+  Two more belong to no operation: `404 resource-not-found` for a path that
+  matches no route and `405 method-not-allowed` (with an `Allow` header) for a
+  method the path does not take.
   The catalogue is `problemCatalogue` in `internal/adapters/inbound/http/errors.go`;
   causes and fixes are on [Troubleshooting](/docs/operations/troubleshooting#api-refusals).
-- **NUL guard.** A U+0000 in the path, query or body is a uniform client error.
+  `apis/openapi.yaml` names every problem type the adapter can answer, and shows
+  none it cannot: `spec_problems_test.go` in the adapter fails otherwise
+  (`TestTheSpecDeclaresEveryProblemTypeTheAdapterAnswers`).
+- **NUL guard.** A U+0000 is a uniform client error: `404 resource-not-found`
+  in the path, `400 malformed-request-body` in the query or body.
 - **Events** are CloudEvents 1.0 (structured JSON, `application/cloudevents+json`)
   on `warehouse.yard-management.events` and `.analytics`, key = aggregate root id;
   a breaking payload change is a new `.v2` type, never a mutation.
