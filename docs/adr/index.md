@@ -29,3 +29,4 @@ the authority.
 | [0015](./0015-compliance-inspections.md) | Compliance inspections: versioned checklist templates, an Inspection record and a site-policy gate on dock, load and departure | Accepted (2026-11-11); refines 0002, 0004 and 0007 |
 | [0016](./0016-carrier-registry-copy-and-suspended-carrier-gate.md) | Carrier registry copy and the suspended-carrier rule at the gate | Accepted (2026-11-12); refines 0002, 0003, 0004 and 0009 |
 | [0017](./0017-fleet-observability-standard.md) | Adopt the fleet observability standard: OpenTelemetry on every binary, trace-correlated logs and one business counter | Accepted (2026-11-13) |
+| [0018](./0018-standard-vocabulary-on-published-facts.md) | Standard vocabulary on published facts: X12 214 status, CBV business step and CBV disposition | Accepted (2026-11-17); refines 0004 |

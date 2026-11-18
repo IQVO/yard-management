@@ -28,6 +28,7 @@ func initializeScenario(sc *godog.ScenarioContext) {
 	registerPlacementSteps(sc, w)
 	registerInspectionSteps(sc, w)
 	registerRuleSteps(sc, w)
+	registerStandardsSteps(sc, w)
 }
 
 func registerGivenSteps(sc *godog.ScenarioContext, w *world) {
