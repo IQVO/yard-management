@@ -77,7 +77,10 @@ The write routes of this table are the REST side of the use cases on
   idempotency-key-required` / `idempotency-key-invalid`; the same key with a
   different method, path or body is `409 idempotency-key-reused`; an equal
   request replays the stored answer with `Idempotency-Replayed: true`. A 2xx
-  commits with its key; a 4xx refusal is stored and replays as the same refusal;
+  commits with its key; a 4xx refusal is stored and replays as the same refusal
+  (its partial writes are rolled back, except for `409 carrier-suspended`: the
+  REJECTED visit and its event commit with the stored answer, ADR 0016, so a
+  replay records nothing new);
   a 5xx rolls back and is never stored. The sweeps accept the key but do not
   need it (`internal/adapters/inbound/http/idempotency.go`).
 - **Versioning and conflicts.** Aggregates carry a `version`. A write that loses
