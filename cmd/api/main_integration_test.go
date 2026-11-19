@@ -45,6 +45,8 @@ func TestAPIOnRealPostgresAndKafka(t *testing.T) {
 		{"two moves to one door: exactly one wins", occupancyRace},
 		{"one Idempotency-Key runs once even when sent concurrently", concurrentKey},
 		{"a suspended carrier's turn-away is committed and stored under the key", suspendedCarrierTurnAway},
+		{"a concurrent-modification refusal is not stored under its key and its retry succeeds", concurrentModificationIsNotStored},
+		{"a visit-already-open refusal is not stored under its key and its retry is admitted", visitAlreadyOpenIsNotStored},
 		{"readiness turns 503 dependency-unavailable when Kafka stops", readinessWhenKafkaStops},
 		{"cancelling the context stops the process gracefully", gracefulStop},
 	} {
