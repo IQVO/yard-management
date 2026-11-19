@@ -30,3 +30,4 @@ the authority.
 | [0016](./0016-carrier-registry-copy-and-suspended-carrier-gate.md) | Carrier registry copy and the suspended-carrier rule at the gate | Accepted (2026-11-12); refines 0002, 0003, 0004 and 0009 |
 | [0017](./0017-fleet-observability-standard.md) | Adopt the fleet observability standard: OpenTelemetry on every binary, trace-correlated logs and one business counter | Accepted (2026-11-13) |
 | [0018](./0018-standard-vocabulary-on-published-facts.md) | Standard vocabulary on published facts: X12 214 status, CBV business step and CBV disposition | Accepted (2026-11-17); refines 0004 |
+| [0019](./0019-idempotency-replay-classes.md) | Every problem type has a replay class; a retryable refusal is not stored under the Idempotency-Key | Accepted (2026-11-18); refines 0007, 0008 and 0016 |

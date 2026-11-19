@@ -138,7 +138,9 @@ the unit of work. The full schema is on [Entity relationship](/docs/ddd/entity-r
   and (for a Kafka-driven one) claims the CloudEvents id in `processed_events`, in
   one unit of work. The relay publishes; the use cases never touch Kafka.
 - **Idempotency.** `Idempotency-Key` on every state-changing REST call and
-  `idempotencyKey` on every MCP write, over the same `idempotency_keys` store.
+  `idempotencyKey` on every MCP write, over the same `idempotency_keys` store. A success and a
+  refusal that cannot change are replayed; a refusal the same request could pass later (replay
+  class RETRYABLE) is not stored ([ADR 0019](/docs/adr/0019-idempotency-replay-classes)).
 - **No sibling calls.** Appointments, closures, locations, ASNs and receipts are
   local copies fed by events ([ADR 0003](/docs/adr/0003-consumed-contracts-and-local-copies),
   [ADR 0009](/docs/adr/0009-kafka-consumers)).

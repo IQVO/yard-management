@@ -106,3 +106,10 @@ runs the image built from the v0.1.3 commit (`ghcr.io/iqvo/warehouse-infra/yard-
 suspended-carrier gate has been off: the column was never written, every stored policy has `suspended_carrier_action = 'NONE'`, no check-in was turned away or
 flagged for a suspended carrier and no wrong data was recorded. Nothing needs repairing, but a site that wants the rule must declare its policy again with
 `suspendedCarrierAction` after this fix is deployed.
+
+## Addendum 2026-11-18 (second): the OUTCOME list is now a class
+
+ADR 0019 replaces the single list `outcomeRefusals` and `KeepWrites` described in the addendum above by the replay class of the catalogue entry: `carrier-suspended`
+is the one entry declared OUTCOME (`problemCatalogue` in `internal/adapters/inbound/http/errors.go`), `writeError` tells the capturing writer its class, and
+`TestOutcomeRefusalsListsExactlyTheSuspendedCarrier` became `TestTheSuspendedCarrierIsTheOnlyOutcome`. The behaviour described there is unchanged: the turn-away is committed
+and stored under the key in one transaction, and a replay records nothing.

@@ -57,7 +57,7 @@ is `true` only for `cancel_move`. Every write takes the shared arguments:
 
 | Argument | Required | Meaning |
 | --- | --- | --- |
-| `idempotencyKey` | **yes** | 1 to 128 printable ASCII characters; same key + same arguments returns the first answer (result `_meta` `com.warehouse/idempotency-replayed: true`); same key with other arguments is refused with `idempotency-key-reused`. Shared store with the REST `Idempotency-Key` |
+| `idempotencyKey` | **yes** | 1 to 128 printable ASCII characters; same key + same arguments returns the first answer (result `_meta` `com.warehouse/idempotency-replayed: true`) when it is final: a success or a FINAL refusal. A RETRYABLE refusal (`unknown-location`, `trailer-on-hold`, `concurrent-modification`, ...) is not stored and the same key runs again ([ADR 0019](/docs/adr/0019-idempotency-replay-classes)); same key with other arguments is refused with `idempotency-key-reused`. Shared store with the REST `Idempotency-Key` |
 | `proposalId`, `approvedBy`, `agentId` | no (max 128 characters each) | attribution: stamped into `initiated_by` on the data of every event the call raises |
 
 A write runs in one unit of work with the idempotency key and the outbox rows
