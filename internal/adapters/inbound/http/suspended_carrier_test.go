@@ -89,8 +89,8 @@ func TestSuspendedCarrierTurnAwayIsCommittedAndStoredUnderTheKey(t *testing.T) {
 
 // TestOtherRefusalsOfTheGateStillRollBackTheirWrites pins that only the
 // carrier-suspended refusal commits: a plate that is already open is refused
-// with 409 visit-already-open, nothing of that request is recorded, and the
-// refusal is still stored under its key.
+// with 409 visit-already-open, nothing of that request is recorded, and (a
+// RETRYABLE refusal, ADR 0019) it is not stored under its key.
 func TestOtherRefusalsOfTheGateStillRollBackTheirWrites(t *testing.T) {
 	g := newRig(t)
 	g.seedSite()
@@ -104,7 +104,7 @@ func TestOtherRefusalsOfTheGateStillRollBackTheirWrites(t *testing.T) {
 		t.Fatalf("a refused check-in left %d new events", n-events)
 	}
 	again := g.dropVisitKeyed("k-dup", "TRK1", "TR-2")
-	if again.Header.Get("Idempotency-Replayed") != "true" || string(again.Body) != string(first.Body) {
-		t.Fatalf("the refusal is not stored under its key: %d %s", again.Code, again.Body)
+	if again.Code != http.StatusConflict || again.Header.Get("Idempotency-Replayed") != "" || string(again.Body) != string(first.Body) {
+		t.Fatalf("the retry of a RETRYABLE refusal: %d replayed=%q %s, want a fresh run that refuses again", again.Code, again.Header.Get("Idempotency-Replayed"), again.Body)
 	}
 }

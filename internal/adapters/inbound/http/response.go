@@ -9,8 +9,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-
-	"github.com/claudioed/yard-management/internal/domain/yardvisit"
 )
 
 // maxBodyBytes bounds a request body; every body here is a few hundred bytes.
@@ -60,40 +58,13 @@ func decodeRequiredJSON(r *http.Request, dest any) error { return decodeJSON(r, 
 // decodeOptionalJSON decodes a body the operation may omit.
 func decodeOptionalJSON(r *http.Request, dest any) error { return decodeJSON(r, dest, false) }
 
-// outcomeRefusals lists the refusals that are an OUTCOME of the command, not
-// a rejection of it: the command committed state (the use case returned the
-// refusal after its unit of work committed) and the 4xx answer must be
-// remembered under the Idempotency-Key. For a listed refusal writeError marks
-// its writer (outcomeKeeper) and the Idempotency-Key middleware commits the
-// handler's writes together with the key row, in one transaction, instead of
-// rolling them back. Every other 4xx stays a rejection: rolled back, its
-// answer stored on its own (ADR 0016, addendum of 2026-11-18). One list, to
-// be extended only with an ADR.
-//
-//   - yardvisit.ErrCarrierSuspended: the gate recorded a REJECTED visit and its
-//     VisitRejected event and then answered 409 carrier-suspended.
-var outcomeRefusals = []error{
-	yardvisit.ErrCarrierSuspended,
-}
-
-// outcomeKeeper is implemented by the middleware's capturing writer.
-type outcomeKeeper interface{ KeepWrites() }
-
-// isOutcomeRefusal reports whether err is one of the outcomeRefusals.
-func isOutcomeRefusal(err error) bool {
-	for _, target := range outcomeRefusals {
-		if errors.Is(err, target) {
-			return true
-		}
-	}
-	return false
-}
-
 // writeError writes err as its RFC 7807 problem. An unmapped error is a 500
-// whose detail never leaks the internal message (it is logged instead).
+// whose detail never leaks the internal message (it is logged instead). The
+// capturing writer of the Idempotency-Key middleware is told the replay class
+// of the problem (replayClass): it decides there what happens to the answer.
 func writeError(w http.ResponseWriter, r *http.Request, err error) {
-	if k, ok := w.(outcomeKeeper); ok && isOutcomeRefusal(err) {
-		k.KeepWrites()
+	if m, ok := w.(replayMarker); ok {
+		m.MarkReplay(replayOf(err))
 	}
 	p := problemFor(err)
 	detail := err.Error()
