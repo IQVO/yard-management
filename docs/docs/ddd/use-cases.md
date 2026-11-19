@@ -63,7 +63,10 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
   `location-occupied`). Errors added as built: `ErrNoFreeSpot` (409), `ErrTrailerNotOnHold` (409),
   `ErrLeaseNotExpired`, `ErrStalePolicy` (412 `precondition-failed`).
 - **Idempotency.** Every state-changing `POST` and `PUT` takes an `Idempotency-Key`
-  header; a replay with the same key returns the first response (`idempotency_keys`); sweeps are
+  header; a replay with the same key returns the first response (`idempotency_keys`) when that
+  response is final for the request: a success, or a refusal whose problem type is FINAL or OUTCOME.
+  A RETRYABLE refusal (`concurrent-modification`, `visit-already-open`, `no-claimable-move`, ...) is not
+  stored and the same key runs again ([ADR 0019](/docs/adr/0019-idempotency-replay-classes)); sweeps are
   naturally idempotent. Mutable aggregates carry a `version`; a `GET` of one aggregate returns a weak ETag of
   it, `PUT /sites/{siteId}/yard-policy` honours `If-Match`, and a stale `If-Match` is `ErrStalePolicy` (412 `precondition-failed`). Every
   Kafka consumer is idempotent on the CloudEvents `id` (inbox).
@@ -118,7 +121,7 @@ Source: `internal/application/usecases/*.go`, `internal/adapters/inbound/http/se
 | `ErrAppointmentRequired` | 409 | `appointment-required` |
 | `ErrTrailerAlreadyOnSite` (from `RecordArrival`) | 409 | `trailer-already-on-site` |
 | `ErrSealClassTooLow` (site `minimumSealClass`; ADR 0012) | 409 | `seal-class-too-low` |
-| `ErrCarrierSuspended` (carrier suspended in dock-scheduling and the site policy `suspendedCarrierAction` is `REJECT`; the REJECTED visit is committed first; ADR 0016) | 409 | `carrier-suspended` |
+| `ErrCarrierSuspended` (carrier suspended in dock-scheduling and the site policy `suspendedCarrierAction` is `REJECT`; the REJECTED visit is committed first and stored with the answer under the `Idempotency-Key`; ADR 0016) | 409 | `carrier-suspended` |
 | `ErrDestinationReserved` (first move) | 409 | `destination-reserved` |
 | `ErrInvalidUnitNumber` (ISO 6346 check; ADR 0012) | 422 | `invalid-unit-number` |
 | `ErrInvalidSealClass` (ADR 0012) | 422 | `invalid-seal-class` |

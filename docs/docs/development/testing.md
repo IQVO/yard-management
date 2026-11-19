@@ -24,18 +24,21 @@ from reading the tree.
 | Integration | `*_integration_test.go`, build tag `integration` | real Postgres and Kafka through testcontainers: the Postgres repositories (contract suite), the outbox relay, the Kafka consumers of the three topics, the analytics store (OLTP and KPI), `cmd/api`, `cmd/mcp`, `cmd/relay` entry points | Docker |
 | Mutation | `.gremlins.yaml`, `make mutation` | tests assert, not merely execute, on `internal/domain/*` | gremlins v0.6.0 |
 | Architecture fitness | `internal/architecture/*_test.go` | structural rules (below) | Go |
+| Spec/code parity (problem types) | `internal/adapters/inbound/http/spec_problems_test.go` | every problem type the REST adapter can answer is declared in `apis/openapi.yaml`, and every problem the spec shows is one the adapter writes, with its status and title | Go |
 | Contract lint | spectral on `apis/openapi.yaml` and `apis/asyncapi.yaml` (CI `api-lint`) | the specs follow the fleet rulesets | spectral |
 
 There are no consumer-driven contract tests against sibling services:
 yard-management calls no sibling (see [Integration](/docs/ecosystem/integration)).
 The consumed messages are covered by the Kafka consumer tests under
 `internal/adapters/inbound/kafka`, and `TestEventCatalogueMatchesContract` ties
-the produced catalogue to `apis/asyncapi.yaml`.
+the produced catalogue to `apis/asyncapi.yaml`. On the REST side
+`TestTheSpecDeclaresEveryProblemTypeTheAdapterAnswers` ties the problem types
+the adapter can answer to `apis/openapi.yaml`.
 
 ## Godog features
 
-Fifteen files, 231 `Scenario` and `Scenario Outline` definitions (`git grep -c -E "^[[:space:]]*Scenario" -- 'features/*.feature'`);
-with the `Examples` rows expanded the runner executes 328 scenarios (`328 scenarios (328 passed)` from
+Sixteen files, 239 `Scenario` and `Scenario Outline` definitions (`git grep -c -E "^[[:space:]]*Scenario" -- 'features/*.feature'`);
+with the `Examples` rows expanded the runner executes 340 scenarios (`340 scenarios (340 passed)` from
 `go test ./internal/bdd -run TestFeatures -count=1 -v`). They are tagged `@bdd` and run the REST handlers on the
 in-memory store (`internal/adapters/outbound/memory`) behind the real HTTP handlers (`httptest`), with the events the use cases
 publish captured for the `the event "X" was published` steps:
@@ -56,6 +59,7 @@ publish captured for the `the event "X" was published` steps:
 | `occupancy.feature` | 11 / 14 | one trailer per spot or door, reservations, one open move per trailer, races end in 409, closed doors, flow mismatch, holds |
 | `rejection.feature` | 9 / 9 | gate turn-away, appointment required, seal mismatch under FLAG and REJECT, one open visit per plate, unknown appointment |
 | `standard_identifiers.feature` | 19 / 29 | ISO 6346 unit numbers, seal class and seal state vocabulary (ADR 0012) |
+| `standard_vocabulary.feature` | 8 / 12 | the optional X12 214 / CBV fields on the published facts (gate in and out, departure, inspection outcome, hold reason), the facts that carry none are byte-for-byte the legacy payload, and an old consumer still decodes (ADR 0018; the MCP attribution case is `attribution_standards_internal_test.go`) |
 | `trailer_rules.feature` | 16 / 20 | door work order, holds and their release, the trailer `version` (ETag), `AutoCompleteUnload`, the dwell sweep |
 
 Steps are in `internal/bdd/steps_*_test.go`. Run one feature with
@@ -81,6 +85,7 @@ a "bites" test proving it fails on a bad fixture.
 | `TestNoGoFilesAtRepoRoot` | no `.go` at the repo root |
 | `TestMCPAdapterDependencyRule`, `TestEveryMCPToolDeclaresAuthority`, `TestMCPWriteToolsAreAtLeastL3`, `TestMCPServerOffersResourceAndPrompt`, `TestMCPOptionalToolInputsCarryOmitempty` | MCP adapter layering, authority annotations, optional inputs |
 | `TestNoAuthMiddlewareReintroduced` | no auth middleware reappears (fleet decision) |
+| `TestEveryPublishedTypeOfTheContractHasAStandardsDecision`, `TestTheContractDeclaresTheStandardFieldsOnTheRightSchemasAsOptional`, `TestADR0018ListsTheMapping` | the standard-vocabulary table (`internal/domain/standards`) decides every published type, the contract declares its optional fields exactly where it maps them, and ADR 0018 lists every event, variant, code and source |
 
 ## Mutation testing
 

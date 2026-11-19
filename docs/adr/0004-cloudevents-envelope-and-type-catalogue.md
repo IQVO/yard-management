@@ -98,3 +98,12 @@ The projector reads this service's own analytics topic with `ANALYTICS_CONSUMER_
   `internal/adapters/inbound/kafka/visit_arrival_consumer.go`, its ADR 0021).
 - The Consumed table lists thirteen types; ADR 0016 added `CarrierRegistered`, `CarrierSuspended` and `CarrierReinstated` on `warehouse.dock-scheduling.events`,
   sixteen in all (`internal/adapters/inbound/kafka/dock_scheduling_consumer.go`).
+
+## Addendum 2026-11-17: standard vocabulary fields (ADR 0018)
+
+- No type is added or renamed; the catalogue above is unchanged. Six payloads gain up to three OPTIONAL fields, `x12_status` (the ANSI X12 214
+  shipment status code), `cbv_biz_step` and `cbv_disposition` (GS1 CBV 2.0 URNs): `VisitCheckedIn`, `VisitCheckedOut` and `TrailerDeparted`
+  (`x12_status`, `cbv_biz_step`), `InspectionCompleted` and `InspectionFailed` (`cbv_biz_step`, `cbv_disposition`) and `TrailerHeld`
+  (`cbv_disposition`, for the reasons `DAMAGED` and `SEAL_BROKEN`). They are the exception to "nullable fields are `null`": a field with no
+  honest value is OMITTED, so every other payload, and these six when nothing is mapped, are byte-identical to before. The integration and
+  analytics twins still carry identical `data`.

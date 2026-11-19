@@ -63,7 +63,7 @@ func goldenCases() []goldenCase {
 			data: `{"visit_id":"visit-1","site_id":"WH1","carrier":"Acme Freight","carrier_scac":"ACME","purpose":"LIVE_UNLOAD","appointment_id":"appt-1",` +
 				`"trailers":[{"trailer_id":"trl-1","unit_number":"T100","carrier_scac":"ACME","kind":"DRY_VAN","load_state":"LOADED","unit_number_scheme":null,"seal_class":null,"hazmat_class":null,"un_number":null,"requires_temperature_control":true},` +
 				`{"trailer_id":"trl-2","unit_number":"CSQU3054383","carrier_scac":null,"kind":"CONTAINER","load_state":"EMPTY","unit_number_scheme":"ISO6346","seal_class":"H","hazmat_class":"3","un_number":"UN1203","requires_temperature_control":false}],` +
-				`"arrived_at":"2026-11-05T14:00:00Z","version":1,"carrier_flag":null}`,
+				`"arrived_at":"2026-11-05T14:00:00Z","version":1,"carrier_flag":null,"x12_status":"I1","cbv_biz_step":"urn:epcglobal:cbv:bizstep:arriving"}`,
 		},
 		{
 			name: "VisitRejected", integration: true, subject: "visit-2",
@@ -79,7 +79,7 @@ func goldenCases() []goldenCase {
 				Header: hdr("yardvisit", "VisitCheckedOut", "visit-1", at(15, 35)), VisitID: "visit-1", SiteID: "WH1",
 				TrailersOut: []string{"trl-1"}, DepartedAt: stamp(15, 35), OnSiteMinutes: 95, Version: 2,
 			},
-			data: `{"visit_id":"visit-1","site_id":"WH1","trailers_out":["trl-1"],"departed_at":"2026-11-05T15:35:00Z","on_site_minutes":95,"version":2}`,
+			data: `{"visit_id":"visit-1","site_id":"WH1","trailers_out":["trl-1"],"departed_at":"2026-11-05T15:35:00Z","on_site_minutes":95,"version":2,"x12_status":"OA","cbv_biz_step":"urn:epcglobal:cbv:bizstep:departing"}`,
 		},
 		{
 			name: "TrailerDocked", integration: true, subject: "trl-1",
@@ -135,7 +135,7 @@ func goldenCases() []goldenCase {
 				Header: hdr("trailer", "TrailerDeparted", "trl-1", at(15, 35)), TrailerID: "trl-1", SiteID: "WH1", VisitID: shared.Str("visit-1"),
 				DepartedAt: stamp(15, 35), DwellMinutes: 95, LoadState: shared.LoadEmpty, SealNumber: shared.Str("SL-1"), Version: 7, SealState: shared.Str("INTACT"),
 			},
-			data: `{"trailer_id":"trl-1","site_id":"WH1","visit_id":"visit-1","departed_at":"2026-11-05T15:35:00Z","dwell_minutes":95,"load_state":"EMPTY","seal_number":"SL-1","version":7,"seal_state":"INTACT","seal_class":null}`,
+			data: `{"trailer_id":"trl-1","site_id":"WH1","visit_id":"visit-1","departed_at":"2026-11-05T15:35:00Z","dwell_minutes":95,"load_state":"EMPTY","seal_number":"SL-1","version":7,"seal_state":"INTACT","seal_class":null,"x12_status":"OA","cbv_biz_step":"urn:epcglobal:cbv:bizstep:departing"}`,
 		},
 		{
 			name: "SealExceptionRaised", integration: true, subject: "trl-1",
@@ -156,6 +156,20 @@ func goldenCases() []goldenCase {
 				Header: hdr("trailer", "TrailerHeld", "trl-1", at(14, 30)), TrailerID: "trl-1", SiteID: "WH1", Reason: trailer.HoldQuality, Version: 5,
 			},
 			data: `{"trailer_id":"trl-1","site_id":"WH1","reason":"QUALITY","version":5}`,
+		},
+		{
+			name: "TrailerHeldDamaged", subject: "trl-1",
+			event: trailer.TrailerHeld{
+				Header: hdr("trailer", "TrailerHeld", "trl-1", at(14, 31)), TrailerID: "trl-1", SiteID: "WH1", Reason: trailer.HoldDamaged, Version: 6,
+			},
+			data: `{"trailer_id":"trl-1","site_id":"WH1","reason":"DAMAGED","version":6,"cbv_disposition":"urn:epcglobal:cbv:disp:damaged"}`,
+		},
+		{
+			name: "TrailerHeldSealBroken", subject: "trl-1",
+			event: trailer.TrailerHeld{
+				Header: hdr("trailer", "TrailerHeld", "trl-1", at(14, 32)), TrailerID: "trl-1", SiteID: "WH1", Reason: trailer.HoldSealBroken, Version: 7,
+			},
+			data: `{"trailer_id":"trl-1","site_id":"WH1","reason":"SEAL_BROKEN","version":7,"cbv_disposition":"urn:epcglobal:cbv:disp:container_open"}`,
 		},
 		{
 			name: "TrailerHoldReleased", subject: "trl-1",
@@ -272,7 +286,8 @@ func goldenCases() []goldenCase {
 				ConditionGrade: shared.Str("DAMAGED"), CompletedAt: stamp(18, 0), FailedItemCodes: []string{"fifth-wheel", "pest-free"},
 			},
 			data: `{"inspection_id":"insp-1","site_id":"WH1","trailer_id":"trl-1","visit_id":"visit-1","template_id":"tractor-trailer-17-point","template_version":1,` +
-				`"gate":"PRE_DOCK","outcome":"FAILED","condition_grade":"DAMAGED","completed_at":"2026-11-05T18:00:00Z","failed_item_codes":["fifth-wheel","pest-free"]}`,
+				`"gate":"PRE_DOCK","outcome":"FAILED","condition_grade":"DAMAGED","completed_at":"2026-11-05T18:00:00Z","failed_item_codes":["fifth-wheel","pest-free"],` +
+				`"cbv_biz_step":"urn:epcglobal:cbv:bizstep:inspecting","cbv_disposition":"urn:epcglobal:cbv:disp:non_conformant"}`,
 		},
 		{
 			name: "InspectionCompletedPassedBare", integration: true, subject: "insp-2",
@@ -281,7 +296,8 @@ func goldenCases() []goldenCase {
 				TemplateID: "yard-entry", TemplateVersion: 3, Gate: "ON_DEMAND", Outcome: "PASSED", CompletedAt: stamp(18, 5), FailedItemCodes: []string{},
 			},
 			data: `{"inspection_id":"insp-2","site_id":"WH1","trailer_id":"trl-2","visit_id":null,"template_id":"yard-entry","template_version":3,` +
-				`"gate":"ON_DEMAND","outcome":"PASSED","condition_grade":null,"completed_at":"2026-11-05T18:05:00Z","failed_item_codes":[]}`,
+				`"gate":"ON_DEMAND","outcome":"PASSED","condition_grade":null,"completed_at":"2026-11-05T18:05:00Z","failed_item_codes":[],` +
+				`"cbv_biz_step":"urn:epcglobal:cbv:bizstep:inspecting","cbv_disposition":"urn:epcglobal:cbv:disp:conformant"}`,
 		},
 		{
 			name: "InspectionFailed", integration: true, subject: "insp-1",
@@ -295,7 +311,7 @@ func goldenCases() []goldenCase {
 			},
 			data: `{"inspection_id":"insp-1","site_id":"WH1","trailer_id":"trl-1","template_id":"tractor-trailer-17-point","gate":"PRE_DOCK",` +
 				`"failed_items":[{"item_code":"fifth-wheel","note":"cracked weld","required":true},{"item_code":"pest-free","note":null,"required":true}],` +
-				`"failed_at":"2026-11-05T18:00:00Z","hold_placed":true}`,
+				`"failed_at":"2026-11-05T18:00:00Z","hold_placed":true,"cbv_biz_step":"urn:epcglobal:cbv:bizstep:inspecting","cbv_disposition":"urn:epcglobal:cbv:disp:non_conformant"}`,
 		},
 		{
 			name: "YardCheckClosedClean", integration: true, subject: "yck-2",

@@ -70,26 +70,50 @@ func TestIdempotencyKeyReusedForOtherArguments(t *testing.T) {
 	wantError(t, r.call("place_hold", map[string]any{"idempotencyKey": "same", "trailerId": trailerID, "reason": "DAMAGED"}), "idempotency-key-reused")
 }
 
-// A refusal is stored under its key: the same call replays the same refusal
-// even after the world changed, and nothing the refused call wrote survives.
-func TestIdempotencyStoresRefusals(t *testing.T) {
+// A FINAL refusal is stored under its key: the same call replays the same
+// refusal, and nothing the refused call wrote survives.
+func TestIdempotencyStoresFinalRefusals(t *testing.T) {
 	r := newRig(t)
 	r.seedSite()
 	trailerID := r.parkedTrailer("PLATE1", "T-100")
-	args := map[string]any{"idempotencyKey": "refused", "trailerId": trailerID, "to": spot("WH1-NOPE")}
+	args := map[string]any{"idempotencyKey": "refused", "trailerId": trailerID, "to": door("WH1-D02"), "dueBy": "tomorrow"}
 
 	first := r.call("request_move", args)
-	wantError(t, first, "unknown-location")
-
-	// The place now exists, but the key still answers what it answered first.
-	r.env.Site("WH1", []string{"WH1-NOPE"}, nil)
+	wantError(t, first, "validation")
 	again := r.call("request_move", args)
-	wantError(t, again, "unknown-location")
+	wantError(t, again, "validation")
 	if again.Text != first.Text {
 		t.Fatalf("refusal replay = %q, first = %q", again.Text, first.Text)
 	}
+	if rec, ok, _ := r.env.Store.Lookup(r.env.Ctx, "refused"); !ok || rec.Status != 422 {
+		t.Fatalf("the refusal is not stored under its key: %+v %v", rec, ok)
+	}
 	if moves := items(t, r.ok("list_moves", map[string]any{"trailerId": trailerID, "state": "REQUESTED"})); len(moves) != 0 {
 		t.Fatalf("a refused call left %d move(s)", len(moves))
+	}
+}
+
+// A RETRYABLE refusal (ADR 0019) is not stored: the place the call named is not
+// known yet (a facility event may deliver it), the refusal leaves the key free,
+// and the same call under the same key runs again once the place is known.
+func TestIdempotencyDoesNotStoreARetryableRefusal(t *testing.T) {
+	r := newRig(t)
+	r.seedSite()
+	trailerID := r.parkedTrailer("PLATE1", "T-100")
+	args := map[string]any{"idempotencyKey": "later", "trailerId": trailerID, "to": spot("WH1-NOPE")}
+
+	wantError(t, r.call("request_move", args), "unknown-location")
+	if _, ok, _ := r.env.Store.Lookup(r.env.Ctx, "later"); ok {
+		t.Fatal("a RETRYABLE refusal was stored under its key")
+	}
+
+	r.env.Site("WH1", []string{"WH1-NOPE"}, nil)
+	again := r.call("request_move", args)
+	if again.IsError || again.Replayed {
+		t.Fatalf("the retry with the same key = %+v, want a fresh success", again)
+	}
+	if moves := items(t, r.ok("list_moves", map[string]any{"trailerId": trailerID, "state": "REQUESTED"})); len(moves) != 1 {
+		t.Fatalf("%d REQUESTED move(s) after the retry, want 1", len(moves))
 	}
 }
 

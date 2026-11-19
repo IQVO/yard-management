@@ -274,7 +274,9 @@ type Clock interface {
 }
 
 // IdempotencyStore keeps the answers of the POSTs/PUTs made with an
-// Idempotency-Key. Only 2xx and 4xx answers are stored; the first writer wins.
+// Idempotency-Key. The adapters decide what is stored (a success, and a refusal
+// whose problem type is FINAL or OUTCOME; a RETRYABLE refusal and a 5xx never,
+// ADR 0019); the first writer wins.
 type IdempotencyStore interface {
 	Lookup(ctx context.Context, key string) (views.IdempotencyRecord, bool, error)
 	Save(ctx context.Context, rec views.IdempotencyRecord) error

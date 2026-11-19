@@ -42,9 +42,9 @@ func TestMigration0005KeepsExistingRowsAndGoesDown(t *testing.T) {
 	if err := m.Migrate(5); err != nil {
 		t.Fatalf("migrate to 5: %v", err)
 	}
-	// The repositories read the latest schema (0006 added the required inspections).
-	if err := m.Migrate(6); err != nil {
-		t.Fatalf("migrate to 6: %v", err)
+	// The repositories read the latest schema (0007 added the suspended-carrier lever).
+	if err := m.Migrate(7); err != nil {
+		t.Fatalf("migrate to 7: %v", err)
 	}
 
 	ctx := context.Background()

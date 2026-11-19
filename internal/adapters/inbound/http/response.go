@@ -59,8 +59,13 @@ func decodeRequiredJSON(r *http.Request, dest any) error { return decodeJSON(r, 
 func decodeOptionalJSON(r *http.Request, dest any) error { return decodeJSON(r, dest, false) }
 
 // writeError writes err as its RFC 7807 problem. An unmapped error is a 500
-// whose detail never leaks the internal message (it is logged instead).
+// whose detail never leaks the internal message (it is logged instead). The
+// capturing writer of the Idempotency-Key middleware is told the replay class
+// of the problem (replayClass): it decides there what happens to the answer.
 func writeError(w http.ResponseWriter, r *http.Request, err error) {
+	if m, ok := w.(replayMarker); ok {
+		m.MarkReplay(replayOf(err))
+	}
 	p := problemFor(err)
 	detail := err.Error()
 	if p == internalProblem {

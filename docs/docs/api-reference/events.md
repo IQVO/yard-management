@@ -68,6 +68,25 @@ Totals: 13 integration types (events and analytics), 10 analytics-only.
 `TestEventCatalogueMatchesContract` ties this list to the AsyncAPI document, and
 the integration/analytics split is decided by the encoder, not by the emitter.
 
+## Standard vocabulary on the facts (ADR 0018)
+
+A fact whose meaning a standard states exactly carries, as ADDITIVE optional `data` fields, `x12_status` (the ANSI X12 214 shipment status
+code), `cbv_biz_step` and `cbv_disposition` (GS1 EPCIS Core Business Vocabulary 2.0, in their URN form). A field with no honest value is
+omitted (never `null`), so a payload that carries none is byte-for-byte what it was before.
+
+| Event | `x12_status` | `cbv_biz_step` | `cbv_disposition` |
+| --- | --- | --- | --- |
+| `VisitCheckedIn` | `I1` (In-Gate) | `urn:epcglobal:cbv:bizstep:arriving` | |
+| `VisitCheckedOut` | `OA` (Out-Gate) | `urn:epcglobal:cbv:bizstep:departing` | |
+| `TrailerDeparted` | `OA` (Out-Gate) | `urn:epcglobal:cbv:bizstep:departing` | |
+| `InspectionCompleted` | | `urn:epcglobal:cbv:bizstep:inspecting` | `urn:epcglobal:cbv:disp:conformant` (`outcome` PASSED), `urn:epcglobal:cbv:disp:non_conformant` (FAILED) |
+| `InspectionFailed` | | `urn:epcglobal:cbv:bizstep:inspecting` | `urn:epcglobal:cbv:disp:non_conformant` |
+| `TrailerHeld` | | | `urn:epcglobal:cbv:disp:damaged` (`reason` DAMAGED), `urn:epcglobal:cbv:disp:container_open` (SEAL_BROKEN) |
+
+The other seventeen types never carry them, and `TrailerHeld` for `NOT_FOUND`, `QUALITY` and `SECURITY` carries none. The table is
+`internal/domain/standards`; every decision, its reason and its source (X12 element 1650, GS1 CBV 2.0) is in
+[ADR 0018](/docs/adr/0018-standard-vocabulary-on-published-facts).
+
 ## Consumed types (16)
 
 | Topic | CloudEvents `type` | Effect here |

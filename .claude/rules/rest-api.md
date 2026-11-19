@@ -32,7 +32,12 @@ touches a domain aggregate. Keep this list in sync with the spec by hand (it is 
 
 - Errors are RFC 7807 `application/problem+json`; the slug is the kebab-case domain error name (ADR 0002).
 - Every POST and PUT except the sweeps requires `Idempotency-Key`; the sweeps take it optionally (they are
-  naturally idempotent). A single-aggregate `GET` returns a weak `ETag` of its `version`;
+  naturally idempotent). What a retry under the same key is answered with is the replay class of the problem type,
+  declared on its entry of `problemCatalogue` in `errors.go` (ADR 0019; a new entry without a class fails
+  `TestEveryCatalogueEntryDeclaresAReplayClass`, and the MCP catalogue carries the same class per slug): a 2xx and a
+  FINAL refusal are stored and replayed (a refusal's writes are rolled back); an OUTCOME refusal (today `carrier-suspended`,
+  ADR 0016) committed state, so the middleware commits it together with the stored answer; a RETRYABLE refusal and a 5xx
+  are never stored and the key is free again. A single-aggregate `GET` returns a weak `ETag` of its `version`;
   `PUT /sites/{siteId}/yard-policy` honours `If-Match`.
 - A NUL character in the path is a 404 `resource-not-found`; in the query or body a 400 `malformed-request`,
   answered before the idempotency middleware records the key (`internal/adapters/inbound/http/nul.go`).

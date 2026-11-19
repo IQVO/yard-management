@@ -17,11 +17,17 @@ type envelope struct {
 
 // Payload maps a domain event to the payload of its outbox row. The event
 // structs of the domain carry the contract's json tags, so the data is the
-// event itself; the one source of truth for the golden tests and the rows.
+// event itself plus the optional standard fields of ADR 0018 (X12 214 status,
+// CBV business step and disposition) the mapping table decides for it; the one
+// source of truth for the golden tests and the rows.
 func Payload(e shared.Event) ([]byte, error) {
 	raw, err := json.Marshal(e)
 	if err != nil {
 		return nil, fmt.Errorf("encode %s payload: %w", e.EventName(), err)
+	}
+	raw, err = withStandards(e, raw)
+	if err != nil {
+		return nil, err
 	}
 	b, err := json.Marshal(envelope{Type: e.EventName(), Data: raw})
 	if err != nil {
