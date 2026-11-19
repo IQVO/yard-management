@@ -42,56 +42,59 @@ type problem struct {
 var errorCatalogue = []struct {
 	target error
 	p      problem
+	// replay is the replay class of the problem type (ADR 0019), the same as the
+	// REST catalogue's for the same slug (replay_class_internal_test.go).
+	replay replayClass
 }{
-	{errInvalidLimit, problem{"invalid-limit", http.StatusBadRequest}},
-	{errInvalidCursor, problem{"invalid-cursor", http.StatusBadRequest}},
-	{errInvalidState, problem{"invalid-state", http.StatusBadRequest}},
-	{errInvalidReportRange, problem{"invalid-report-range", http.StatusBadRequest}},
-	{errInvalidKey, problem{"idempotency-key-invalid", http.StatusBadRequest}},
-	{errKeyReused, problem{"idempotency-key-reused", http.StatusConflict}},
+	{errInvalidLimit, problem{"invalid-limit", http.StatusBadRequest}, replayFinal},
+	{errInvalidCursor, problem{"invalid-cursor", http.StatusBadRequest}, replayFinal},
+	{errInvalidState, problem{"invalid-state", http.StatusBadRequest}, replayFinal},
+	{errInvalidReportRange, problem{"invalid-report-range", http.StatusBadRequest}, replayFinal},
+	{errInvalidKey, problem{"idempotency-key-invalid", http.StatusBadRequest}, replayFinal},
+	{errKeyReused, problem{"idempotency-key-reused", http.StatusConflict}, replayFinal},
 
-	{usecases.ErrVisitNotFound, problem{"visit-not-found", http.StatusNotFound}},
-	{usecases.ErrTrailerNotFound, problem{"trailer-not-found", http.StatusNotFound}},
-	{usecases.ErrMoveNotFound, problem{"move-not-found", http.StatusNotFound}},
-	{usecases.ErrYardCheckNotFound, problem{"yard-check-not-found", http.StatusNotFound}},
-	{usecases.ErrSiteNotFound, problem{"site-not-found", http.StatusNotFound}},
-	{usecases.ErrInspectionNotFound, problem{"inspection-not-found", http.StatusNotFound}},
-	{usecases.ErrTemplateNotFound, problem{"template-not-found", http.StatusNotFound}},
+	{usecases.ErrVisitNotFound, problem{"visit-not-found", http.StatusNotFound}, replayFinal},
+	{usecases.ErrTrailerNotFound, problem{"trailer-not-found", http.StatusNotFound}, replayFinal},
+	{usecases.ErrMoveNotFound, problem{"move-not-found", http.StatusNotFound}, replayFinal},
+	{usecases.ErrYardCheckNotFound, problem{"yard-check-not-found", http.StatusNotFound}, replayFinal},
+	{usecases.ErrSiteNotFound, problem{"site-not-found", http.StatusNotFound}, replayRetryable},
+	{usecases.ErrInspectionNotFound, problem{"inspection-not-found", http.StatusNotFound}, replayFinal},
+	{usecases.ErrTemplateNotFound, problem{"template-not-found", http.StatusNotFound}, replayRetryable},
 
-	{yardvisit.ErrVisitAlreadyOpen, problem{"visit-already-open", http.StatusConflict}},
-	{trailer.ErrLocationOccupied, problem{"location-occupied", http.StatusConflict}},
-	{trailer.ErrDoorClosed, problem{"door-closed", http.StatusConflict}},
-	{trailer.ErrDoorFlowMismatch, problem{"door-flow-mismatch", http.StatusConflict}},
-	{trailer.ErrTrailerOnHold, problem{"trailer-on-hold", http.StatusConflict}},
-	{trailer.ErrTrailerNotOnHold, problem{"trailer-not-on-hold", http.StatusConflict}},
-	{trailer.ErrDoorWorkOpen, problem{"door-work-open", http.StatusConflict}},
-	{trailer.ErrPlacementRuleViolated, problem{"placement-rule-violated", http.StatusConflict}},
-	{trailer.ErrTrailerNotSecured, problem{"trailer-not-secured", http.StatusConflict}},
-	{trailer.ErrTrailerStillSecured, problem{"trailer-still-secured", http.StatusConflict}},
-	{shared.ErrSealClassTooLow, problem{"seal-class-too-low", http.StatusConflict}},
-	{inspection.ErrInspectionRequired, problem{"inspection-required", http.StatusConflict}},
-	{inspection.ErrInspectionFailed, problem{"inspection-failed", http.StatusConflict}},
-	{inspection.ErrInspectionClosed, problem{"inspection-closed", http.StatusConflict}},
-	{inspection.ErrRequiredItemPending, problem{"required-item-pending", http.StatusConflict}},
-	{inspection.ErrInspectionAlreadyOpen, problem{"inspection-already-open", http.StatusConflict}},
-	{inspection.ErrTemplateVersionImmutable, problem{"template-version-immutable", http.StatusConflict}},
-	{inspection.ErrTemplateIsBuiltIn, problem{"template-is-built-in", http.StatusConflict}},
-	{yardmove.ErrTrailerHasOpenMove, problem{"trailer-has-open-move", http.StatusConflict}},
-	{yardmove.ErrDestinationReserved, problem{"destination-reserved", http.StatusConflict}},
-	{yardcheck.ErrYardCheckOpen, problem{"yard-check-open", http.StatusConflict}},
-	{usecases.ErrNoFreeSpot, problem{"no-free-spot", http.StatusConflict}},
-	{shared.ErrIllegalTransition, problem{"illegal-transition", http.StatusConflict}},
-	{ports.ErrConcurrentModification, problem{"concurrent-modification", http.StatusConflict}},
+	{yardvisit.ErrVisitAlreadyOpen, problem{"visit-already-open", http.StatusConflict}, replayRetryable},
+	{trailer.ErrLocationOccupied, problem{"location-occupied", http.StatusConflict}, replayRetryable},
+	{trailer.ErrDoorClosed, problem{"door-closed", http.StatusConflict}, replayRetryable},
+	{trailer.ErrDoorFlowMismatch, problem{"door-flow-mismatch", http.StatusConflict}, replayRetryable},
+	{trailer.ErrTrailerOnHold, problem{"trailer-on-hold", http.StatusConflict}, replayRetryable},
+	{trailer.ErrTrailerNotOnHold, problem{"trailer-not-on-hold", http.StatusConflict}, replayRetryable},
+	{trailer.ErrDoorWorkOpen, problem{"door-work-open", http.StatusConflict}, replayRetryable},
+	{trailer.ErrPlacementRuleViolated, problem{"placement-rule-violated", http.StatusConflict}, replayRetryable},
+	{trailer.ErrTrailerNotSecured, problem{"trailer-not-secured", http.StatusConflict}, replayRetryable},
+	{trailer.ErrTrailerStillSecured, problem{"trailer-still-secured", http.StatusConflict}, replayRetryable},
+	{shared.ErrSealClassTooLow, problem{"seal-class-too-low", http.StatusConflict}, replayRetryable},
+	{inspection.ErrInspectionRequired, problem{"inspection-required", http.StatusConflict}, replayRetryable},
+	{inspection.ErrInspectionFailed, problem{"inspection-failed", http.StatusConflict}, replayRetryable},
+	{inspection.ErrInspectionClosed, problem{"inspection-closed", http.StatusConflict}, replayFinal},
+	{inspection.ErrRequiredItemPending, problem{"required-item-pending", http.StatusConflict}, replayRetryable},
+	{inspection.ErrInspectionAlreadyOpen, problem{"inspection-already-open", http.StatusConflict}, replayRetryable},
+	{inspection.ErrTemplateVersionImmutable, problem{"template-version-immutable", http.StatusConflict}, replayFinal},
+	{inspection.ErrTemplateIsBuiltIn, problem{"template-is-built-in", http.StatusConflict}, replayFinal},
+	{yardmove.ErrTrailerHasOpenMove, problem{"trailer-has-open-move", http.StatusConflict}, replayRetryable},
+	{yardmove.ErrDestinationReserved, problem{"destination-reserved", http.StatusConflict}, replayRetryable},
+	{yardcheck.ErrYardCheckOpen, problem{"yard-check-open", http.StatusConflict}, replayRetryable},
+	{usecases.ErrNoFreeSpot, problem{"no-free-spot", http.StatusConflict}, replayRetryable},
+	{shared.ErrIllegalTransition, problem{"illegal-transition", http.StatusConflict}, replayRetryable},
+	{ports.ErrConcurrentModification, problem{"concurrent-modification", http.StatusConflict}, replayRetryable},
 
-	{inspection.ErrUnknownItem, problem{"unknown-item", http.StatusUnprocessableEntity}},
-	{inspection.ErrNotApplicableNotAllowed, problem{"not-applicable-not-allowed", http.StatusUnprocessableEntity}},
-	{inspection.ErrUnknownTemplate, problem{"unknown-template", http.StatusUnprocessableEntity}},
-	{shared.ErrUnknownLocation, problem{"unknown-location", http.StatusUnprocessableEntity}},
-	{shared.ErrInvalidUnitNumber, problem{"invalid-unit-number", http.StatusUnprocessableEntity}},
-	{shared.ErrInvalidSealClass, problem{"invalid-seal-class", http.StatusUnprocessableEntity}},
-	{shared.ErrInvalidHazmatClass, problem{"invalid-hazmat-class", http.StatusUnprocessableEntity}},
-	{shared.ErrInvalidUNNumber, problem{"invalid-un-number", http.StatusUnprocessableEntity}},
-	{shared.ErrValidation, problem{"validation", http.StatusUnprocessableEntity}},
+	{inspection.ErrUnknownItem, problem{"unknown-item", http.StatusUnprocessableEntity}, replayFinal},
+	{inspection.ErrNotApplicableNotAllowed, problem{"not-applicable-not-allowed", http.StatusUnprocessableEntity}, replayFinal},
+	{inspection.ErrUnknownTemplate, problem{"unknown-template", http.StatusUnprocessableEntity}, replayRetryable},
+	{shared.ErrUnknownLocation, problem{"unknown-location", http.StatusUnprocessableEntity}, replayRetryable},
+	{shared.ErrInvalidUnitNumber, problem{"invalid-unit-number", http.StatusUnprocessableEntity}, replayFinal},
+	{shared.ErrInvalidSealClass, problem{"invalid-seal-class", http.StatusUnprocessableEntity}, replayFinal},
+	{shared.ErrInvalidHazmatClass, problem{"invalid-hazmat-class", http.StatusUnprocessableEntity}, replayFinal},
+	{shared.ErrInvalidUNNumber, problem{"invalid-un-number", http.StatusUnprocessableEntity}, replayFinal},
+	{shared.ErrValidation, problem{"validation", http.StatusUnprocessableEntity}, replayFinal},
 }
 
 // problemFor returns the problem of the first catalogue entry err matches;
@@ -103,6 +106,17 @@ func problemFor(err error) (p problem, ok bool) {
 		}
 	}
 	return problem{}, false
+}
+
+// replayOf returns the replay class of the first catalogue entry err matches;
+// ok is false for an error outside the catalogue.
+func replayOf(err error) (class replayClass, ok bool) {
+	for _, entry := range errorCatalogue {
+		if errors.Is(err, entry.target) {
+			return entry.replay, true
+		}
+	}
+	return replayUnset, false
 }
 
 // toolErr is a tool-level error "<slug>: <detail>". Returned from a handler
