@@ -63,19 +63,44 @@ func TestSameKeyAndRequestReplaysTheFirstAnswer(t *testing.T) {
 	}
 }
 
-func TestARefusalIsStoredAndReplayed(t *testing.T) {
+func TestAFinalRefusalIsStoredAndReplayed(t *testing.T) {
 	g := newRig(t)
 	g.seedSite()
-	g.mustCode(g.dropVisit("P1", "TR-1"), http.StatusCreated)
-	refused := map[string]any{"siteId": "WH1", "carrier": "Acme", "tractorPlate": "P1", "purpose": "BOBTAIL"}
+	refused := map[string]any{"siteId": "WH1", "carrier": "Acme", "tractorPlate": "P1", "purpose": "NOT_A_PURPOSE"}
 
 	first := g.do("POST", "/visits", refused, "Idempotency-Key", "k-refused")
 	second := g.do("POST", "/visits", refused, "Idempotency-Key", "k-refused")
-	if first.Code != http.StatusConflict || second.Code != http.StatusConflict || second.Header.Get("Idempotency-Replayed") != "true" {
+	if first.Code != http.StatusUnprocessableEntity || second.Code != http.StatusUnprocessableEntity || second.Header.Get("Idempotency-Replayed") != "true" {
 		t.Fatalf("refusal: %d then %d replayed=%q", first.Code, second.Code, second.Header.Get("Idempotency-Replayed"))
 	}
-	if string(first.Body) != string(second.Body) || second.Slug() != "visit-already-open" {
+	if string(first.Body) != string(second.Body) || second.Slug() != "validation" {
 		t.Fatalf("replayed refusal %s", second.Body)
+	}
+}
+
+// A RETRYABLE refusal through the real router: the plate's earlier visit is
+// still open (409 visit-already-open), the refusal is not stored, and once that
+// visit has left the same request under the same key is admitted.
+func TestARetryableRefusalOverTheRouterIsNotStoredAndItsRetryPasses(t *testing.T) {
+	g := newRig(t)
+	g.seedSite()
+	earlier := g.mustCode(g.dropVisit("P1", "TR-1"), http.StatusCreated).JSON()["visit"].(map[string]any)["visitId"].(string)
+	again := map[string]any{"siteId": "WH1", "carrier": "Acme", "tractorPlate": "P1", "purpose": "BOBTAIL"}
+
+	first := g.do("POST", "/visits", again, "Idempotency-Key", "k-refused")
+	if first.Code != http.StatusConflict || first.Slug() != "visit-already-open" {
+		t.Fatalf("second check-in of one plate: %d %s", first.Code, first.Body)
+	}
+	if retry := g.do("POST", "/visits", again, "Idempotency-Key", "k-refused"); retry.Code != http.StatusConflict || retry.Header.Get("Idempotency-Replayed") != "" {
+		t.Fatalf("retry while the visit is open: %d replayed=%q, want a fresh 409", retry.Code, retry.Header.Get("Idempotency-Replayed"))
+	}
+	g.mustCode(g.do("POST", "/visits/"+earlier+"/check-outs", map[string]any{"trailersOut": []map[string]string{}}, "Idempotency-Key", "k-out"), http.StatusOK)
+	passed := g.do("POST", "/visits", again, "Idempotency-Key", "k-refused")
+	if passed.Code != http.StatusCreated || passed.Header.Get("Idempotency-Replayed") != "" {
+		t.Fatalf("retry after the visit left: %d replayed=%q %s, want a fresh 201", passed.Code, passed.Header.Get("Idempotency-Replayed"), passed.Body)
+	}
+	if replay := g.do("POST", "/visits", again, "Idempotency-Key", "k-refused"); replay.Code != http.StatusCreated || replay.Header.Get("Idempotency-Replayed") != "true" {
+		t.Fatalf("the success is not stored: %d replayed=%q", replay.Code, replay.Header.Get("Idempotency-Replayed"))
 	}
 }
 

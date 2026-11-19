@@ -86,11 +86,11 @@ func fingerprint(tool string, in any) (string, error) {
 // keyed runs fn exactly once per key:
 //
 //   - a success commits with its key and a replay returns it (replayed true);
-//   - a refusal (an error of the catalogue) rolls the tool's partial writes
-//     back and is stored on its own, so the same key and arguments replay the
-//     same refusal;
-//   - any other error rolls everything back and is never stored: the same key
-//     can retry the real work;
+//   - a FINAL refusal (an error of the catalogue whose replay class says so)
+//     rolls the tool's partial writes back and is stored on its own, so the
+//     same key and arguments replay the same refusal;
+//   - a RETRYABLE refusal (ADR 0019) and any other error roll everything back
+//     and are never stored: the same key can retry the real work;
 //   - the same key with other arguments is idempotency-key-reused.
 func keyed[Out any](ctx context.Context, d IdempotencyDeps, key, fp string, fn func(context.Context) (Out, error)) (out Out, replayed bool, err error) {
 	if !validIdempotencyKey(key) {
@@ -112,11 +112,11 @@ func keyed[Out any](ctx context.Context, d IdempotencyDeps, key, fp string, fn f
 		}
 		res, err := fn(ctx)
 		if err != nil {
-			if _, typed := problemFor(err); typed {
+			if class, typed := replayOf(err); typed && class == replayFinal {
 				refusal = err
 				return errRefused
 			}
-			return err
+			return err // rolled back, never stored: a RETRYABLE refusal or a failure
 		}
 		out = res
 		return c.save(ctx, storedOK, res)

@@ -113,3 +113,10 @@ in-flight requests (10 s bound), then the pool closes.
 - **M3** A stored client-error answer is replayed verbatim for its key (REST does the same); the agent uses a new key for a deliberate retry
   after fixing the cause.
 - **M4** The tool budget is fourteen; raising it is an amendment of this ADR. ADR 0013 amends it to sixteen (the writes `secure_trailer` and `release_securing`); ADR 0015 amends it to twenty-one (the reads `get_inspection` and `list_trailer_inspections`, the writes `open_inspection`, `record_inspection_item` and `complete_inspection`).
+
+## Addendum 2026-11-18: which refusals are stored
+
+The Idempotency paragraph above says a refusal from the error catalogue is stored and replayed (and M3 repeats it). ADR 0019 gives every problem type a replay class,
+and the MCP error catalogue declares the same class per slug as the REST one: a FINAL refusal is stored and replayed as described; a RETRYABLE refusal
+(`unknown-location`, `trailer-on-hold`, `concurrent-modification`, ...) is rolled back like an infrastructure failure and not stored, so the same key can run again.
+The Decision text above is left as written.

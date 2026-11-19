@@ -26,8 +26,8 @@ info:
     Three problem types belong to no single operation. A path that matches no route, or one that carries a NUL character, is a 404 `resource-not-found`.
     A method that a path does not take is a 405 `method-not-allowed`, with an `Allow` header that lists the methods the path does take. Every
     command (each POST and PUT except the two sweeps) can answer 409 `concurrent-modification` when another request changed the same aggregate
-    first (the optimistic `version` guard, ADR 0008): nothing is persisted, and because a 4xx answer is stored under its Idempotency-Key, read
-    the resource again and retry with a new key.'
+    first (the optimistic `version` guard, ADR 0008): nothing is persisted, and the refusal is not stored under the Idempotency-Key of the request (replay
+    class RETRYABLE, ADR 0019), so read the resource again and retry, with the same key or a new one.'
 servers:
 - url: http://localhost:8080
   description: Local development
@@ -1995,7 +1995,13 @@ components:
       description: 'Caller-generated unique key (a UUID per logical submit, 1-128 printable ASCII characters) that makes a retried request safe.
         Required on every POST and PUT (400 `idempotency-key-required`; `idempotency-key-invalid` when malformed). A replay with the same key,
         method, path and body returns the original response with `Idempotency-Replayed: true`; the same key with a different method, path or body
-        is 409 `idempotency-key-reused`.'
+        is 409 `idempotency-key-reused`. What is replayed depends on the replay class of the problem type (ADR 0019). A success is replayed. A refusal
+        that cannot change for that request (a malformed or invalid field, a 404 on an id this service minted, 422 `validation`) is replayed too, and
+        so is 409 `carrier-suspended`, whose REJECTED visit was committed with it. A refusal the same request could pass later is NOT stored: the key
+        stays free and the retry runs the command again. Those are the optimistic-lock conflict 409 `concurrent-modification`, a state the aggregate
+        is not in yet (409 `visit-already-open`, 409 `trailer-on-hold`, 409 `location-occupied`), a fact that has not arrived yet (422 `unknown-location`,
+        422 `unknown-appointment`) and 404 `no-claimable-move`. A 5xx is never stored. After such a refusal the key is free, so the same key with
+        a different body is a new request, not `idempotency-key-reused`.'
       schema:
         type: string
         minLength: 1
@@ -2006,7 +2012,7 @@ components:
       required: false
       description: 'Optional on the sweeps, which are naturally idempotent (a repeat finds nothing new to do). When sent it behaves as on every other
         POST: a replay with the same key, method, path and body returns the stored answer with `Idempotency-Replayed: true`, and the same key with a
-        different request is 409 `idempotency-key-reused`.'
+        different request is 409 `idempotency-key-reused`. A refusal the same request could pass later is not stored (ADR 0019).'
       schema:
         type: string
         minLength: 1
@@ -2063,7 +2069,7 @@ components:
         default: 120
   headers:
     IdempotencyReplayed:
-      description: Present, with the value `true`, only when the answer is a replay of the stored answer of an earlier request with the same Idempotency-Key.
+      description: Present, with the value `true`, only when the answer is a replay of the stored answer of an earlier request with the same Idempotency-Key (a success or a refusal that cannot change; a refusal the same request could pass later is never stored).
       schema:
         type: string
         enum:

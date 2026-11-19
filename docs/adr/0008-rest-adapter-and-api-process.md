@@ -90,3 +90,10 @@ RFC 3339 instants, `to` after `from`, at most 92 days (`400 invalid-report-range
   fails until the spec names it).
 - The memory store serialises its outermost unit of work so concurrent requests behave as they do under the Postgres
   advisory locks; it stays a test double (the runtime-no-memory fitness test).
+
+## Addendum 2026-11-18: which refusals are stored
+
+The Idempotency-Key section above says a `4xx` is stored on its own and replayed. That is no longer one rule: ADR 0019 gives every problem type a replay class
+declared on its catalogue entry. A FINAL refusal is stored as described here; an OUTCOME refusal (`carrier-suspended`) commits with its answer (addendum above and
+ADR 0016); a RETRYABLE refusal (`concurrent-modification`, `visit-already-open`, `no-claimable-move`, and the rest of the table in ADR 0019) rolls back, is not stored
+and leaves the key free, so a retry under the same key runs again. The `5xx` rule is unchanged. The Decision text above is left as written.

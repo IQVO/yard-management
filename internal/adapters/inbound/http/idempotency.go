@@ -57,12 +57,15 @@ type IdempotencyDeps struct {
 //
 //   - A 2xx answer commits with its key; a replay returns it verbatim with
 //     Idempotency-Replayed: true.
-//   - A 4xx answer is a refusal: the handler's partial writes are rolled back
-//     and the answer is stored on its own, so the same key and request
-//     replay the same refusal. The exception is an OUTCOME refusal
-//     (outcomeRefusals, today carrier-suspended): the command committed state
-//     that the 4xx tells about, so its writes commit with the stored answer in
-//     the one transaction and a replay returns the answer and records nothing.
+//   - A 4xx answer is a refusal and what happens to it is the replay class of
+//     its problem type (replayClass, declared on the catalogue entry, ADR 0019):
+//     FINAL rolls the handler's partial writes back and stores the answer on its
+//     own, so the same key and request replay the same refusal; OUTCOME (today
+//     carrier-suspended) means the command committed state that the 4xx tells
+//     about, so its writes commit with the stored answer in the one transaction
+//     and a replay returns the answer and records nothing; RETRYABLE rolls
+//     everything back and stores nothing, so the key is free again and the same
+//     request under it runs again.
 //   - A 5xx answer rolls everything back and is never stored: the same key
 //     can retry the real work.
 //   - The same key with another method, path or body is 409
@@ -123,10 +126,33 @@ type keyedCall struct {
 
 // The outcomes that end the unit of work early.
 var (
-	errReplayStored  = errors.New("idempotency: the key already has an answer")
-	errServerFailure = errors.New("idempotency: the handler answered 5xx")
+	errReplayStored = errors.New("idempotency: the key already has an answer")
+	// errNotStored ends the unit of work with a rollback and the key row is never
+	// written: the handler answered 5xx or a RETRYABLE refusal.
+	errNotStored = errors.New("idempotency: the answer is not stored under the key")
+	// errClientFailure is a FINAL refusal: the writes roll back, the answer is stored on its own.
 	errClientFailure = errors.New("idempotency: the handler refused the request")
 )
+
+// verdict is what the middleware does with the handler's answer: nil commits
+// it with its key (a success, an OUTCOME refusal), errNotStored releases the
+// key (a 5xx, a RETRYABLE or unclassified refusal) and errClientFailure rolls
+// the writes back and stores the refusal alone (a FINAL refusal).
+func verdict(out *capture) error {
+	switch {
+	case out.status() < http.StatusBadRequest:
+		return nil
+	case out.status() >= http.StatusInternalServerError:
+		return errNotStored
+	}
+	switch out.class {
+	case replayOutcome:
+		return nil
+	case replayFinal:
+		return errClientFailure
+	}
+	return errNotStored
+}
 
 // lockName is the advisory-lock name of a key.
 func lockName(key string) string { return "idempotency-key/" + key }
@@ -149,18 +175,15 @@ func (c *keyedCall) serveInUnitOfWork(w http.ResponseWriter) {
 			return orStored(err, found)
 		}
 		c.next.ServeHTTP(out, c.r.WithContext(ctx))
-		switch {
-		case out.status() >= http.StatusInternalServerError:
-			return errServerFailure
-		case out.status() >= http.StatusBadRequest && !out.keep:
-			return errClientFailure
+		if v := verdict(out); v != nil {
+			return v
 		}
-		// A 2xx answer, and an outcome refusal (outcomeRefusals): the handler's
-		// writes commit together with the key row, in this one transaction.
+		// A 2xx answer, and an OUTCOME refusal: the handler's writes commit
+		// together with the key row, in this one transaction.
 		return c.d.Store.Save(ctx, c.record(out))
 	})
 	switch {
-	case err == nil, errors.Is(err, errServerFailure):
+	case err == nil, errors.Is(err, errNotStored):
 		out.flush(w)
 	case errors.Is(err, errReplayStored):
 		c.replay(w, prior)
@@ -217,7 +240,8 @@ func (c *keyedCall) storeRefusal(w http.ResponseWriter, out *capture) {
 }
 
 // servePlain is the sweeps' path: look the key up, run the handler, store the
-// answer (never a 5xx).
+// answer when its class says so (capture.storable: a success or a FINAL or
+// OUTCOME refusal; never a 5xx and never a RETRYABLE refusal).
 func (c *keyedCall) servePlain(w http.ResponseWriter) {
 	ctx := c.r.Context()
 	rec, ok, err := c.d.Store.Lookup(ctx, c.key)
@@ -231,7 +255,7 @@ func (c *keyedCall) servePlain(w http.ResponseWriter) {
 	}
 	out := newCapture()
 	c.next.ServeHTTP(out, c.r)
-	if out.status() < http.StatusInternalServerError {
+	if out.storable() {
 		if err := c.d.Store.Save(ctx, c.record(out)); err != nil {
 			slog.ErrorContext(ctx, "idempotency: the answer could not be stored", "error", err)
 		}
@@ -286,54 +310,4 @@ func replayHeaders(w http.ResponseWriter, r *http.Request, rec views.Idempotency
 	if r.Method == http.MethodPut && rec.Status == http.StatusOK && probe.Version > 0 {
 		w.Header().Set("ETag", etagOf(probe.Version))
 	}
-}
-
-// capture records a handler's response so it can be stored and committed
-// BEFORE anything reaches the client.
-type capture struct {
-	header http.Header
-	code   int
-	body   bytes.Buffer
-	// keep is set by KeepWrites for an outcome refusal (outcomeRefusals).
-	keep bool
-}
-
-func newCapture() *capture { return &capture{header: http.Header{}} }
-
-// KeepWrites marks the response as the answer of a command that committed
-// state: the middleware commits the unit of work and stores the answer under
-// the key in it, instead of rolling the writes back (outcomeKeeper).
-func (c *capture) KeepWrites() { c.keep = true }
-
-func (c *capture) Header() http.Header { return c.header }
-
-func (c *capture) WriteHeader(code int) {
-	if c.code == 0 {
-		c.code = code
-	}
-}
-
-func (c *capture) Write(b []byte) (int, error) {
-	if c.code == 0 {
-		c.code = http.StatusOK
-	}
-	return c.body.Write(b)
-}
-
-func (c *capture) status() int {
-	if c.code == 0 {
-		return http.StatusOK
-	}
-	return c.code
-}
-
-// flush copies the captured response onto the real client connection.
-func (c *capture) flush(w http.ResponseWriter) {
-	for k, vs := range c.header {
-		for _, v := range vs {
-			w.Header().Add(k, v)
-		}
-	}
-	w.WriteHeader(c.status())
-	_, _ = w.Write(c.body.Bytes())
 }
