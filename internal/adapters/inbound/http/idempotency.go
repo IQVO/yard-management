@@ -257,7 +257,7 @@ func (c *keyedCall) servePlain(w http.ResponseWriter) {
 	c.next.ServeHTTP(out, c.r)
 	if out.storable() {
 		if err := c.d.Store.Save(ctx, c.record(out)); err != nil {
-			slog.ErrorContext(ctx, "idempotency: the answer could not be stored", "error", err)
+			slog.ErrorContext(ctx, "idempotency: the answer could not be stored", "error", logReplacer.Replace(err.Error()))
 		}
 	}
 	out.flush(w)

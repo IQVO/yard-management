@@ -139,6 +139,6 @@ func mapError(err error) error {
 	if p, ok := problemFor(err); ok {
 		return toolError(p.slug, err.Error())
 	}
-	slog.Error("mcp tool failed with an unexpected error", "error", err)
+	slog.Error("mcp tool failed with an unexpected error", "error", logReplacer.Replace(err.Error()))
 	return toolError("internal-error", "an unexpected internal error occurred")
 }
