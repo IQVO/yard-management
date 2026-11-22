@@ -107,7 +107,7 @@ func defaultLogger(logger *slog.Logger) *slog.Logger {
 // unreachable broker; surface every such retry as an ERROR log line.
 func readerErrorLogger(logger *slog.Logger, topic string) kafkago.LoggerFunc {
 	return func(format string, args ...any) {
-		logger.Error("kafka reader error; retrying", "topic", topic, "detail", fmt.Sprintf(format, args...))
+		logger.Error("kafka reader error; retrying", "topic", topic, "detail", sanitizeLog(fmt.Sprintf(format, args...)))
 	}
 }
 
