@@ -81,7 +81,7 @@ func NewFacilityConsumerForTopic(f Factory, topic, groupID string, uc FacilityUs
 				return err
 			}
 			if d.Role != roleYard && d.Role != roleDock {
-				log.DebugContext(ctx, "ignoring a slot that is not a yard spot or a dock door", "location_code", d.LocationCode, "role", d.Role)
+				log.DebugContext(ctx, "ignoring a slot that is not a yard spot or a dock door", "location_code", sanitizeLog(d.LocationCode), "role", sanitizeLog(d.Role))
 				return nil
 			}
 			return uc.ApplySlot(ctx, e.ID(), d.LocationCode, d.ZoneID, d.Role, d.DockFlow, d.SpotKind)
